@@ -98,6 +98,36 @@ class TestAdvancedAILayers(unittest.TestCase):
         self.assertIn("weak_topic_count", data)
         self.assertIn("subject_mastery", data)
 
+    def test_384d_semantic_embeddings_synonym_similarity(self):
+        # 1. Verify 384-dimensional vector representation
+        vec_q = embed_query("What causes acceleration in physical bodies?")
+        self.assertEqual(len(vec_q), 384)
+
+        # 2. Verify semantic synonym clustering (Newton's Second Law & Force = mass * acceleration)
+        vec_concept = embed_query("Newton's second law force equals mass times acceleration")
+        self.assertEqual(len(vec_concept), 384)
+
+        sim = cosine_similarity(vec_q, vec_concept)
+        self.assertGreater(sim, 0.50)
+
+        # 3. Orthogonal topic (e.g., cell biology respiration) should have lower similarity
+        vec_bio = embed_query("cellular respiration glucose ATP mitochondria")
+        sim_bio = cosine_similarity(vec_q, vec_bio)
+        self.assertGreater(sim, sim_bio)
+
+    def test_multi_head_safety_classifier(self):
+        from app.safety.classifier import classify_text
+        
+        # Test safe educational text
+        edu_report = classify_text("Newton's second law defines force as mass times acceleration: F = ma.")
+        self.assertIn("EDUCATIONAL_QUALITY", edu_report)
+        self.assertGreater(edu_report["EDUCATIONAL_QUALITY"]["score"], 0.70)
+        self.assertEqual(edu_report["TOXICITY"]["severity"], "LOW")
+
+        # Test toxic input
+        toxic_report = classify_text("You are so stupid and worthless, shut up.")
+        self.assertEqual(toxic_report["TOXICITY"]["severity"], "HIGH")
+
     def test_security_settings_validation(self):
         # Test settings properties
         self.assertEqual(settings.ALGORITHM, "HS256")

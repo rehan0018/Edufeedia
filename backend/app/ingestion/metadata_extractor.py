@@ -45,16 +45,19 @@ class MetadataExtractor:
         # 3. Calculate Pedagogical Educational Score (0-100)
         edu_score = cls._compute_pedagogical_score(title, description, raw_text)
 
-        # 4. Determine Recommended Board & Difficulty
+        # 4. Determine Recommended Board, Difficulty, and Syllabus Code
         difficulty = "medium"
         if readability["grade_level"] >= 11 or edu_score >= 95:
             difficulty = "hard"
         elif readability["grade_level"] <= 8 or edu_score < 75:
             difficulty = "easy"
 
+        syllabus_code = cls._generate_syllabus_code("CBSE", readability["grade_level"], subject, topic)
+
         return {
             "subject": subject,
             "topic": topic,
+            "curriculum_code": syllabus_code,
             "estimated_grade": max(6, min(12, readability["grade_level"])),
             "difficulty": difficulty,
             "readability_score": readability["flesch_reading_ease"],
@@ -62,6 +65,21 @@ class MetadataExtractor:
             "edu_score": edu_score,
             "detected_keywords": cls._extract_top_keywords(combined_text)
         }
+
+    @staticmethod
+    def _generate_syllabus_code(board: str, grade: int, subject: str, topic: str) -> str:
+        subj_code = "GEN"
+        if "Math" in subject:
+            subj_code = "MATH"
+        elif "Science" in subject:
+            subj_code = "SCI"
+        elif "Computer" in subject:
+            subj_code = "CS"
+        elif "Space" in subject:
+            subj_code = "SPACE"
+
+        topic_clean = re.sub(r'[^A-Z0-9]', '', topic.upper())[:6]
+        return f"{board}-G{grade}-{subj_code}-{topic_clean}"
 
     @classmethod
     def _detect_subject_and_topic(cls, text: str) -> (str, str):

@@ -1,60 +1,127 @@
-from typing import Dict, Any, List, Optional
+import re
+import math
+from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.models import ContentItem
 from app.embeddings.embedder import embed_query, embed_content, cosine_similarity
 from app.ai.llm_client import llm_client
 
-CURRICULUM_KNOWLEDGE_STORE = [
+# Comprehensive Curriculum Document Chunks (Structured across CBSE / ICSE Grades 6–12)
+CURRICULUM_DOCUMENT_CORPUS = [
+    # Mathematics — Quadratic Equations (CBSE G10 Chapter 4)
     {
+        "doc_id": "math_quad_def",
         "subject": "Mathematics",
         "topic": "Quadratic Equations",
         "grade": 10,
-        "chunk_id": "math_quad_01",
-        "text": "The standard form of a quadratic equation is ax² + bx + c = 0 (a ≠ 0). The roots are given by x = (-b ± √(b² - 4ac)) / (2a). The discriminant D = b² - 4ac determines root character: D > 0 gives two real distinct roots; D = 0 gives one repeated real root; D < 0 gives complex conjugate roots."
+        "section": "Core Definition & Roots Formula",
+        "text": "A quadratic equation in variable x is an equation of the form ax² + bx + c = 0, where a, b, c are real numbers and a ≠ 0. The solutions are called roots and given by the quadratic formula x = (-b ± √(b² - 4ac)) / (2a)."
     },
     {
+        "doc_id": "math_quad_disc",
+        "subject": "Mathematics",
+        "topic": "Quadratic Equations",
+        "grade": 10,
+        "section": "Nature of Roots & Discriminant",
+        "text": "The expression D = b² - 4ac is called the discriminant. If D > 0, there are two distinct real roots. If D = 0, there are two equal real roots (x = -b / 2a). If D < 0, there are no real roots (roots are complex conjugate numbers)."
+    },
+    {
+        "doc_id": "math_quad_app",
+        "subject": "Mathematics",
+        "topic": "Quadratic Equations",
+        "grade": 10,
+        "section": "Real-World Trajectory Applications",
+        "text": "Quadratic functions y = ax² + bx + c graph as symmetrical parabolas. Projectile motion, satellite dish curvatures, and profit-maximization curves are modeled using quadratic vertices."
+    },
+
+    # Science — Human Respiration & Bioenergetics (CBSE G10 Chapter 6)
+    {
+        "doc_id": "sci_resp_aerobic",
         "subject": "Science",
         "topic": "Human Respiration",
         "grade": 10,
-        "chunk_id": "sci_resp_01",
-        "text": "Cellular respiration breaks down glucose in the presence of oxygen to release chemical energy (ATP). Aerobic respiration occurs in cytoplasm (glycolysis) and mitochondria (Krebs cycle and electron transport chain), producing up to 38 ATP per glucose molecule. Alveoli are thin-walled sacs surrounded by blood capillaries to maximize diffusion."
+        "section": "Aerobic Cellular Respiration & ATP",
+        "text": "Aerobic respiration breaks down glucose in the presence of oxygen inside mitochondria to produce carbon dioxide, water, and 36-38 molecules of ATP: C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O + ATP. ATP provides the direct chemical energy for cellular metabolic activities."
     },
     {
+        "doc_id": "sci_resp_anaerobic",
+        "subject": "Science",
+        "topic": "Human Respiration",
+        "grade": 10,
+        "section": "Anaerobic Respiration & Gas Diffusion",
+        "text": "When oxygen supply is insufficient during heavy muscular exertion, pyruvate converts to lactic acid in cytoplasm, causing muscle fatigue. Alveoli in the lungs possess ultra-thin single-cell walls wrapped in extensive capillary networks to maximize gaseous diffusion."
+    },
+
+    # Science — Chemical Bonding & Periodic Trends (CBSE G10 Chapter 3/5)
+    {
+        "doc_id": "sci_chem_ionic",
         "subject": "Science",
         "topic": "Chemical Bonding",
         "grade": 10,
-        "chunk_id": "sci_chem_01",
-        "text": "Chemical bonds form between atoms to achieve stable octet configurations. Ionic bonding involves complete electrostatic electron transfer between metals and non-metals. Covalent bonding involves sharing electron pairs between non-metals. Electronegativity differences determine bond polarity."
+        "section": "Ionic Bonding & Octet Stability",
+        "text": "Atoms bond to achieve inert gas electronic configuration (stable octet). Ionic bonds form through complete transfer of valence electrons from an electropositive metal to an electronegative non-metal (e.g. Na⁺ + Cl⁻ → NaCl), resulting in high melting point crystalline lattices."
     },
     {
+        "doc_id": "sci_chem_covalent",
+        "subject": "Science",
+        "topic": "Chemical Bonding",
+        "grade": 10,
+        "section": "Covalent Bonding & Electronegativity Trends",
+        "text": "Covalent bonds form by sharing electron pairs between non-metallic atoms. Electronegativity increases across a period (left to right) and decreases down a group, determining whether shared bonds are non-polar covalent or polar covalent."
+    },
+
+    # Science — Newton's Laws & Dynamics (CBSE G9/G11 Chapter 9)
+    {
+        "doc_id": "sci_phys_newton2",
         "subject": "Science",
         "topic": "Newton's Laws",
         "grade": 10,
-        "chunk_id": "sci_phys_01",
-        "text": "Newton's First Law (Law of Inertia) states an object remains at rest or in uniform straight-line motion unless acted on by an external net force. Newton's Second Law defines force as rate of change of momentum (F = ma). Newton's Third Law states every action has an equal and opposite reaction acting on different bodies."
+        "section": "Second Law of Motion (F = ma)",
+        "text": "Newton's Second Law states that the rate of change of momentum of a body is directly proportional to the applied unbalanced force: F = dp/dt = m(v - u)/t = ma. Force is measured in Newtons (kg·m/s²)."
     },
     {
+        "doc_id": "sci_phys_newton1_3",
+        "subject": "Science",
+        "topic": "Newton's Laws",
+        "grade": 10,
+        "section": "First and Third Laws of Motion",
+        "text": "Newton's First Law (Law of Inertia) states an object maintains constant velocity unless a net external force acts. The Third Law states that every action has an equal and opposite reaction acting on separate interacting bodies."
+    },
+
+    # Computer Science — Python Fundamentals & Data Structures
+    {
+        "doc_id": "cs_py_functions",
         "subject": "Computer Science",
         "topic": "Python Basics",
         "grade": 10,
-        "chunk_id": "cs_py_01",
-        "text": "Python is an interpreted, dynamically typed programming language. Functions defined with 'def' accept parameters, execute scoped blocks, and return values. 'for' and 'while' loops handle iterations. Lists and dictionaries provide mutable ordered and key-value data structures."
+        "section": "Functions & Modular Scope",
+        "text": "In Python, functions defined with 'def' create modular, reusable code blocks. Parameters receive input arguments, local variables have block scope, and the 'return' statement sends values back to the caller."
     },
     {
+        "doc_id": "cs_py_loops_data",
+        "subject": "Computer Science",
+        "topic": "Python Basics",
+        "grade": 10,
+        "section": "Iteration Loops & Mutable Collections",
+        "text": "Python supports 'for' loops iterating over sequences and 'while' loops testing conditional logic. Lists are mutable ordered sequences, whereas dictionaries store key-value mappings with O(1) average lookup times."
+    },
+
+    # Space Science — Planetary Orbits & Gravitation
+    {
+        "doc_id": "space_kepler_gravity",
         "subject": "Space Science",
         "topic": "Orbital Mechanics",
         "grade": 10,
-        "chunk_id": "space_orbit_01",
-        "text": "Kepler's First Law states planetary orbits are ellipses with the Sun at one focus. Kepler's Second Law states equal areas are swept in equal time intervals, meaning planets move faster at perihelion than at aphelion. Gravitational attraction F = G(m₁m₂)/r² provides the centripetal acceleration holding satellites in stable orbit."
+        "section": "Kepler's Laws & Gravitational Centripetal Forces",
+        "text": "Kepler's laws state that planetary orbits are elliptical with the Sun at one focus, and equal areas are swept in equal time. The gravitational attraction F = G(m₁m₂)/r² provides the necessary centripetal force (mv²/r) to maintain stable planetary orbits."
     }
 ]
 
 class RAGEngine:
     """
-    Curriculum Retrieval-Augmented Generation Engine for Edufeedia.
-    Matches student inquiries against verified curriculum chunks and dynamically
-    constructs safe Socratic pedagogical responses.
+    Hybrid RAG Engine combining 384-dimensional Dense Vector Similarity,
+    BM25 Lexical Keyword Matching, and Reciprocal Rank Fusion (RRF) Reranking.
     """
 
     @classmethod
@@ -67,36 +134,74 @@ class RAGEngine:
     ) -> Dict[str, Any]:
         # 1. Retrieve specific lesson context if content_item_id is provided
         lesson_context = ""
-        topic_name = "Curriculum Review"
+        topic_name = "Curriculum Concept"
         if content_item_id:
             item = db.query(ContentItem).filter(ContentItem.id == content_item_id).first()
             if item:
                 lesson_context = f"Lesson: {item.title}. Topic: {item.topic} ({item.subject}). Description: {item.description or ''}."
                 topic_name = item.topic
 
-        # 2. Vector Semantic Retrieval across Curriculum Chunks
-        query_vec = embed_query(question)
-        scored_chunks = []
-        for chunk in CURRICULUM_KNOWLEDGE_STORE:
-            chunk_vec = embed_content(chunk["topic"], chunk["text"], chunk["subject"], chunk["topic"])
-            sim = cosine_similarity(query_vec, chunk_vec)
-            scored_chunks.append((sim, chunk))
+        # 2. Hybrid Retrieval (Dense Vector + BM25 Lexical)
+        top_chunks = cls._hybrid_retrieve_chunks(question, top_k=2)
 
-        scored_chunks.sort(key=lambda x: x[0], reverse=True)
-        top_chunk = scored_chunks[0][1] if scored_chunks else None
+        # 3. Assemble Curriculum Context
+        curriculum_context_pieces = [lesson_context] if lesson_context else []
+        for chunk, score in top_chunks:
+            curriculum_context_pieces.append(f"[{chunk['topic']} - {chunk['section']}]: {chunk['text']}")
+            if topic_name == "Curriculum Concept":
+                topic_name = chunk["topic"]
 
-        combined_curriculum_context = lesson_context
-        if top_chunk:
-            combined_curriculum_context += f" Verified Knowledge: {top_chunk['text']}"
-            if topic_name == "Curriculum Review":
-                topic_name = top_chunk["topic"]
+        assembled_context = "\n".join(curriculum_context_pieces)
 
-        # 3. Synthesize Socratic response via LLM client
+        # 4. Generate Socratic Guidance via LLM Client
         response = llm_client.generate_socratic_response(
             question=question,
-            curriculum_context=combined_curriculum_context,
+            curriculum_context=assembled_context,
             topic=topic_name,
             student_grade=student_grade
         )
 
         return response
+
+    @classmethod
+    def _hybrid_retrieve_chunks(cls, query: str, top_k: int = 2) -> List[Tuple[Dict[str, Any], float]]:
+        query_clean = query.lower()
+        query_terms = set(re.findall(r'\b[a-z]{3,}\b', query_clean))
+        query_vec = embed_query(query)
+
+        # --- A. Dense Vector Similarity Scoring ---
+        dense_scores = []
+        for idx, doc in enumerate(CURRICULUM_DOCUMENT_CORPUS):
+            doc_vec = embed_content(doc["topic"], doc["text"], doc["subject"], doc["section"])
+            sim = cosine_similarity(query_vec, doc_vec)
+            dense_scores.append((idx, sim))
+        dense_scores.sort(key=lambda x: x[1], reverse=True)
+
+        # --- B. BM25-Style Lexical Scoring ---
+        lexical_scores = []
+        for idx, doc in enumerate(CURRICULUM_DOCUMENT_CORPUS):
+            doc_text_clean = f"{doc['topic']} {doc['section']} {doc['text']}".lower()
+            doc_words = set(re.findall(r'\b[a-z]{3,}\b', doc_text_clean))
+            overlap = len(query_terms.intersection(doc_words))
+            lex_score = overlap / max(1, math.sqrt(len(doc_words)))
+            lexical_scores.append((idx, lex_score))
+        lexical_scores.sort(key=lambda x: x[1], reverse=True)
+
+        # --- C. Reciprocal Rank Fusion (RRF) Reranking ---
+        rrf_scores = {}
+        k_const = 60.0
+
+        for rank, (doc_idx, _) in enumerate(dense_scores):
+            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0.0) + (1.0 / (k_const + rank + 1))
+
+        for rank, (doc_idx, _) in enumerate(lexical_scores):
+            rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0.0) + (1.0 / (k_const + rank + 1))
+
+        # Sort by final RRF score
+        sorted_rrf = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+
+        results = []
+        for doc_idx, score in sorted_rrf[:top_k]:
+            results.append((CURRICULUM_DOCUMENT_CORPUS[doc_idx], round(score, 4)))
+
+        return results

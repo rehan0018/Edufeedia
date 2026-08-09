@@ -84,7 +84,7 @@ def semantic_search_catalog(
     db: Session = Depends(get_db)
 ):
     """
-    Performs dense vector embedding semantic search over the approved educational catalog.
+    Performs 384-dimensional dense vector embedding semantic search over the approved educational catalog.
     Matches semantic intent, concepts, and synonyms rather than simple substring matching.
     """
     if not q or not q.strip():
@@ -96,15 +96,15 @@ def semantic_search_catalog(
     scored_items = []
     for item in approved_items:
         item_vec = item.embedding
-        if not item_vec:
+        if not item_vec or len(item_vec) != len(query_vec):
             item_vec = embed_content(item.title, item.description or "", item.subject, item.topic, item.tags)
 
         sim = cosine_similarity(query_vec, item_vec)
         # Combine semantic cosine similarity with keyword booster
-        kw_boost = 0.25 if (q.lower() in item.title.lower() or q.lower() in item.topic.lower() or q.lower() in item.subject.lower()) else 0.0
+        kw_boost = 0.35 if (q.lower() in item.title.lower() or q.lower() in item.topic.lower() or q.lower() in item.subject.lower()) else 0.0
         final_score = min(1.0, sim + kw_boost)
 
-        if final_score > 0.35: # Semantic relevance threshold
+        if final_score > 0.20: # Semantic relevance threshold
             scored_items.append({
                 "id": item.id,
                 "title": item.title,
@@ -155,7 +155,6 @@ def update_progress(
     if not item:
         raise HTTPException(status_code=404, detail="Content item not found")
         
-    # Check if progress record already exists
     progress = db.query(StudentProgress).filter(
         StudentProgress.student_user_id == current_user.id,
         StudentProgress.content_item_id == progress_data.content_item_id
@@ -175,7 +174,6 @@ def update_progress(
             newly_completed = True
         db.add(progress)
     else:
-        # Check if it was completed previously
         was_completed = (progress.progress_percentage == 100)
         progress.progress_percentage = max(progress.progress_percentage, progress_data.progress_percentage)
         
@@ -184,13 +182,11 @@ def update_progress(
             newly_completed = True
             
     if newly_completed:
-        # 1. Add XP to student profile
         profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
         if profile:
-            profile.xp_score += 15 # Earn 15 XP on completing a lesson
+            profile.xp_score += 15
             xp_earned = 15
             
-        # 2. Add item to Spaced Repetition Schedule if not already scheduled
         existing_schedule = db.query(SpacedRepetitionSchedule).filter(
             SpacedRepetitionSchedule.student_user_id == current_user.id,
             SpacedRepetitionSchedule.subject == item.subject,
