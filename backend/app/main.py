@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import engine, Base
 from app.config import settings
-from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin
+from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin, ingestion, privacy
 
 # Create database tables (SQLite automigration on boot for simple local startup)
 Base.metadata.create_all(bind=engine)
@@ -36,6 +36,8 @@ app.include_router(flashcard.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
 app.include_router(tutor.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(ingestion.router, prefix="/api/v1")
+app.include_router(privacy.router, prefix="/api/v1")
 
 @app.get("/api/health", tags=["health"])
 def health_check():

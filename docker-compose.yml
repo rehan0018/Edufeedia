@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edufeedia-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://edufeedia_user:edufeedia_pass@postgres:5432/edufeedia_db
+      - SECRET_KEY=edufeedia-prod-cryptographic-strong-key-2026-secure
+      - ALLOWED_ORIGINS=http://localhost:8000,http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./edufeedia_database_records.xlsx:/app/edufeedia_database_records.xlsx
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: edufeedia-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=edufeedia_user
+      - POSTGRES_PASSWORD=edufeedia_pass
+      - POSTGRES_DB=edufeedia_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edufeedia_user -d edufeedia_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: edufeedia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

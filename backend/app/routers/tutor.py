@@ -50,6 +50,8 @@ TOPIC_TUTOR_INSIGHTS = {
     }
 }
 
+from app.ai.rag_engine import RAGEngine
+
 @router.post("/ask", response_model=TutorResponse)
 def ask_ai_tutor(
     request: TutorAskRequest,
@@ -57,7 +59,7 @@ def ask_ai_tutor(
     db: Session = Depends(get_db)
 ):
     """
-    Interactive Socratic AI Tutor providing student-safe, encouraging concept explanations.
+    Interactive Socratic AI Tutor powered by curriculum RAG retrieval and safety hard gates.
     """
     # 1. Safety Hard Gate check on student's prompt
     safety_audit = SafetyEngine.audit_content(request.question, target_age=16)
@@ -69,45 +71,21 @@ def ask_ai_tutor(
             is_safe=False
         )
 
-    # 2. Retrieve Content Context
-    content = db.query(ContentItem).filter(ContentItem.id == request.content_item_id).first()
-    topic_key = content.topic.lower() if content else "general"
+    # 2. Query RAG Engine with Lesson Context & Semantic Retrieval
+    grade_lvl = 10
+    if current_user.role == "student" and current_user.student_profile and current_user.student_profile.school_class:
+        grade_lvl = current_user.student_profile.school_class.grade_level
 
-    # Match predefined domain knowledge or construct generalized pedagogical explanation
-    matched_insight = None
-    for k, v in TOPIC_TUTOR_INSIGHTS.items():
-        if k in topic_key or (content and k in content.title.lower()):
-            matched_insight = v
-            break
-
-    q_lower = request.question.lower()
-
-    if matched_insight:
-        if "example" in q_lower or "analogy" in q_lower or "simple" in q_lower:
-            answer = f"💡 **Intuitive Analogy**: {matched_insight['analogy']}\n\n**Concept Review**: {matched_insight['summary']}"
-            socratic_cue = "Does visualizing it this way make the mechanics clearer?"
-        elif "formula" in q_lower or "equation" in q_lower or "how" in q_lower:
-            answer = f"📐 **Key Formula & Definition**: {matched_insight['summary']}"
-            socratic_cue = "Try plugging in a test value to see how the variables balance out!"
-        else:
-            answer = f"Hello {current_user.first_name}! Regarding **{content.topic if content else 'this concept'}**:\n\n{matched_insight['summary']}\n\n💡 *Analogy*: {matched_insight['analogy']}"
-            socratic_cue = "What is the very first step you'd take when applying this concept?"
-
-        follow_ups = matched_insight["follow_ups"]
-    else:
-        topic_name = content.topic if content else "this curriculum topic"
-        subject_name = content.subject if content else "General Studies"
-        answer = f"Great question, {current_user.first_name}! In **{subject_name} ({topic_name})**, the fundamental principle revolves around breaking down complex equations or processes into simple, verifiable components.\n\nTake it one step at a time: identify the given variables, state your known relationships, and verify your answer against boundary conditions."
-        socratic_cue = f"Can you identify what the primary knowns and unknowns are in {topic_name}?"
-        follow_ups = [
-            f"What is the core definition of {topic_name} in your textbook?",
-            "Would you like to test your understanding with a quick practice question?",
-            "How does this connect with what we covered in previous chapters?"
-        ]
+    rag_result = RAGEngine.query_rag_tutor(
+        db=db,
+        question=request.question,
+        content_item_id=request.content_item_id,
+        student_grade=grade_lvl
+    )
 
     return TutorResponse(
-        answer=answer,
-        socratic_cue=socratic_cue,
-        follow_up_questions=follow_ups,
+        answer=rag_result["answer"],
+        socratic_cue=rag_result["socratic_cue"],
+        follow_up_questions=rag_result["follow_up_questions"],
         is_safe=True
     )
