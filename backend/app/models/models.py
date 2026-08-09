@@ -111,11 +111,30 @@ class ContentItem(Base):
     duration_minutes = Column(Integer, nullable=False)
     safety_score = Column(Integer, default=100)
     edu_score = Column(Integer, default=100)
+    safety_labels = Column(JSON, default=dict) # e.g. {"toxicity": 0.0, "verdict": "ALLOW"}
+    embedding = Column(JSON, nullable=True) # Semantic dense vector embedding
+    tags = Column(JSON, default=list) # e.g. ["python", "loops", "coding"]
+    view_count = Column(Integer, default=0)
+    like_count = Column(Integer, default=0)
     is_approved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     quizzes = relationship("Quiz", back_populates="content_item", cascade="all, delete-orphan")
     progress_logs = relationship("StudentProgress", back_populates="content_item", cascade="all, delete-orphan")
+    interactions = relationship("UserInteraction", back_populates="content_item", cascade="all, delete-orphan")
+
+class UserInteraction(Base):
+    __tablename__ = "user_interactions"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
+    interaction_type = Column(String, nullable=False) # 'view', 'click', 'watch_time', 'completed', 'quiz_completed', 'bookmark', 'like', 'skip'
+    weight = Column(Numeric(4, 2), default=1.0) # +5 for completion, +4 for bookmark, -2 for skip, etc.
+    dwell_time_seconds = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User")
+    content_item = relationship("ContentItem", back_populates="interactions")
 
 class StudentProgress(Base):
     __tablename__ = "student_progress"

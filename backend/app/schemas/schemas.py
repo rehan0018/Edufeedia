@@ -249,3 +249,97 @@ class StudentBadgesResponse(BaseModel):
     next_level_xp: int
     level_title: str
     badges: List[BadgeOut]
+
+# --- SAFETY PIPELINE SCHEMAS ---
+
+class SafetyCheckRequest(BaseModel):
+    title: str
+    description: Optional[str] = ""
+    target_age_group: Optional[int] = 16 # Default under 18
+
+class SafetyCategoryScore(BaseModel):
+    category: str
+    score: float # 0.0 to 1.0 probability
+    severity: str # LOW, MEDIUM, HIGH
+
+class SafetyReportOut(BaseModel):
+    verdict: str # ALLOW, REVIEW, BLOCK
+    safety_score: int # 0 to 100
+    is_safe: bool
+    categories: List[SafetyCategoryScore]
+    matched_rules: List[str] = []
+    explanation: str
+
+# --- INTERACTION & BEHAVIOR SCHEMAS ---
+
+class InteractionCreate(BaseModel):
+    content_item_id: str
+    interaction_type: str = Field(..., pattern="^(view|click|watch_time|completed|quiz_completed|bookmark|like|skip)$")
+    dwell_time_seconds: Optional[int] = 0
+
+class InteractionOut(BaseModel):
+    id: str
+    content_item_id: str
+    interaction_type: str
+    weight: float
+    dwell_time_seconds: int
+    created_at: datetime.datetime
+
+    class Config:
+        from_attributes = True
+
+# --- RECOMMENDATION ENGINE SCHEMAS ---
+
+class ScoreExplanationOut(BaseModel):
+    content_similarity: float
+    interest_match: float
+    grade_match: float
+    behavioral_score: float
+    learning_value: float
+    content_quality: float
+    total_relevance_score: float
+    candidate_source: str # 'content_based', 'collaborative', 'spaced_repetition', 'trending'
+
+class RecommendedContentItemOut(BaseModel):
+    id: str
+    title: str
+    description: Optional[str]
+    source_url: str
+    source_platform: str
+    embed_code: Optional[str]
+    type: str
+    board: str
+    grade_level: int
+    subject: str
+    topic: str
+    difficulty: str
+    duration_minutes: int
+    safety_score: int
+    edu_score: int
+    relevance_percentage: int
+    explanation: ScoreExplanationOut
+
+class RecommendationFeedOut(BaseModel):
+    student_id: str
+    greeting: str
+    streak: int
+    xp: int
+    total_candidates_evaluated: int
+    items: List[RecommendedContentItemOut]
+
+# --- AI SOCRATIC TUTOR SCHEMAS ---
+
+class TutorChatMessage(BaseModel):
+    role: str # 'user' or 'assistant'
+    text: str
+
+class TutorAskRequest(BaseModel):
+    content_item_id: str
+    question: str
+    conversation_history: Optional[List[TutorChatMessage]] = []
+
+class TutorResponse(BaseModel):
+    answer: str
+    socratic_cue: str
+    follow_up_questions: List[str]
+    is_safe: bool = True

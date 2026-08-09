@@ -348,7 +348,7 @@ async function loadStudentFeed() {
   }
 }
 
-// Render Feed List
+// Render Feed List with Multi-Stage Recommendation Badges & Feedback Signals
 function renderFeedList(items) {
   const container = document.getElementById('feed-container');
   container.innerHTML = '';
@@ -367,24 +367,112 @@ function renderFeedList(items) {
   items.forEach(item => {
     const card = document.createElement('div');
     card.className = 'glass feed-card';
+    
+    // Source formatting
+    const sourceLabel = item.explanation ? (
+      item.explanation.candidate_source === 'spaced_repetition' ? '<span class="badge badge-accent"><i class="fa-solid fa-clock-rotate-left"></i> Spaced Review</span>' :
+      item.explanation.candidate_source === 'collaborative' ? '<span class="badge badge-subtle"><i class="fa-solid fa-users"></i> Peer Choice</span>' :
+      '<span class="badge badge-subtle"><i class="fa-solid fa-brain"></i> AI Recommended</span>'
+    ) : `<span class="badge badge-accent">${item.type.toUpperCase()}</span>`;
+
+    const matchPct = item.relevance_percentage || (item.explanation ? item.explanation.relevance_percentage : 92);
+
     card.innerHTML = `
       <div class="feed-card-header">
         <div>
-          <span class="subject-badge">${item.subject}</span>
-          <h4 style="margin-top: 8px;">${item.title}</h4>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span class="subject-badge">${item.subject}</span>
+            <span class="badge badge-relevance"><i class="fa-solid fa-sparkles"></i> ${matchPct}% Match</span>
+          </div>
+          <h4 style="margin-top: 6px;">${item.title}</h4>
         </div>
-        <span class="badge badge-accent">${item.type.toUpperCase()}</span>
+        <div>
+          ${sourceLabel}
+        </div>
       </div>
-      <p>${item.description}</p>
+      <p>${item.description || ''}</p>
       <div class="feed-card-meta">
         <div class="meta-item"><i class="fa-regular fa-clock"></i> ${item.duration_minutes} mins</div>
         <div class="meta-item"><i class="fa-solid fa-signal"></i> ${item.difficulty.toUpperCase()}</div>
         <div class="meta-item"><i class="fa-solid fa-bookmark"></i> ${item.topic}</div>
       </div>
+
+      <!-- Implicit/Explicit Feedback Interaction Bar -->
+      <div class="feed-card-actions">
+        <button class="btn-feed-action" onclick="event.stopPropagation(); triggerInteraction('${item.id}', 'like', this)">
+          <i class="fa-regular fa-heart"></i> Like
+        </button>
+        <button class="btn-feed-action" onclick="event.stopPropagation(); triggerInteraction('${item.id}', 'bookmark', this)">
+          <i class="fa-regular fa-bookmark"></i> Save
+        </button>
+        <button class="btn-feed-action" onclick="event.stopPropagation(); triggerInteraction('${item.id}', 'skip', this)">
+          <i class="fa-solid fa-forward-step"></i> Skip
+        </button>
+        <button class="btn-feed-action" style="margin-left:auto;" onclick="event.stopPropagation(); toggleScoreBreakdown('${item.id}')">
+          <i class="fa-solid fa-chart-pie"></i> Match Breakdown
+        </button>
+      </div>
+
+      <!-- Hidden AI Score Breakdown -->
+      <div id="score-breakdown-${item.id}" class="score-breakdown-box hidden">
+        <div class="breakdown-row">
+          <span>Semantic Text Match:</span>
+          <strong>${((item.explanation?.content_similarity || 0.8) * 100).toFixed(0)}%</strong>
+        </div>
+        <div class="breakdown-row">
+          <span>Interest Profile Fit:</span>
+          <strong>${((item.explanation?.interest_match || 0.9) * 100).toFixed(0)}%</strong>
+        </div>
+        <div class="breakdown-row">
+          <span>Grade & Curriculum Alignment:</span>
+          <strong>${((item.explanation?.grade_match || 1.0) * 100).toFixed(0)}%</strong>
+        </div>
+        <div class="breakdown-row">
+          <span>Peer Behavioral Affinity:</span>
+          <strong>${((item.explanation?.behavioral_score || 0.75) * 100).toFixed(0)}%</strong>
+        </div>
+      </div>
     `;
     card.onclick = () => openLearningModal(item);
     container.appendChild(card);
   });
+}
+
+function toggleScoreBreakdown(itemId) {
+  const el = document.getElementById(`score-breakdown-${itemId}`);
+  if (el) el.classList.toggle('hidden');
+}
+
+async function triggerInteraction(contentId, type, btnElement) {
+  try {
+    const response = await fetch(`${API_URL}/recommendations/interaction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        content_item_id: contentId,
+        interaction_type: type,
+        dwell_time_seconds: 15
+      })
+    });
+
+    if (btnElement) {
+      if (type === 'like') {
+        btnElement.classList.toggle('liked');
+        btnElement.innerHTML = btnElement.classList.contains('liked') ? '<i class="fa-solid fa-heart"></i> Liked' : '<i class="fa-regular fa-heart"></i> Like';
+      } else if (type === 'bookmark') {
+        btnElement.classList.toggle('bookmarked');
+        btnElement.innerHTML = btnElement.classList.contains('bookmarked') ? '<i class="fa-solid fa-bookmark"></i> Saved' : '<i class="fa-regular fa-bookmark"></i> Save';
+      } else if (type === 'skip') {
+        btnElement.closest('.feed-card').style.opacity = '0.4';
+        setTimeout(() => loadStudentFeed(), 600);
+      }
+    }
+  } catch (error) {
+    console.error('Interaction error:', error);
+  }
 }
 
 // Load Student Subject Mastery & Stats
@@ -507,7 +595,96 @@ function openLearningModal(item) {
     `;
   }
 
+  // Reset tutor drawer
+  const tutorBody = document.getElementById('tutor-body');
+  if (tutorBody) tutorBody.classList.add('hidden');
+  const tutorLog = document.getElementById('tutor-chat-log');
+  if (tutorLog) {
+    tutorLog.innerHTML = `<div style="color:var(--text-muted);">👋 Hello! I am your AI Socratic Tutor. Ask me any question, formula breakdown, or intuition about <strong>${item.topic}</strong>!</div>`;
+  }
+  const followUps = document.getElementById('tutor-followups');
+  if (followUps) followUps.innerHTML = '';
+
   document.getElementById('learning-modal').classList.add('active');
+}
+
+function toggleTutorDrawer() {
+  const body = document.getElementById('tutor-body');
+  const icon = document.getElementById('tutor-toggle-icon');
+  if (body) {
+    body.classList.toggle('hidden');
+    if (icon) {
+      icon.innerHTML = body.classList.contains('hidden') ? '<i class="fa-solid fa-chevron-down"></i>' : '<i class="fa-solid fa-chevron-up"></i>';
+    }
+  }
+}
+
+async function sendTutorQuestion(presetQuestion) {
+  if (!activeLesson) return;
+  const input = document.getElementById('tutor-user-input');
+  const question = presetQuestion || (input ? input.value.trim() : '');
+  if (!question) return;
+
+  if (input) input.value = '';
+  const log = document.getElementById('tutor-chat-log');
+  const followUpsContainer = document.getElementById('tutor-followups');
+
+  if (log) {
+    log.innerHTML += `
+      <div style="margin-top:8px; margin-bottom:8px; text-align:right;">
+        <span style="background:hsla(210,100%,65%,0.2); border:1px solid var(--accent-cyan); padding:6px 10px; border-radius:12px; display:inline-block; max-width:85%;">
+          ${question}
+        </span>
+      </div>
+      <div id="tutor-loading" style="color:var(--accent-cyan); font-size:0.8rem;"><i class="fa-solid fa-spinner fa-spin"></i> Thinking...</div>
+    `;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/tutor/ask`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        content_item_id: activeLesson.id,
+        question: question
+      })
+    });
+
+    const loading = document.getElementById('tutor-loading');
+    if (loading) loading.remove();
+
+    if (!response.ok) throw new Error('Tutor unavailable');
+    const data = await response.json();
+
+    if (log) {
+      log.innerHTML += `
+        <div style="margin-top:8px; margin-bottom:8px; text-align:left;">
+          <div style="background:hsla(222,40%,12%,0.9); border:1px solid var(--border-glow); padding:10px; border-radius:var(--radius-sm);">
+            <div style="font-weight:600; color:var(--accent-cyan); margin-bottom:4px;"><i class="fa-solid fa-robot"></i> AI Tutor:</div>
+            <div style="line-height:1.5; white-space:pre-wrap;">${data.answer}</div>
+            <div style="margin-top:6px; font-style:italic; color:var(--text-secondary); font-size:0.8rem;">🤔 Socratic Prompt: ${data.socratic_cue}</div>
+          </div>
+        </div>
+      `;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    if (followUpsContainer && data.follow_up_questions) {
+      followUpsContainer.innerHTML = data.follow_up_questions.map(q => `
+        <button class="btn-feed-action" style="font-size:0.75rem;" onclick="sendTutorQuestion('${q.replace(/'/g, "\\'")}')">
+          💡 ${q}
+        </button>
+      `).join('');
+    }
+  } catch (err) {
+    const loading = document.getElementById('tutor-loading');
+    if (loading) loading.remove();
+    if (log) log.innerHTML += `<div style="color:var(--status-red);">${err.message}</div>`;
+  }
 }
 
 function closeLearningModal() {
@@ -1030,6 +1207,7 @@ async function loadTeacherDashboard() {
 
     selectedTeacherClassId = teacherClasses[0].class_id;
     loadClassAnalytics(selectedTeacherClassId);
+    initSafetyInspector();
   } catch (error) {
     console.error(error);
   }
@@ -1303,3 +1481,86 @@ async function loadStudentProgressForParent(studentId) {
     console.error(error);
   }
 }
+
+// ==================== AI SAFETY INSPECTOR ====================
+
+function initSafetyInspector() {
+  const form = document.getElementById('safety-inspector-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('inspector-input');
+    const resultBox = document.getElementById('safety-audit-results');
+    const query = input.value.trim();
+    if (!query) return;
+
+    resultBox.classList.remove('hidden');
+    resultBox.innerHTML = `<div style="text-align:center; padding:12px; color:var(--accent-cyan);"><i class="fa-solid fa-spinner fa-spin"></i> Running multi-stage safety audit...</div>`;
+
+    try {
+      const response = await fetch(`${API_URL}/recommendations/inspect-safety`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: query,
+          description: '',
+          target_age_group: 16
+        })
+      });
+
+      if (!response.ok) throw new Error('Safety check failed');
+      const audit = await response.json();
+
+      const verdictClass = audit.verdict === 'ALLOW' ? 'status-allow' : (audit.verdict === 'REVIEW' ? 'status-review' : 'status-block');
+      const verdictIcon = audit.verdict === 'ALLOW' ? 'fa-circle-check' : (audit.verdict === 'REVIEW' ? 'fa-triangle-exclamation' : 'fa-ban');
+
+      let catHtml = '';
+      if (audit.categories && audit.categories.length > 0) {
+        catHtml = `
+          <div class="audit-category-grid">
+            ${audit.categories.map(c => `
+              <div class="audit-cat-item">
+                <div class="audit-cat-title">${c.category.replace(/_/g, ' ')}</div>
+                <div class="audit-cat-val ${c.score > 0.5 ? 'text-orange' : 'text-green'}">
+                  ${(c.score * 100).toFixed(0)}% <small style="font-size:0.7rem; font-weight:normal;">(${c.severity})</small>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      resultBox.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-glow);">
+          <div>
+            <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Audit Verdict</span>
+            <h4 class="${verdictClass}" style="margin-top:2px;">
+              <i class="fa-solid ${verdictIcon}"></i> ${audit.verdict} (Safety Score: ${audit.safety_score}/100)
+            </h4>
+          </div>
+          <span class="badge ${audit.is_safe ? 'badge-accent' : 'badge-subtle'}">
+            ${audit.is_safe ? 'Safe for Student Feed' : 'Blocked / Excluded'}
+          </span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:8px;">${audit.explanation}</p>
+        ${audit.matched_rules && audit.matched_rules.length > 0 ? `
+          <div style="color:var(--status-red); font-size:0.8rem; margin-bottom:8px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> <strong>Triggered Safety Rules:</strong> ${audit.matched_rules.join(', ')}
+          </div>
+        ` : ''}
+        ${catHtml}
+      `;
+    } catch (err) {
+      resultBox.innerHTML = `<div style="color:var(--status-red);">${err.message}</div>`;
+    }
+  });
+}
+
+// Initialize inspector when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  initSafetyInspector();
+});

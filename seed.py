@@ -647,8 +647,38 @@ def seed_database():
     )
     db.add(assignment_1)
 
+    # 12. Compute Semantic Embeddings & Safety Labels for Content Items
+    from app.embeddings.embedder import embed_content
+    from app.safety.engine import SafetyEngine
+
+    all_content = [item_math1, item_math2, item_sci1, item_sci2, item_sci3, item_code1, item_code2, item_space]
+    for c in all_content:
+        c.embedding = embed_content(c.title, c.description, c.subject, c.topic, c.tags)
+        audit = SafetyEngine.audit_content(c.title, c.description or "", c.tags)
+        c.safety_labels = audit
+        c.safety_score = audit["safety_score"]
+
+    # 13. Add User Interactions (Collaborative Behavioral Feedback)
+    from app.models.models import UserInteraction
+    interactions = [
+        # Priya's interactions (Math, Coding, Physics)
+        UserInteraction(user_id=student_priya.id, content_item_id=item_math1.id, interaction_type="completed", weight=5.0),
+        UserInteraction(user_id=student_priya.id, content_item_id=item_math2.id, interaction_type="bookmark", weight=4.0),
+        UserInteraction(user_id=student_priya.id, content_item_id=item_code1.id, interaction_type="like", weight=3.0),
+        UserInteraction(user_id=student_priya.id, content_item_id=item_code2.id, interaction_type="view", weight=1.0),
+        # Aman's interactions (Coding, Science)
+        UserInteraction(user_id=student_aman.id, content_item_id=item_code1.id, interaction_type="completed", weight=5.0),
+        UserInteraction(user_id=student_aman.id, content_item_id=item_code2.id, interaction_type="bookmark", weight=4.0),
+        UserInteraction(user_id=student_aman.id, content_item_id=item_space.id, interaction_type="like", weight=3.0),
+        # Rahul's past interactions
+        UserInteraction(user_id=student_rahul.id, content_item_id=item_math1.id, interaction_type="completed", weight=5.0),
+        UserInteraction(user_id=student_rahul.id, content_item_id=item_sci1.id, interaction_type="completed", weight=5.0),
+        UserInteraction(user_id=student_rahul.id, content_item_id=item_code1.id, interaction_type="like", weight=3.0),
+    ]
+    db.add_all(interactions)
+
     db.commit()
-    print("Seeding complete! Full test accounts, badges, flashcards, teacher assignments, and quizzes ready.")
+    print("Seeding complete! Full test accounts, embeddings, safety audits, and collaborative interactions ready.")
     db.close()
 
 if __name__ == "__main__":

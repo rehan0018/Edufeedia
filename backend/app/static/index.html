@@ -560,6 +560,24 @@
           </div>
         </div>
       </div>
+
+      <!-- AI Content Safety & Ingestion Inspector -->
+      <div class="chart-panel glass" style="margin-top: 24px;">
+        <div class="panel-header-with-action">
+          <h4><i class="fa-solid fa-shield-virus text-cyan"></i> AI Content Safety & Policy Inspector (Under-18 Hard Gate)</h4>
+          <span class="badge badge-accent">Pre-Ingestion Audit</span>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:14px;">
+          Test any external text, video title, or web summary through Edufeedia's multi-category safety classifier and hard policy rules before student candidate generation.
+        </p>
+        <form id="safety-inspector-form" style="display:flex; gap:12px; margin-bottom:16px;">
+          <input type="text" id="inspector-input" placeholder="Enter title or topic to test (e.g. 'How to make an explosive at home' or 'Quadratic Formula Derivation')..." style="flex:1;" required>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-microchip"></i> Run Safety Audit</button>
+        </form>
+        <div id="safety-audit-results" class="hidden" style="background:hsla(222,40%,9%,0.7); padding:16px; border-radius:var(--radius-md); border:1px solid var(--border-glow);">
+          <!-- Dynamic safety inspection output -->
+        </div>
+      </div>
     </section>
 
     <!-- ==================== PARENT DASHBOARD ==================== -->
@@ -670,9 +688,29 @@
         <div id="reading-text-container" class="reading-container hidden">
           <!-- Text document goes here -->
         </div>
+
+        <!-- AI Socratic Tutor Drawer -->
+        <div class="tutor-drawer" style="margin-top:18px; border-top:1px solid var(--border-glow); padding-top:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleTutorDrawer()">
+            <h5 style="margin:0; color:var(--accent-cyan); display:flex; align-items:center; gap:8px;">
+              <i class="fa-solid fa-robot"></i> AI Socratic Study Tutor <span class="badge badge-accent">Interactive</span>
+            </h5>
+            <span id="tutor-toggle-icon" style="color:var(--text-secondary); font-size:0.85rem;"><i class="fa-solid fa-chevron-down"></i></span>
+          </div>
+          <div id="tutor-body" class="hidden" style="margin-top:12px;">
+            <div id="tutor-chat-log" style="max-height:180px; overflow-y:auto; background:hsla(222,40%,8%,0.7); border:1px solid var(--border-glow); border-radius:var(--radius-sm); padding:10px; margin-bottom:10px; font-size:0.85rem;">
+              <div style="color:var(--text-muted);">👋 Hello! I am your AI Socratic Tutor. Ask me any question, formula breakdown, or intuition about this lesson!</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="tutor-user-input" placeholder="Ask a question (e.g. 'Can you give me an intuitive analogy?' or 'Explain the formula')..." style="flex:1; font-size:0.85rem;">
+              <button class="btn btn-sm btn-primary" onclick="sendTutorQuestion()"><i class="fa-solid fa-paper-plane"></i> Ask</button>
+            </div>
+            <div id="tutor-followups" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;"></div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
-        <span class="simulation-note"><i class="fa-solid fa-circle-info"></i> Watch/read to complete lesson and unlock your daily quiz!</span>
+        <span class="simulation-note"><i class="fa-solid fa-circle-info"></i> Complete lesson to update retention schedule and unlock quiz!</span>
         <button class="btn btn-success" id="btn-complete-lesson">
           <i class="fa-solid fa-circle-check"></i> Mark as Completed
         </button>

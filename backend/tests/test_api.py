@@ -112,7 +112,7 @@ class TestEdufeediaAPI(unittest.TestCase):
         self.assertGreater(len(items), 0)
         for item in items:
             self.assertIn("Mathematics", item["subject"])
-            self.assertEqual(item["safety_score"], 100)
+            self.assertGreaterEqual(item["safety_score"], 90)
 
     def test_leaderboard_and_badges(self):
         # Login as student

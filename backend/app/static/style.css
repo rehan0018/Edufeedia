@@ -1695,6 +1695,120 @@ input:focus, select:focus, textarea:focus {
   margin-top: 6px;
 }
 
+/* Recommendation Relevance & Interaction Actions */
+.badge-relevance {
+  background: linear-gradient(135deg, hsla(182, 100%, 50%, 0.2), hsla(210, 100%, 65%, 0.2));
+  color: var(--accent-cyan);
+  border: 1px solid var(--border-focus);
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+}
+
+.feed-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-glow);
+}
+
+.btn-feed-action {
+  background: hsla(222, 40%, 10%, 0.8);
+  border: 1px solid var(--border-glow);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: var(--transition-smooth);
+}
+
+.btn-feed-action:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: hsla(182, 100%, 50%, 0.1);
+  transform: translateY(-1px);
+}
+
+.btn-feed-action.liked {
+  color: var(--accent-pink);
+  border-color: var(--accent-pink);
+  background: hsla(325, 90%, 60%, 0.15);
+}
+
+.btn-feed-action.bookmarked {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  background: hsla(182, 100%, 50%, 0.15);
+}
+
+.score-breakdown-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: hsla(222, 40%, 8%, 0.7);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glow);
+  font-size: 0.75rem;
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+.breakdown-row strong {
+  color: var(--text-primary);
+}
+
+/* Safety Inspector UI */
+.audit-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.audit-cat-item {
+  background: hsla(222, 40%, 12%, 0.8);
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glow);
+}
+
+.audit-cat-title {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.audit-cat-val {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.status-allow {
+  color: var(--status-green);
+  border-color: var(--status-green);
+}
+
+.status-review {
+  color: var(--accent-orange);
+  border-color: var(--accent-orange);
+}
+
+.status-block {
+  color: var(--status-red);
+  border-color: var(--status-red);
+}
+
 /* Footer */
 footer {
   text-align: center;

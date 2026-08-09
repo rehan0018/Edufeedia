@@ -65,41 +65,25 @@ def get_daily_learning_feed(
     profile.last_active_date = today
     db.commit()
     
-    feed_items = generate_daily_feed(db, current_user.id)
+    from app.recommender.hybrid import recommender_instance
+    rec_result = recommender_instance.get_personalized_recommendations(db, current_user.id, limit=4)
+    feed_items = rec_result.get("items", [])
     
     # Check if they have a quiz for today's items
-    # In this MVP, we create a unified daily quiz from feed item quizzes
     quiz_id = None
     if feed_items:
-        # Find first approved quiz associated with items in the feed
         from app.models.models import Quiz
-        item_ids = [item.id for item in feed_items]
+        item_ids = [item["id"] for item in feed_items]
         quiz = db.query(Quiz).filter(Quiz.content_item_id.in_(item_ids)).first()
         if quiz:
             quiz_id = quiz.id
-            
-    # Serialize feed items
-    serialized_feed = []
-    for item in feed_items:
-        serialized_feed.append({
-            "id": item.id,
-            "title": item.title,
-            "description": item.description,
-            "source_url": item.source_url,
-            "source_platform": item.source_platform,
-            "embed_code": item.embed_code,
-            "type": item.type,
-            "subject": item.subject,
-            "topic": item.topic,
-            "duration_minutes": item.duration_minutes,
-            "difficulty": item.difficulty
-        })
 
     return {
         "greeting": f"Good morning, {current_user.first_name}! 👋",
         "streak": profile.streak_count,
         "xp": profile.xp_score,
-        "learning_plan": serialized_feed,
+        "total_candidates_evaluated": rec_result.get("total_candidates_evaluated", len(feed_items)),
+        "learning_plan": feed_items,
         "daily_quiz": {
             "quiz_id": quiz_id,
             "number_of_questions": 5 if quiz_id else 0
