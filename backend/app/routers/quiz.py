@@ -146,3 +146,69 @@ def submit_quiz(
         "xp_gained": xp_gained,
         "results": results
     }
+
+from app.ai.question_generator import AIQuestionGenerator
+from app.schemas.schemas import QuizGenerateRequest, QuizGenerateResponse, GeneratedQuestionOut
+
+@router.post("/generate", response_model=QuizGenerateResponse, status_code=status.HTTP_201_CREATED)
+def generate_ai_quiz(
+    request: QuizGenerateRequest,
+    current_user: User = Depends(RoleChecker(["student", "teacher", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Auto-generates an assessment quiz set with Bloom's taxonomy difficulty, distractor explanations,
+    and saves it to the database for instant interactive practice.
+    """
+    raw_questions = AIQuestionGenerator.generate_quiz_for_topic(
+        subject=request.subject,
+        topic=request.topic,
+        grade=request.grade_level or 10,
+        num_questions=request.num_questions or 3
+    )
+
+    # Persist the generated quiz
+    new_quiz = Quiz(
+        content_item_id=request.content_item_id,
+        title=f"{request.topic} AI Concept Check"
+    )
+    db.add(new_quiz)
+    db.flush()
+
+    question_outs = []
+    for q_data in raw_questions:
+        q_obj = Question(
+            quiz_id=new_quiz.id,
+            question_text=q_data["question_text"],
+            options=q_data["options"],
+            correct_answer=q_data["correct_answer"],
+            explanation=q_data["explanation"],
+            difficulty=q_data.get("difficulty", "medium")
+        )
+        db.add(q_obj)
+        question_outs.append(GeneratedQuestionOut(
+            question_text=q_data["question_text"],
+            options=q_data["options"],
+            correct_answer=q_data["correct_answer"],
+            explanation=q_data["explanation"],
+            difficulty=q_data.get("difficulty", "medium"),
+            blooms_level=q_data.get("blooms_level", "Understand")
+        ))
+
+    db.commit()
+
+    # Sync to Excel
+    try:
+        from app.core.excel_exporter import sync_database_to_excel
+        sync_database_to_excel(db)
+    except Exception as e:
+        print(f"[Excel Sync Warning]: {e}")
+
+    return {
+        "quiz_id": new_quiz.id,
+        "title": new_quiz.title,
+        "subject": request.subject,
+        "topic": request.topic,
+        "total_questions": len(question_outs),
+        "questions": question_outs
+    }

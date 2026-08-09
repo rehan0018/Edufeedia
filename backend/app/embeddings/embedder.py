@@ -104,6 +104,9 @@ embedder_instance = SemanticEmbedder()
 def embed_text(text: str) -> List[float]:
     return embedder_instance.embed_text(text)
 
+def embed_query(query: str) -> List[float]:
+    return embedder_instance.embed_text(query)
+
 def embed_content(title: str, description: str = "", subject: str = "", topic: str = "", tags: Optional[List[str]] = None) -> List[float]:
     return embedder_instance.embed_content(title, description, subject, topic, tags)
 

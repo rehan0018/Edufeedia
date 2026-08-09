@@ -362,6 +362,9 @@ async function loadStudentFeed() {
     } else {
       quizCard.classList.add('hidden');
     }
+
+    // Load Weak-Topic Diagnostics and auto-queued revisions
+    loadWeakTopicsAnalytics();
   } catch (error) {
     console.error(error);
   }
@@ -989,20 +992,28 @@ async function filterExploreLibrary() {
   const activePill = document.querySelector('#explore-subject-filters .filter-pill.active');
   const subject = activePill ? activePill.dataset.subject : '';
 
-  let url = `${API_URL}/content/explore?`;
-  if (query) url += `query=${encodeURIComponent(query)}&`;
-  if (subject) url += `subject=${encodeURIComponent(subject)}&`;
-
   try {
+    let url = `${API_URL}/content/explore?`;
+    let isSemanticSearch = false;
+
+    if (query) {
+      // Use Semantic Vector Search for intelligent concept matching
+      url = `${API_URL}/content/search?q=${encodeURIComponent(query)}`;
+      isSemanticSearch = true;
+    } else if (subject) {
+      url += `subject=${encodeURIComponent(subject)}`;
+    }
+
     const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
     if (!response.ok) throw new Error('Could not fetch explore items');
-    const items = await response.json();
+    const data = await response.json();
+    const items = data.results || data;
 
     container.innerHTML = '';
-    if (items.length === 0) {
+    if (!items || items.length === 0) {
       container.innerHTML = `
         <div style="grid-column: 1/-1; text-align:center; padding: 40px; color:var(--text-muted);">
           <i class="fa-solid fa-search" style="font-size:2rem; margin-bottom:10px;"></i>
@@ -1015,20 +1026,22 @@ async function filterExploreLibrary() {
     items.forEach(item => {
       const card = document.createElement('div');
       card.className = 'glass explore-card';
+      const simBadge = item.relevance_percentage
+        ? `<span class="badge badge-accent" style="font-size:0.72rem;"><i class="fa-solid fa-brain"></i> ${item.relevance_percentage}% Vector Match</span>`
+        : `<span class="badge ${item.is_completed ? 'badge-success' : 'badge-subtle'}">${item.is_completed ? '<i class="fa-solid fa-check"></i> Completed' : (item.type || 'lesson').toUpperCase()}</span>`;
+
       card.innerHTML = `
         <div class="explore-card-top">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
             <span class="subject-badge">${item.subject}</span>
-            <span class="badge ${item.is_completed ? 'badge-success' : 'badge-accent'}">
-              ${item.is_completed ? '<i class="fa-solid fa-check"></i> Completed' : item.type.toUpperCase()}
-            </span>
+            ${simBadge}
           </div>
           <h4>${item.title}</h4>
-          <p>${item.description}</p>
+          <p>${item.description || ''}</p>
         </div>
         <div class="explore-card-bottom">
-          <span class="safety-tag"><i class="fa-solid fa-shield-halved"></i> 100% Kid-Safe</span>
-          <span style="font-size:0.78rem; color:var(--text-muted);"><i class="fa-regular fa-clock"></i> ${item.duration_minutes} mins</span>
+          <span class="safety-tag"><i class="fa-solid fa-shield-halved"></i> 100% Kid-Safe (Score: ${item.safety_score || 95}/100)</span>
+          <span style="font-size:0.78rem; color:var(--text-muted);"><i class="fa-regular fa-clock"></i> ${item.duration_minutes || 10} mins</span>
         </div>
       `;
       card.onclick = () => openLearningModal(item);
@@ -1579,7 +1592,127 @@ function initSafetyInspector() {
   });
 }
 
-// Initialize inspector when DOM is loaded
+// ==================== WEAK-TOPIC DIAGNOSTICS & AI QUIZ GENERATOR ====================
+
+async function loadWeakTopicsAnalytics() {
+  const container = document.getElementById('weak-topics-list');
+  const badge = document.getElementById('weak-topic-badge');
+  if (!container || !token) return;
+
+  try {
+    const res = await fetch(`${API_URL}/students/analytics/mastery`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (badge) {
+      badge.textContent = `${data.weak_topic_count} Gaps`;
+      badge.className = `badge ${data.weak_topic_count > 0 ? 'badge-accent' : 'badge-subtle'}`;
+    }
+
+    if (data.weak_topics.length === 0) {
+      container.innerHTML = `
+        <div style="color:var(--status-green); display:flex; align-items:center; gap:6px;">
+          <i class="fa-solid fa-circle-check"></i> Great retention! All reviewed topics are proficient.
+        </div>
+      `;
+    } else {
+      container.innerHTML = data.weak_topics.map(w => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border-glow);">
+          <div>
+            <div style="font-weight:600; color:var(--text-primary);">${w.topic} (${w.subject})</div>
+            <div style="font-size:0.7rem; color:var(--status-red);"><i class="fa-solid fa-rotate-left"></i> SM-2 Revision Priority Queued</div>
+          </div>
+          <span class="badge badge-accent" style="color:var(--status-red); font-size:0.75rem;">${w.accuracy_percentage}% Accuracy</span>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function initAIQuizGenerator() {
+  const openBtn = document.getElementById('btn-open-ai-quiz-gen');
+  const modal = document.getElementById('ai-quiz-gen-modal');
+  const closeBtn = document.getElementById('btn-close-ai-quiz-gen');
+  const form = document.getElementById('ai-quiz-gen-form');
+  const resultBox = document.getElementById('ai-quiz-gen-result');
+
+  if (openBtn && modal) {
+    openBtn.onclick = () => {
+      modal.classList.add('active');
+      if (resultBox) resultBox.classList.add('hidden');
+    };
+  }
+  if (closeBtn && modal) {
+    closeBtn.onclick = () => modal.classList.remove('active');
+  }
+
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const subject = document.getElementById('aiq-subject').value;
+      const grade = parseInt(document.getElementById('aiq-grade').value);
+      const topic = document.getElementById('aiq-topic').value;
+      const count = parseInt(document.getElementById('aiq-count').value);
+
+      const submitBtn = document.getElementById('btn-submit-ai-quiz-gen');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating Concept Questions...`;
+
+      try {
+        const res = await fetch(`${API_URL}/quizzes/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            subject,
+            topic,
+            grade_level: grade,
+            num_questions: count
+          })
+        });
+
+        if (!res.ok) throw new Error('Could not generate quiz');
+        const data = await res.json();
+
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `
+          <div style="background:hsla(222,40%,10%,0.8); border:1px solid var(--border-glow); border-radius:var(--radius-sm); padding:14px; margin-top:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h4 style="color:var(--accent-cyan); margin:0;"><i class="fa-solid fa-circle-check text-green"></i> ${data.title}</h4>
+              <span class="badge badge-accent">${data.total_questions} Questions Generated</span>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:12px;">Curriculum assessment generated with Bloom's taxonomy difficulty grading and distractor rationale.</p>
+            <div style="max-height:200px; overflow-y:auto; margin-bottom:12px;">
+              ${data.questions.map((q, idx) => `
+                <div style="font-size:0.8rem; padding:6px 0; border-bottom:1px solid var(--border-glow);">
+                  <strong>Q${idx + 1} (${q.blooms_level} / ${q.difficulty.toUpperCase()}):</strong> ${q.question_text}
+                  <div style="color:var(--status-green); font-size:0.75rem; margin-top:2px;">✓ Answer: ${q.correct_answer}</div>
+                </div>
+              `).join('')}
+            </div>
+            <button class="btn btn-sm btn-primary btn-block" onclick="launchQuiz('${data.quiz_id}'); document.getElementById('ai-quiz-gen-modal').classList.remove('active');">
+              <i class="fa-solid fa-play"></i> Start Interactive Practice Now
+            </button>
+          </div>
+        `;
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<i class="fa-solid fa-bolt"></i> Generate Instant Quiz Set`;
+      }
+    };
+  }
+}
+
+// Initialize inspector and AI Quiz Generator when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   initSafetyInspector();
+  initAIQuizGenerator();
 });

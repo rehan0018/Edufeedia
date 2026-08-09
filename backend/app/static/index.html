@@ -50,6 +50,9 @@
       <button class="nav-tab active" data-teacher-tab="classes">
         <i class="fa-solid fa-chalkboard-user"></i> Class Analytics
       </button>
+      <button class="nav-tab" id="btn-open-ai-quiz-gen" style="color:var(--accent-cyan);">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> AI Quiz Generator
+      </button>
       <button class="nav-tab" id="btn-open-create-quiz">
         <i class="fa-solid fa-circle-plus"></i> Create Quiz
       </button>
@@ -255,6 +258,17 @@
               </div>
               <div class="mastery-list" id="mastery-list-container">
                 <!-- Mastery items seeded here -->
+              </div>
+            </div>
+
+            <!-- Weak Topic Diagnostic & Spaced Revision Card -->
+            <div class="sidebar-card glass" id="weak-topics-card" style="margin-top:14px;">
+              <div class="sidebar-card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <h4 style="font-size:0.9rem; margin:0;"><i class="fa-solid fa-triangle-exclamation text-orange"></i> Weak-Topic Diagnostics</h4>
+                <span class="badge badge-accent" id="weak-topic-badge" style="font-size:0.7rem;">0 Gaps</span>
+              </div>
+              <div id="weak-topics-list" style="margin-top:10px; font-size:0.8rem;">
+                <div style="color:var(--text-muted); font-size:0.8rem;">Analyzing your quiz retention patterns...</div>
               </div>
             </div>
           </div>
@@ -842,6 +856,57 @@
             <i class="fa-solid fa-paper-plane"></i> Dispatch Assignment to Class
           </button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== AI QUIZ GENERATOR MODAL ==================== -->
+  <div class="modal" id="ai-quiz-gen-modal">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> AI Concept Quiz Generator</h3>
+        <button class="modal-close" id="btn-close-ai-quiz-gen"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="ai-quiz-gen-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="aiq-subject">Subject</label>
+              <select id="aiq-subject" required>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Science">Science (Physics/Chemistry/Bio)</option>
+                <option value="Computer Science">Computer Science & AI</option>
+                <option value="Space Science">Space Science</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="aiq-grade">Grade Level</label>
+              <select id="aiq-grade" required>
+                <option value="9">Grade 9</option>
+                <option value="10" selected>Grade 10</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="aiq-topic">Curriculum Topic</label>
+            <input type="text" id="aiq-topic" placeholder="e.g. Photosynthesis, Quadratic Equations, Newton's Laws, Python" required>
+          </div>
+          <div class="form-group">
+            <label for="aiq-count">Number of Questions (Bloom's Taxonomy Graduated)</label>
+            <select id="aiq-count">
+              <option value="3" selected>3 Questions (Easy, Medium, Hard)</option>
+              <option value="5">5 Questions Comprehensive Check</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="btn-submit-ai-quiz-gen">
+            <i class="fa-solid fa-bolt"></i> Generate Instant Quiz Set
+          </button>
+        </form>
+        <div id="ai-quiz-gen-result" class="hidden" style="margin-top:16px;">
+          <!-- Generated quiz preview -->
+        </div>
       </div>
     </div>
   </div>

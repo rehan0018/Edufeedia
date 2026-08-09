@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.models import User, ContentItem, StudentProgress, StudentProfile, SpacedRepetitionSchedule
 from app.schemas.schemas import ContentItemOut, ProgressUpdate, ProgressResponse
 from app.core.security import get_current_user, RoleChecker
+from app.embeddings.embedder import embed_query, embed_content, cosine_similarity
 
 router = APIRouter(prefix="/content", tags=["content"])
 
@@ -74,6 +75,64 @@ def explore_content(
         })
 
     return results
+
+@router.get("/search")
+def semantic_search_catalog(
+    q: str,
+    limit: int = 10,
+    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Performs dense vector embedding semantic search over the approved educational catalog.
+    Matches semantic intent, concepts, and synonyms rather than simple substring matching.
+    """
+    if not q or not q.strip():
+        return {"query": q, "total_results": 0, "results": []}
+
+    query_vec = embed_query(q.strip())
+    approved_items = db.query(ContentItem).filter(ContentItem.is_approved == True).all()
+
+    scored_items = []
+    for item in approved_items:
+        item_vec = item.embedding
+        if not item_vec:
+            item_vec = embed_content(item.title, item.description or "", item.subject, item.topic, item.tags)
+
+        sim = cosine_similarity(query_vec, item_vec)
+        # Combine semantic cosine similarity with keyword booster
+        kw_boost = 0.25 if (q.lower() in item.title.lower() or q.lower() in item.topic.lower() or q.lower() in item.subject.lower()) else 0.0
+        final_score = min(1.0, sim + kw_boost)
+
+        if final_score > 0.35: # Semantic relevance threshold
+            scored_items.append({
+                "id": item.id,
+                "title": item.title,
+                "description": item.description,
+                "subject": item.subject,
+                "topic": item.topic,
+                "grade_level": item.grade_level,
+                "board": item.board,
+                "type": item.type,
+                "source_url": item.source_url,
+                "source_platform": item.source_platform,
+                "embed_code": item.embed_code,
+                "duration_minutes": item.duration_minutes,
+                "safety_score": item.safety_score,
+                "edu_score": item.edu_score,
+                "semantic_similarity": round(sim, 3),
+                "relevance_score": round(final_score, 3),
+                "relevance_percentage": int(round(final_score * 100))
+            })
+
+    scored_items.sort(key=lambda x: x["relevance_score"], reverse=True)
+    results = scored_items[:limit]
+
+    return {
+        "query": q,
+        "total_results": len(results),
+        "results": results
+    }
 
 @router.get("/{content_id}", response_model=ContentItemOut)
 def get_content_item(

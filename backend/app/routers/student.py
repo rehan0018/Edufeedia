@@ -279,3 +279,18 @@ def get_student_badges(
         "level_title": level_title,
         "badges": badges_out
     }
+
+from app.learning.analytics import compute_student_topic_mastery
+from app.schemas.schemas import TopicMasteryResponse
+
+@router.get("/analytics/mastery", response_model=TopicMasteryResponse)
+def get_student_topic_mastery(
+    current_user: User = Depends(RoleChecker(["student"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Computes topic-level mastery rates, identifies weak topics (<60%),
+    and auto-activates priority SM-2 spaced repetition schedules.
+    """
+    mastery_report = compute_student_topic_mastery(db=db, student_id=current_user.id)
+    return mastery_report

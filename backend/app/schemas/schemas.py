@@ -343,3 +343,55 @@ class TutorResponse(BaseModel):
     socratic_cue: str
     follow_up_questions: List[str]
     is_safe: bool = True
+
+# --- AI QUIZ GENERATOR SCHEMAS ---
+
+class QuizGenerateRequest(BaseModel):
+    subject: str
+    topic: str
+    grade_level: Optional[int] = 10
+    num_questions: Optional[int] = 3
+    content_item_id: Optional[str] = None
+
+class GeneratedQuestionOut(BaseModel):
+    question_text: str
+    options: List[str]
+    correct_answer: str
+    explanation: str
+    difficulty: str
+    blooms_level: str
+
+class QuizGenerateResponse(BaseModel):
+    quiz_id: str
+    title: str
+    subject: str
+    topic: str
+    total_questions: int
+    questions: List[GeneratedQuestionOut]
+
+# --- TOPIC MASTERY & DIAGNOSTIC SCHEMAS ---
+
+class TopicMasteryItem(BaseModel):
+    subject: str
+    topic: str
+    total_attempts: int
+    total_score: int
+    total_max: int
+    accuracy_percentage: float
+    is_weak: bool
+    status: str
+
+class SubjectMasteryItem(BaseModel):
+    subject: str
+    mastery_percentage: float
+    level: str
+
+class TopicMasteryResponse(BaseModel):
+    student_id: str
+    total_topics_evaluated: int
+    weak_topic_count: int
+    weak_topics: List[TopicMasteryItem]
+    strong_topics: List[TopicMasteryItem]
+    all_topics: List[TopicMasteryItem]
+    subject_mastery: List[SubjectMasteryItem]
+    remedial_schedules_activated: List[str]
