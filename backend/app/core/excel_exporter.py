@@ -201,7 +201,16 @@ def sync_database_to_excel(db: Session, export_path: str = None) -> str:
     style_header_row(ws_assign, "Class_Assignments")
     auto_fit_columns(ws_assign)
 
-    # Save workbook
+    # Save workbook with safe Windows lock handling
     os.makedirs(target_path.parent, exist_ok=True)
-    wb.save(target_path)
+    try:
+        wb.save(target_path)
+    except PermissionError:
+        # File is locked because it is currently open in Microsoft Excel
+        alt_path = target_path.with_name(f"{target_path.stem}_latest.xlsx")
+        try:
+            wb.save(alt_path)
+            return str(alt_path)
+        except Exception:
+            pass
     return str(target_path)

@@ -73,8 +73,6 @@ def generate_daily_feed(db: Session, student_id: str) -> list:
     if len(feed) < 3:
         already_in_feed = [item.id for item in feed]
         padding_items = db.query(ContentItem).filter(
-            ContentItem.grade_level == (profile.school_class.grade_level if profile.school_class else 10),
-            ContentItem.board == profile.board,
             ContentItem.is_approved == True,
             ~ContentItem.id.in_(completed_ids) if completed_ids else True,
             ~ContentItem.id.in_(already_in_feed) if already_in_feed else True

@@ -23,13 +23,32 @@ def generate_content_based_candidates(
     ).all()
     completed_ids = {log[0] for log in completed_logs}
 
-    # Query approved syllabus items
+    # Query approved syllabus items matching grade and board
     items = db.query(ContentItem).filter(
         ContentItem.is_approved == True,
         ContentItem.grade_level == grade,
         ContentItem.board == board,
         ~ContentItem.id.in_(completed_ids) if completed_ids else True
     ).all()
+
+    # Fallback 1: match grade across any board if count is low
+    if len(items) < 3:
+        existing_ids = {i.id for i in items}
+        more_grade_items = db.query(ContentItem).filter(
+            ContentItem.is_approved == True,
+            ContentItem.grade_level == grade,
+            ~ContentItem.id.in_(completed_ids | existing_ids) if (completed_ids or existing_ids) else True
+        ).all()
+        items.extend(more_grade_items)
+
+    # Fallback 2: general approved educational items across all grades/boards
+    if len(items) < 3:
+        existing_ids = {i.id for i in items}
+        general_items = db.query(ContentItem).filter(
+            ContentItem.is_approved == True,
+            ~ContentItem.id.in_(completed_ids | existing_ids) if (completed_ids or existing_ids) else True
+        ).all()
+        items.extend(general_items)
 
     # Generate student profile semantic embedding vector
     student_vec = embed_student(

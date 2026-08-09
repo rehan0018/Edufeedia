@@ -1,5 +1,8 @@
 // Edufeedia Client-Side Application Logic
-const API_URL = window.location.origin + '/api/v1';
+// Automatically connect to backend on port 8000 if served via file://, LiveServer, or directly from FastAPI
+const API_URL = (window.location.origin && window.location.origin.startsWith('http') && (window.location.port === '8000' || window.location.port === ''))
+  ? (window.location.origin + '/api/v1')
+  : 'http://127.0.0.1:8000/api/v1';
 
 // Application State
 let token = localStorage.getItem('edufeedia_token') || null;
