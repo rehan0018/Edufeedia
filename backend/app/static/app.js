@@ -132,6 +132,21 @@ function checkAuth() {
       <i class="fa-regular fa-user"></i> <span>${userRole.toUpperCase()}</span>
     `;
 
+    // Fetch full user record from /auth/me
+    fetch(`${API_URL}/auth/me`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(me => {
+        if (me && me.first_name) {
+          const profileExtra = me.student_profile ? ` • Grade ${me.student_profile.grade_level}` : '';
+          document.getElementById('user-badge-display').innerHTML = `
+            <i class="fa-regular fa-user"></i> <span>${me.first_name} ${me.last_name} (${me.role.toUpperCase()}${profileExtra})</span>
+          `;
+        }
+      })
+      .catch(e => console.log(e));
+
     if (userRole === 'student') {
       studentNav.classList.remove('hidden');
       teacherNav.classList.add('hidden');
@@ -164,7 +179,8 @@ function checkAuth() {
     studentScreen.classList.add('hidden');
     teacherScreen.classList.add('hidden');
     parentScreen.classList.add('hidden');
-    navActions.classList.add('hidden');
+    navActions.classList.remove('hidden'); // Show DB Explorer button for guest exploration
+    document.getElementById('user-badge-display').innerHTML = `<i class="fa-regular fa-user"></i> <span>Guest Mode</span>`;
     studentNav.classList.add('hidden');
     teacherNav.classList.add('hidden');
   }

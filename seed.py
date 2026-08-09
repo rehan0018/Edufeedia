@@ -678,7 +678,11 @@ def seed_database():
     db.add_all(interactions)
 
     db.commit()
-    print("Seeding complete! Full test accounts, embeddings, safety audits, and collaborative interactions ready.")
+
+    # 14. Export to Read-Only Excel Spreadsheet for Owner Audit
+    from app.core.excel_exporter import sync_database_to_excel
+    excel_file = sync_database_to_excel(db)
+    print(f"Seeding complete! Database records exported to Excel sheet: {excel_file}")
     db.close()
 
 if __name__ == "__main__":

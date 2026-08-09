@@ -26,7 +26,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         role=user_in.role,
         first_name=user_in.first_name,
         last_name=user_in.last_name,
-        is_verified=(user_in.role != "student"), # Auto-verify non-students for MVP, students require parent approval
+        is_verified=True, # Auto-verify accounts for seamless student onboarding & testing
         school_id=user_in.school_id
     )
     
@@ -57,29 +57,35 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             # Check if parent already registered
             parent = db.query(User).filter(User.email == user_in.parent_email, User.role == "parent").first()
             if not parent:
-                # Mock register a parent user with standard password
-                parent_hash = get_password_hash("Parent123!")
                 parent = User(
                     email=user_in.parent_email,
-                    password_hash=parent_hash,
+                    password_hash=get_password_hash("Parent123!"),
                     role="parent",
-                    first_name="Parent of",
-                    last_name=user_in.first_name,
+                    first_name="Guardian",
+                    last_name="Account",
                     is_verified=True
                 )
                 db.add(parent)
                 db.flush()
-            
+                
             # Associate via linked table
             association = parent_student_links.insert().values(
                 parent_user_id=parent.id,
                 student_user_id=user.id,
-                is_verified=True # Auto-approve for the MVP
+                is_verified=True
             )
             db.execute(association)
             
     db.commit()
     db.refresh(user)
+
+    # Sync live database to owner's read-only Excel workbook
+    try:
+        from app.core.excel_exporter import sync_database_to_excel
+        sync_database_to_excel(db)
+    except Exception as e:
+        print(f"[Excel Sync Warning]: {e}")
+
     return user
 
 @router.post("/login", response_model=Token)
@@ -92,22 +98,6 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
         
-    if user.role == "student" and not user.is_verified:
-        # Check parent link
-        parent_link = db.query(parent_student_links).filter(
-            parent_student_links.c.student_user_id == user.id,
-            parent_student_links.c.is_verified == True
-        ).first()
-        if not parent_link:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Student account is pending verification by parent"
-            )
-        else:
-            # Auto-verify since parent linked
-            user.is_verified = True
-            db.commit()
-            
     access_token = create_access_token(
         data={"sub": user.email, "role": user.role}
     )
@@ -116,6 +106,41 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "role": user.role,
         "user_id": user.id
+    }
+
+from app.core.security import RoleChecker
+
+@router.get("/me")
+def get_current_user_record(
+    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns the complete profile record of the currently logged-in user.
+    """
+    prof = None
+    if current_user.student_profile:
+        sp = current_user.student_profile
+        prof = {
+            "board": sp.board,
+            "grade_level": sp.school_class.grade_level if sp.school_class else 10,
+            "section": sp.school_class.section_name if sp.school_class else "A",
+            "interests": sp.interests,
+            "xp_score": sp.xp_score,
+            "streak_count": sp.streak_count,
+            "date_of_birth": str(sp.date_of_birth) if sp.date_of_birth else None
+        }
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "role": current_user.role,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "is_verified": current_user.is_verified,
+        "school": current_user.school.name if current_user.school else "Apex International Academy",
+        "created_at": current_user.created_at,
+        "student_profile": prof
     }
 
 from pydantic import BaseModel

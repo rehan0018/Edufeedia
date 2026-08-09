@@ -131,6 +131,13 @@ def submit_quiz(
             schedule.next_review_date = next_date
             
     db.commit()
+
+    # Sync live database to owner's read-only Excel workbook
+    try:
+        from app.core.excel_exporter import sync_database_to_excel
+        sync_database_to_excel(db)
+    except Exception as e:
+        print(f"[Excel Sync Warning]: {e}")
     
     return {
         "score": correct_count,

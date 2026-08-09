@@ -202,5 +202,33 @@ class TestEdufeediaAPI(unittest.TestCase):
         self.assertIn("academic_insights", prog_data)
         self.assertIn("subject_progress", prog_data)
 
+    def test_admin_database_records_and_me_endpoint(self):
+        # 1. Test /admin/records
+        records_res = client.get("/api/v1/admin/records")
+        self.assertEqual(records_res.status_code, 200)
+        data = records_res.json()
+        self.assertIn("stats", data)
+        self.assertIn("users", data)
+        self.assertIn("students", data)
+        self.assertIn("content_items", data)
+        self.assertGreater(data["stats"]["total_users"], 0)
+        self.assertGreater(data["stats"]["total_students"], 0)
+
+        # 2. Test /auth/me for student Rahul
+        res = client.post("/api/v1/auth/login", json={
+            "email": "rahul@apexschool.edu",
+            "password": "Student123!"
+        })
+        token = res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        me_res = client.get("/api/v1/auth/me", headers=headers)
+        self.assertEqual(me_res.status_code, 200)
+        me_data = me_res.json()
+        self.assertEqual(me_data["email"], "rahul@apexschool.edu")
+        self.assertEqual(me_data["role"], "student")
+        self.assertIsNotNone(me_data["student_profile"])
+        self.assertEqual(me_data["student_profile"]["board"], "CBSE")
+
 if __name__ == "__main__":
     unittest.main()
