@@ -65,3 +65,20 @@ class RoleChecker:
                 detail="You do not have permission to access this resource"
             )
         return current_user
+
+def verify_google_id_token(id_token: str) -> Optional[dict]:
+    import requests
+    try:
+        response = requests.get(
+            f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}",
+            timeout=5
+        )
+        if response.status_code != 200:
+            return None
+        token_info = response.json()
+        if token_info.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
+            return None
+        return token_info
+    except Exception as e:
+        print(f"Error validating Google ID Token: {e}")
+        return None

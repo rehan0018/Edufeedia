@@ -9,10 +9,76 @@ from app.core.security import get_current_user, RoleChecker
 
 router = APIRouter(prefix="/content", tags=["content"])
 
+@router.get("/explore")
+def explore_content(
+    query: str = None,
+    subject: str = None,
+    grade_level: int = None,
+    board: str = None,
+    content_type: str = None,
+    difficulty: str = None,
+    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    q = db.query(ContentItem).filter(ContentItem.is_approved == True)
+
+    if query:
+        search = f"%{query}%"
+        q = q.filter(
+            (ContentItem.title.ilike(search)) |
+            (ContentItem.description.ilike(search)) |
+            (ContentItem.topic.ilike(search)) |
+            (ContentItem.subject.ilike(search))
+        )
+    if subject:
+        q = q.filter(ContentItem.subject.ilike(f"%{subject}%"))
+    if grade_level:
+        q = q.filter(ContentItem.grade_level == grade_level)
+    if board:
+        q = q.filter(ContentItem.board == board)
+    if content_type:
+        q = q.filter(ContentItem.type == content_type)
+    if difficulty:
+        q = q.filter(ContentItem.difficulty == difficulty)
+
+    items = q.order_by(ContentItem.created_at.desc()).all()
+
+    # Get student progress if student
+    completed_ids = set()
+    if current_user.role == "student":
+        completed_logs = db.query(StudentProgress.content_item_id).filter(
+            StudentProgress.student_user_id == current_user.id,
+            StudentProgress.progress_percentage == 100
+        ).all()
+        completed_ids = {log[0] for log in completed_logs}
+
+    results = []
+    for item in items:
+        results.append({
+            "id": item.id,
+            "title": item.title,
+            "description": item.description,
+            "source_url": item.source_url,
+            "source_platform": item.source_platform,
+            "embed_code": item.embed_code,
+            "type": item.type,
+            "board": item.board,
+            "grade_level": item.grade_level,
+            "subject": item.subject,
+            "topic": item.topic,
+            "difficulty": item.difficulty,
+            "duration_minutes": item.duration_minutes,
+            "safety_score": item.safety_score,
+            "edu_score": item.edu_score,
+            "is_completed": item.id in completed_ids
+        })
+
+    return results
+
 @router.get("/{content_id}", response_model=ContentItemOut)
 def get_content_item(
     content_id: str,
-    current_user: User = Depends(RoleChecker(["student"])),
+    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
     db: Session = Depends(get_db)
 ):
     item = db.query(ContentItem).filter(ContentItem.id == content_id).first()

@@ -129,3 +129,123 @@ class QuizAttemptOut(BaseModel):
     
     class Config:
         from_attributes = True
+
+# --- FLASHCARD SCHEMAS ---
+
+class FlashcardOut(BaseModel):
+    id: str
+    subject: str
+    topic: str
+    front_text: str
+    back_text: str
+    hint: Optional[str] = None
+    grade_level: int
+    board: str
+
+    class Config:
+        from_attributes = True
+
+class FlashcardReviewSubmit(BaseModel):
+    flashcard_id: str
+    rating: int = Field(..., ge=1, le=4) # 1=Again, 2=Hard, 3=Good, 4=Easy
+
+class FlashcardReviewResponse(BaseModel):
+    status: str
+    next_interval_days: int
+    xp_earned: int
+    message: str
+
+# --- TEACHER SCHEMAS ---
+
+class TeacherClassOut(BaseModel):
+    class_id: str
+    grade_level: int
+    section_name: str
+    academic_year: str
+    subject: str
+    student_count: int
+
+class StudentRosterItem(BaseModel):
+    student_id: str
+    name: str
+    email: str
+    xp: int
+    streak: int
+    average_accuracy: float
+    lessons_completed: int
+    is_at_risk: bool
+
+class ClassAnalyticsOut(BaseModel):
+    class_id: str
+    grade_level: int
+    section_name: str
+    total_students: int
+    class_average_accuracy: float
+    total_lessons_completed: int
+    at_risk_students_count: int
+    students: List[StudentRosterItem]
+
+class QuestionCreate(BaseModel):
+    question_text: str
+    options: List[str]
+    correct_answer: str
+    explanation: Optional[str] = None
+    difficulty: str = "medium"
+
+class QuizCreateRequest(BaseModel):
+    title: str
+    content_item_id: Optional[str] = None
+    questions: List[QuestionCreate]
+
+class ClassAssignmentCreate(BaseModel):
+    class_id: str
+    title: str
+    content_item_id: Optional[str] = None
+    quiz_id: Optional[str] = None
+    instructions: Optional[str] = None
+    due_date: Optional[datetime.date] = None
+
+class ClassAssignmentOut(BaseModel):
+    id: str
+    class_id: str
+    title: str
+    instructions: Optional[str]
+    due_date: Optional[datetime.date]
+    created_at: datetime.datetime
+
+    class Config:
+        from_attributes = True
+
+# --- GAMIFICATION & BADGE SCHEMAS ---
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    user_id: str
+    name: str
+    xp: int
+    streak: int
+    level: int
+    is_current_user: bool = False
+
+class BadgeOut(BaseModel):
+    id: str
+    code: str
+    name: str
+    description: str
+    icon: str
+    category: str
+    xp_bonus: int
+    unlocked: bool = False
+    unlocked_at: Optional[datetime.datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class StudentBadgesResponse(BaseModel):
+    total_badges: int
+    unlocked_count: int
+    level: int
+    current_xp: int
+    next_level_xp: int
+    level_title: str
+    badges: List[BadgeOut]

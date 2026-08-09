@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Edufeedia - Safe, Focused Learning Platform</title>
-  <!-- Google Fonts Inter -->
+  <title>Edufeedia - Safe, AI-Powered Learning Platform</title>
+  <!-- Google Fonts Inter & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 </head>
 <body>
 
-  <!-- Background decorations -->
+  <!-- Ambient background glow decorations -->
   <div class="bg-glow glow-1"></div>
   <div class="bg-glow glow-2"></div>
 
@@ -25,6 +25,40 @@
       <i class="fa-solid fa-graduation-cap logo-icon"></i>
       <span>Edufeedia</span>
     </div>
+
+    <!-- Student Nav Menu Tabs -->
+    <nav id="student-nav-menu" class="nav-menu hidden">
+      <button class="nav-tab active" data-tab="feed">
+        <i class="fa-solid fa-sparkles"></i> Daily Plan
+      </button>
+      <button class="nav-tab" data-tab="flashcards">
+        <i class="fa-solid fa-layer-group"></i> Active Recall
+      </button>
+      <button class="nav-tab" data-tab="explore">
+        <i class="fa-solid fa-compass"></i> Safe Library
+      </button>
+      <button class="nav-tab" data-tab="leaderboard">
+        <i class="fa-solid fa-trophy"></i> Ranks & Badges
+      </button>
+      <button class="nav-tab" data-tab="profile-settings">
+        <i class="fa-solid fa-sliders"></i> Curriculum
+      </button>
+    </nav>
+
+    <!-- Teacher Nav Menu Tabs -->
+    <nav id="teacher-nav-menu" class="nav-menu hidden">
+      <button class="nav-tab active" data-teacher-tab="classes">
+        <i class="fa-solid fa-chalkboard-user"></i> Class Analytics
+      </button>
+      <button class="nav-tab" id="btn-open-create-quiz">
+        <i class="fa-solid fa-circle-plus"></i> Create Quiz
+      </button>
+      <button class="nav-tab" id="btn-open-create-assign">
+        <i class="fa-solid fa-paper-plane"></i> Assign Homework
+      </button>
+    </nav>
+
+    <!-- Actions Bar (User profile badge & logout) -->
     <div id="nav-actions" class="hidden">
       <span class="user-badge" id="user-badge-display">
         <i class="fa-regular fa-user"></i> <span id="user-name">Guest</span>
@@ -42,7 +76,7 @@
       <div class="auth-card glass">
         <div class="auth-header">
           <h2>Welcome to Edufeedia</h2>
-          <p>Please log in with your credentials or register a student account.</p>
+          <p>Curated, distraction-free educational platform for students under 18.</p>
         </div>
         
         <div class="auth-tabs">
@@ -89,7 +123,7 @@
               <i class="fa-regular fa-envelope input-icon"></i>
               <input type="email" id="reg-email" placeholder="rahul@apexschool.edu" required>
             </div>
-            <small class="form-tip">Must be school provided address</small>
+            <small class="form-tip">Must be your school-provided email address</small>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -107,7 +141,7 @@
               <i class="fa-regular fa-envelope input-icon"></i>
               <input type="email" id="reg-parent" placeholder="parent@gmail.com" required>
             </div>
-            <small class="form-tip">Used to verify registration consent</small>
+            <small class="form-tip">Used to verify parent consent</small>
           </div>
           <button type="submit" class="btn btn-primary btn-block">
             <i class="fa-solid fa-user-plus"></i> Submit Registration
@@ -115,14 +149,17 @@
         </form>
 
         <div class="demo-login-box">
-          <h4>💡 Demo Accounts</h4>
-          <p>The DB seeder sets up these test credentials:</p>
+          <h4>💡 Demo Role Accounts</h4>
+          <p>Instant 1-click test credentials for each persona:</p>
           <div class="demo-buttons">
             <button type="button" class="btn btn-sm btn-outline" onclick="loadDemoAccount('student')">
-              <i class="fa-solid fa-user-graduate"></i> Student Login
+              <i class="fa-solid fa-user-graduate"></i> Student (Rahul)
             </button>
             <button type="button" class="btn btn-sm btn-outline" onclick="loadDemoAccount('parent')">
-              <i class="fa-solid fa-users"></i> Parent Login
+              <i class="fa-solid fa-user-shield"></i> Parent (Rajesh)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline" onclick="loadDemoAccount('teacher')">
+              <i class="fa-solid fa-chalkboard-user"></i> Teacher (Mrs. Sharma)
             </button>
           </div>
         </div>
@@ -135,9 +172,16 @@
       <div class="greeting-bar glass">
         <div class="greet-text">
           <h2 id="student-greeting-name">Good morning, Rahul! 👋</h2>
-          <p>Ready to unlock some masteries today? Minimum distraction, maximum value.</p>
+          <p id="student-greeting-sub">Curated daily syllabus items. Safe, verified, distraction-free.</p>
         </div>
         <div class="greet-stats">
+          <div class="stat-bubble">
+            <i class="fa-solid fa-bolt icon-level"></i>
+            <div>
+              <span class="stat-num" id="student-level-badge">Lvl 3</span>
+              <span class="stat-lbl" id="student-level-title">Active Scholar</span>
+            </div>
+          </div>
           <div class="stat-bubble">
             <i class="fa-solid fa-fire icon-streak"></i>
             <div>
@@ -155,53 +199,364 @@
         </div>
       </div>
 
-      <!-- Main Learning Content -->
-      <div class="dashboard-grid">
-        <div class="main-panel">
-          <div class="section-title-wrapper">
-            <h3><i class="fa-solid fa-book-open title-icon"></i> Today's Learning Plan</h3>
-            <span class="badge badge-accent">No Infinite Scroll</span>
-          </div>
-          <div class="feed-list" id="feed-container">
-            <!-- Dynamic feed cards will load here -->
+      <!-- Tab 1: Daily Feed Content -->
+      <div id="student-view-feed" class="student-subview">
+        <div class="dashboard-grid">
+          <div class="main-panel">
+            <div class="section-title-wrapper">
+              <h3><i class="fa-solid fa-book-open title-icon"></i> Today's Personalized Learning Plan</h3>
+              <span class="badge badge-accent">3 Syllabus + 1 Spaced Review</span>
+            </div>
+            <div class="feed-list" id="feed-container">
+              <!-- Dynamic feed cards will load here -->
+            </div>
+
+            <!-- Daily Quiz Activation Card -->
+            <div class="quiz-launch-card glass hidden" id="quiz-launch-card">
+              <div class="quiz-launch-info">
+                <i class="fa-solid fa-circle-question quiz-icon-large"></i>
+                <div>
+                  <h4>Ready for your Daily Practice Quiz?</h4>
+                  <p>Test your understanding of today's study material. Earn bonus XP & adjust spaced intervals!</p>
+                </div>
+              </div>
+              <button class="btn btn-primary" id="btn-start-quiz">
+                <i class="fa-solid fa-play"></i> Start Quiz
+              </button>
+            </div>
           </div>
 
-          <!-- Daily Quiz Activation Card -->
-          <div class="quiz-launch-card glass hidden" id="quiz-launch-card">
-            <div class="quiz-launch-info">
-              <i class="fa-solid fa-circle-question quiz-icon-large"></i>
-              <div>
-                <h4>Ready for your Daily Quiz?</h4>
-                <p>Test your understanding of today's study material. Earn bonus XP!</p>
+          <!-- Sidebar Progress & Assignments -->
+          <div class="sidebar-panel">
+            <!-- Class Assignments Widget -->
+            <div class="sidebar-card glass" id="sidebar-assignments-card">
+              <div class="sidebar-card-title">
+                <h4><i class="fa-solid fa-clipboard-check text-cyan"></i> Teacher Homework</h4>
+              </div>
+              <div id="sidebar-assignments-list" class="assignments-list">
+                <!-- Dynamically loaded assignments -->
               </div>
             </div>
-            <button class="btn btn-primary" id="btn-start-quiz">
-              <i class="fa-solid fa-play"></i> Start Quiz
-            </button>
+
+            <!-- Subject Mastery Radial -->
+            <div class="sidebar-card glass" id="mastery-summary-card">
+              <div class="sidebar-card-title">
+                <h4><i class="fa-solid fa-chart-line text-cyan"></i> Subject Mastery</h4>
+              </div>
+              <div class="progress-radial-container">
+                <svg class="radial-svg" width="120" height="120" viewBox="0 0 120 120">
+                  <circle class="radial-bg" cx="60" cy="60" r="50"></circle>
+                  <circle class="radial-progress" id="mastery-radial-bar" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="314"></circle>
+                </svg>
+                <div class="radial-label">
+                  <span class="radial-val" id="mastery-lessons-count">0</span>
+                  <span class="radial-lbl">Completed</span>
+                </div>
+              </div>
+              <div class="mastery-list" id="mastery-list-container">
+                <!-- Mastery items seeded here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Active Recall Flashcards Deck -->
+      <div id="student-view-flashcards" class="student-subview hidden">
+        <div class="flashcards-section-header">
+          <div>
+            <h3><i class="fa-solid fa-layer-group title-icon"></i> Active Recall Flashcard Deck</h3>
+            <p>Test your memory recall. Powered by SuperMemo-2 (SM-2) Spaced Repetition algorithms.</p>
+          </div>
+          <div class="flashcard-deck-meta">
+            <span class="badge badge-accent" id="flashcard-counter">Card 1 of 6</span>
           </div>
         </div>
 
-        <!-- Sidebar Progress -->
-        <div class="sidebar-panel">
-          <div class="section-title-wrapper">
-            <h3><i class="fa-solid fa-chart-line title-icon"></i> Subject Mastery</h3>
-          </div>
-          <div class="mastery-card glass" id="mastery-summary-card">
-            <!-- Custom Dynamic SVG Mastery Chart -->
-            <div class="progress-radial-container">
-              <svg class="radial-svg" width="120" height="120" viewBox="0 0 120 120">
-                <circle class="radial-bg" cx="60" cy="60" r="50"></circle>
-                <circle class="radial-progress" id="mastery-radial-bar" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="314"></circle>
-              </svg>
-              <div class="radial-label">
-                <span class="radial-val" id="mastery-lessons-count">0</span>
-                <span class="radial-lbl">Completed</span>
+        <div class="flashcard-arena">
+          <!-- 3D Flip Card Container -->
+          <div class="flashcard-wrapper" id="flashcard-wrapper" onclick="toggleFlashcardFlip()">
+            <div class="flashcard-inner" id="flashcard-inner">
+              <!-- Front Face -->
+              <div class="flashcard-face flashcard-front glass">
+                <div class="card-chip-row">
+                  <span class="subject-badge" id="fc-subject">Mathematics</span>
+                  <span class="badge" id="fc-topic">Quadratic Equations</span>
+                </div>
+                <div class="card-prompt-container">
+                  <span class="card-cue-label">QUESTION / FORMULA CUE</span>
+                  <h3 id="fc-front-text">What is the quadratic formula to find roots of ax² + bx + c = 0?</h3>
+                </div>
+                <div class="card-hint-box hidden" id="fc-hint-box" onclick="event.stopPropagation()">
+                  <i class="fa-regular fa-lightbulb"></i> <span id="fc-hint-text">Think of the discriminant...</span>
+                </div>
+                <div class="card-footer-prompt">
+                  <button type="button" class="btn-hint" id="btn-fc-hint" onclick="event.stopPropagation(); toggleFlashcardHint()">
+                    <i class="fa-solid fa-lightbulb"></i> Need a hint?
+                  </button>
+                  <span class="tap-to-flip"><i class="fa-solid fa-arrow-rotate-right"></i> Click to reveal answer</span>
+                </div>
+              </div>
+
+              <!-- Back Face -->
+              <div class="flashcard-face flashcard-back glass">
+                <div class="card-chip-row">
+                  <span class="subject-badge" id="fc-subject-back">Mathematics</span>
+                  <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Answer / Key Concept</span>
+                </div>
+                <div class="card-answer-container">
+                  <h3 id="fc-back-text">x = (-b ± √(b² - 4ac)) / (2a)</h3>
+                </div>
+                <div class="card-footer-prompt">
+                  <span class="tap-to-flip"><i class="fa-solid fa-arrow-rotate-left"></i> Click to flip back</span>
+                </div>
               </div>
             </div>
-            
-            <div class="mastery-list" id="mastery-list-container">
-              <!-- Mastery items seeded here -->
+          </div>
+
+          <!-- Recall Rating Bar -->
+          <div class="recall-rating-box glass">
+            <span class="rating-prompt">How well did you recall this concept?</span>
+            <div class="rating-buttons">
+              <button class="btn-recall btn-again" onclick="rateFlashcard(1)">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span>Again</span>
+                <small>1 day</small>
+              </button>
+              <button class="btn-recall btn-hard" onclick="rateFlashcard(2)">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Hard</span>
+                <small>2 days</small>
+              </button>
+              <button class="btn-recall btn-good" onclick="rateFlashcard(3)">
+                <i class="fa-solid fa-thumbs-up"></i>
+                <span>Good</span>
+                <small>+8 XP • 4 days</small>
+              </button>
+              <button class="btn-recall btn-easy" onclick="rateFlashcard(4)">
+                <i class="fa-solid fa-bolt"></i>
+                <span>Easy</span>
+                <small>+10 XP • 7 days</small>
+              </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Curated Safe Library / Explore -->
+      <div id="student-view-explore" class="student-subview hidden">
+        <div class="explore-header-row">
+          <div>
+            <h3><i class="fa-solid fa-compass title-icon"></i> Curated Safe Educational Library</h3>
+            <p>100% kid-safe, ad-free educational videos, readings, and interactive science simulations.</p>
+          </div>
+        </div>
+
+        <!-- Search and Filters Bar -->
+        <div class="explore-controls glass">
+          <div class="search-input-wrapper">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="explore-search-input" placeholder="Search by topic, concept, formula (e.g. Python, Quadratic, Respiration)...">
+          </div>
+          <div class="filter-pills" id="explore-subject-filters">
+            <button class="filter-pill active" data-subject="">All Subjects</button>
+            <button class="filter-pill" data-subject="Mathematics">Mathematics</button>
+            <button class="filter-pill" data-subject="Science">Science</button>
+            <button class="filter-pill" data-subject="Coding">Coding & AI</button>
+            <button class="filter-pill" data-subject="Space">Space Science</button>
+          </div>
+        </div>
+
+        <!-- Explore Grid -->
+        <div class="explore-grid" id="explore-grid-container">
+          <!-- Dynamic Explore cards injected here -->
+        </div>
+      </div>
+
+      <!-- Tab 4: Leaderboard & Badges -->
+      <div id="student-view-leaderboard" class="student-subview hidden">
+        <!-- Level Progress Card -->
+        <div class="level-progress-card glass">
+          <div class="level-header">
+            <div>
+              <span class="level-tag" id="lb-current-level">Level 3</span>
+              <h3 id="lb-level-title">Active Scholar</h3>
+            </div>
+            <div class="level-xp-stat">
+              <span class="xp-bold" id="lb-xp-fraction">350 / 600 XP</span>
+              <span class="xp-sub">to next level</span>
+            </div>
+          </div>
+          <div class="xp-progress-outer">
+            <div class="xp-progress-inner" id="lb-xp-progress-bar" style="width: 58%;"></div>
+          </div>
+        </div>
+
+        <div class="leaderboard-grid">
+          <!-- Class Leaderboard Panel -->
+          <div class="chart-panel glass">
+            <h4><i class="fa-solid fa-trophy text-orange"></i> Grade 10-A Class Leaderboard</h4>
+            <div class="leaderboard-table" id="leaderboard-table-container">
+              <!-- Dynamically populated roster ranks -->
+            </div>
+          </div>
+
+          <!-- Badges Showcase Panel -->
+          <div class="chart-panel glass">
+            <h4><i class="fa-solid fa-award text-cyan"></i> Achievement Badges (<span id="badges-unlocked-count">0/6</span>)</h4>
+            <div class="badges-grid" id="badges-grid-container">
+              <!-- Dynamically populated badges -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 5: Curriculum & Settings -->
+      <div id="student-view-profile-settings" class="student-subview hidden">
+        <div class="settings-card glass">
+          <div class="settings-header">
+            <h3><i class="fa-solid fa-sliders title-icon"></i> Curriculum & Learning Preferences</h3>
+            <p>Customize your school board, grade level, and core interest topics. Feed adapts immediately.</p>
+          </div>
+
+          <form id="settings-profile-form">
+            <div class="form-group">
+              <label>Education Board</label>
+              <div class="board-selector-group">
+                <label class="board-option">
+                  <input type="radio" name="student-board" value="CBSE" checked>
+                  <span>CBSE</span>
+                </label>
+                <label class="board-option">
+                  <input type="radio" name="student-board" value="ICSE">
+                  <span>ICSE</span>
+                </label>
+                <label class="board-option">
+                  <input type="radio" name="student-board" value="State_Board">
+                  <span>State Board</span>
+                </label>
+                <label class="board-option">
+                  <input type="radio" name="student-board" value="IB">
+                  <span>IB / Cambridge</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Current Interests (Select all that excite you)</label>
+              <div class="interests-selector-group">
+                <label class="interest-chip"><input type="checkbox" value="Coding" checked><span>💻 Coding & Python</span></label>
+                <label class="interest-chip"><input type="checkbox" value="Science" checked><span>🔬 Science & Physics</span></label>
+                <label class="interest-chip"><input type="checkbox" value="Mathematics" checked><span>📐 Mathematics</span></label>
+                <label class="interest-chip"><input type="checkbox" value="Space" checked><span>🚀 Space & Astronomy</span></label>
+                <label class="interest-chip"><input type="checkbox" value="Robotics"><span>🤖 Robotics & AI</span></label>
+                <label class="interest-chip"><input type="checkbox" value="Biology"><span>🧬 Biology & Life</span></label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Learning Style Preference</label>
+              <div class="interests-selector-group">
+                <label class="interest-chip"><input type="checkbox" name="learning-pref" value="video" checked><span>🎥 Video Lessons</span></label>
+                <label class="interest-chip"><input type="checkbox" name="learning-pref" value="reading" checked><span>📖 Summary Readings</span></label>
+                <label class="interest-chip"><input type="checkbox" name="learning-pref" value="interactive"><span>⚡ Interactive Quizzes</span></label>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              <i class="fa-solid fa-floppy-disk"></i> Save Preferences
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TEACHER DASHBOARD ==================== -->
+    <section id="teacher-screen" class="view-section hidden">
+      <div class="greeting-bar glass">
+        <div class="greet-text">
+          <h2>Teacher & Educator Portal <i class="fa-solid fa-chalkboard-user text-accent"></i></h2>
+          <p>Monitor class mastery, assign curriculum modules, and create custom recall quizzes.</p>
+        </div>
+        <div class="teacher-class-selector">
+          <label for="teacher-class-select">Select Class:</label>
+          <select id="teacher-class-select" class="dropdown">
+            <!-- Dynamically populated teacher classes -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Teacher KPI Row -->
+      <div class="parent-kpi-row">
+        <div class="kpi-card glass">
+          <span class="kpi-lbl">Total Enrolled</span>
+          <div class="kpi-main">
+            <span class="kpi-val" id="teacher-total-students">4</span>
+            <i class="fa-solid fa-users kpi-icon text-cyan"></i>
+          </div>
+          <div class="kpi-footer">Active students in roster</div>
+        </div>
+        <div class="kpi-card glass">
+          <span class="kpi-lbl">Class Avg Accuracy</span>
+          <div class="kpi-main">
+            <span class="kpi-val" id="teacher-avg-accuracy">83%</span>
+            <i class="fa-solid fa-bullseye kpi-icon text-green"></i>
+          </div>
+          <div class="kpi-footer">Target benchmark: >80%</div>
+        </div>
+        <div class="kpi-card glass">
+          <span class="kpi-lbl">Lessons Completed</span>
+          <div class="kpi-main">
+            <span class="kpi-val" id="teacher-lessons-count">0</span>
+            <i class="fa-solid fa-book-open-reader kpi-icon text-purple"></i>
+          </div>
+          <div class="kpi-footer">Curriculum progress total</div>
+        </div>
+        <div class="kpi-card glass">
+          <span class="kpi-lbl">At-Risk Students</span>
+          <div class="kpi-main">
+            <span class="kpi-val" id="teacher-at-risk-count">0</span>
+            <i class="fa-solid fa-triangle-exclamation kpi-icon text-orange"></i>
+          </div>
+          <div class="kpi-footer">&lt;70% quiz accuracy flag</div>
+        </div>
+      </div>
+
+      <!-- Student Performance Table & Active Assignments -->
+      <div class="teacher-grid">
+        <div class="chart-panel glass">
+          <div class="panel-header-with-action">
+            <h4><i class="fa-solid fa-list-check"></i> Student Performance Roster</h4>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="teacher-student-table">
+              <thead>
+                <tr>
+                  <th>Student Name</th>
+                  <th>Email</th>
+                  <th>XP Score</th>
+                  <th>Streak</th>
+                  <th>Avg Accuracy</th>
+                  <th>Lessons Done</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="teacher-roster-tbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="chart-panel glass">
+          <div class="panel-header-with-action">
+            <h4><i class="fa-solid fa-paper-plane"></i> Class Assignments</h4>
+            <button class="btn btn-sm btn-primary" onclick="openTeacherAssignModal()">
+              <i class="fa-solid fa-plus"></i> New Assignment
+            </button>
+          </div>
+          <div class="teacher-assignments-list" id="teacher-assignments-container">
+            <!-- Dynamically populated assignments -->
           </div>
         </div>
       </div>
@@ -211,8 +566,8 @@
     <section id="parent-screen" class="view-section hidden">
       <div class="greeting-bar glass">
         <div class="greet-text">
-          <h2>Parent Analytics Portal <i class="fa-solid fa-shield-halved text-accent"></i></h2>
-          <p>Educational outcomes monitoring dashboard. Secure and privacy-focused.</p>
+          <h2>Parent Analytics & Oversight Portal <i class="fa-solid fa-shield-halved text-accent"></i></h2>
+          <p>Educational outcomes monitoring dashboard. Secure, ad-free, and privacy-focused.</p>
         </div>
         <div class="linked-students-selector">
           <label for="student-select">Select Child:</label>
@@ -231,7 +586,7 @@
               <span class="kpi-val" id="parent-accuracy">0%</span>
               <i class="fa-solid fa-bullseye kpi-icon text-cyan"></i>
             </div>
-            <div class="kpi-footer">Standard target: >80%</div>
+            <div class="kpi-footer">CBSE standard target: >80%</div>
           </div>
           <div class="kpi-card glass">
             <span class="kpi-lbl">Total Lessons Done</span>
@@ -239,7 +594,7 @@
               <span class="kpi-val" id="parent-lessons-count">0</span>
               <i class="fa-solid fa-circle-check kpi-icon text-green"></i>
             </div>
-            <div class="kpi-footer">CBSE Syllabus standard</div>
+            <div class="kpi-footer">Curriculum modules completed</div>
           </div>
           <div class="kpi-card glass">
             <span class="kpi-lbl">Consistency Streak</span>
@@ -247,7 +602,15 @@
               <span class="kpi-val" id="parent-streak-count">0 Days</span>
               <i class="fa-solid fa-fire kpi-icon text-orange"></i>
             </div>
-            <div class="kpi-footer">Active revision frequency</div>
+            <div class="kpi-footer">Active recall revision habit</div>
+          </div>
+          <div class="kpi-card glass">
+            <span class="kpi-lbl">Daily Study Limit</span>
+            <div class="kpi-main">
+              <span class="kpi-val">45 Mins</span>
+              <i class="fa-solid fa-clock kpi-icon text-purple"></i>
+            </div>
+            <div class="kpi-footer">Kid-safe healthy screen limit</div>
           </div>
         </div>
 
@@ -262,7 +625,7 @@
 
           <!-- Academic insights & recommendation card -->
           <div class="chart-panel glass">
-            <h4>AI Learning Insights</h4>
+            <h4>AI Learning Insights & Offline Prompts</h4>
             <div class="insights-container">
               <div class="insight-item strength">
                 <i class="fa-solid fa-circle-up insight-arrow"></i>
@@ -278,11 +641,11 @@
                   <p id="parent-focus-text">Analyzing performance...</p>
                 </div>
               </div>
-              <div class="insight-item tip">
-                <i class="fa-regular fa-lightbulb insight-arrow"></i>
+              <div class="insight-item prompt">
+                <i class="fa-solid fa-comments insight-arrow"></i>
                 <div>
-                  <h5>Spaced Revision Alert</h5>
-                  <p>Spaced repetition cycles are active. If your child gets incorrect answers on quizzes, Edufeedia will automatically re-queue that topic in their feed after a calculated retention interval.</p>
+                  <h5>💬 Dinner Table Discussion Prompt</h5>
+                  <p id="parent-discussion-prompt">Ask Rahul to explain: "What is the role of ATP energy currency produced in respiration?" Engaging in verbal explanation boosts long-term memory consolidation by 40%!</p>
                 </div>
               </div>
             </div>
@@ -301,7 +664,6 @@
         <button class="modal-close" id="btn-close-learning"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
-        <!-- Video container or Reading content container -->
         <div id="video-iframe-container" class="video-container hidden">
           <!-- YouTube embed goes here -->
         </div>
@@ -310,7 +672,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <span class="simulation-note"><i class="fa-solid fa-circle-info"></i> Watch to complete the lesson and unlock the daily quiz!</span>
+        <span class="simulation-note"><i class="fa-solid fa-circle-info"></i> Watch/read to complete lesson and unlock your daily quiz!</span>
         <button class="btn btn-success" id="btn-complete-lesson">
           <i class="fa-solid fa-circle-check"></i> Mark as Completed
         </button>
@@ -327,7 +689,6 @@
       </div>
       <div class="modal-body">
         <div id="quiz-question-container">
-          <!-- Loaded quiz question card -->
           <div class="quiz-nav-dots" id="quiz-dots"></div>
           <div class="quiz-question-card">
             <span class="quiz-difficulty" id="q-difficulty">Difficulty: Medium</span>
@@ -365,9 +726,91 @@
     </div>
   </div>
 
+  <!-- ==================== TEACHER CREATE QUIZ MODAL ==================== -->
+  <div class="modal" id="teacher-quiz-modal">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-circle-plus text-cyan"></i> Create Custom Quiz</h3>
+        <button class="modal-close" id="btn-close-teacher-quiz"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="teacher-quiz-form">
+          <div class="form-group">
+            <label for="tq-title">Quiz Title</label>
+            <input type="text" id="tq-title" placeholder="e.g. Science Periodic Trends Check" required>
+          </div>
+          <div class="form-group">
+            <label for="tq-qtext">Question 1 Text</label>
+            <input type="text" id="tq-qtext" placeholder="e.g. Which element has the highest electronegativity?" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tq-opt1">Option A</label>
+              <input type="text" id="tq-opt1" placeholder="Fluorine" required>
+            </div>
+            <div class="form-group">
+              <label for="tq-opt2">Option B</label>
+              <input type="text" id="tq-opt2" placeholder="Chlorine" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tq-opt3">Option C</label>
+              <input type="text" id="tq-opt3" placeholder="Oxygen" required>
+            </div>
+            <div class="form-group">
+              <label for="tq-opt4">Option D</label>
+              <input type="text" id="tq-opt4" placeholder="Nitrogen" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="tq-correct">Correct Option Exact Text</label>
+            <input type="text" id="tq-correct" placeholder="Fluorine" required>
+          </div>
+          <div class="form-group">
+            <label for="tq-explanation">Explanation / Learning Note</label>
+            <input type="text" id="tq-explanation" placeholder="Fluorine is the most electronegative element with a Pauling value of 3.98." required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-check"></i> Save and Publish Quiz
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TEACHER ASSIGNMENT MODAL ==================== -->
+  <div class="modal" id="teacher-assign-modal">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-paper-plane text-cyan"></i> Dispatch Class Assignment</h3>
+        <button class="modal-close" id="btn-close-teacher-assign"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="teacher-assign-form">
+          <div class="form-group">
+            <label for="ta-title">Assignment Title</label>
+            <input type="text" id="ta-title" placeholder="e.g. Weekly Review: Quadratic Roots & Factorisation" required>
+          </div>
+          <div class="form-group">
+            <label for="ta-instructions">Instructions for Students</label>
+            <textarea id="ta-instructions" rows="3" class="form-textarea" placeholder="Complete the video lesson and review the flashcard deck before class on Friday." required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="ta-duedate">Due Date</label>
+            <input type="date" id="ta-duedate" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-paper-plane"></i> Dispatch Assignment to Class
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <footer>
-    <p>&copy; 2026 Edufeedia. Safe, personalized learning. Built for students under 18.</p>
+    <p>&copy; 2026 Edufeedia. AI-Powered Safe Learning Platform for Students Under 18.</p>
   </footer>
 
   <!-- Script logic -->

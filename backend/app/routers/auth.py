@@ -117,3 +117,87 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "role": user.role,
         "user_id": user.id
     }
+
+from pydantic import BaseModel
+from app.core.security import verify_google_id_token
+from app.models.models import School, SchoolClass
+
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+
+@router.post("/google", response_model=Token)
+def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)):
+    # 1. Verify Google Token
+    token_info = verify_google_id_token(request.id_token)
+    if not token_info:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Google ID Token"
+        )
+        
+    email = token_info.get("email")
+    google_id = token_info.get("sub")
+    first_name = token_info.get("given_name", "Google")
+    last_name = token_info.get("family_name", "User")
+    
+    # 2. Check if user already exists
+    user = db.query(User).filter((User.google_id == google_id) | (User.email == email)).first()
+    
+    if not user:
+        # Create new user
+        # Determine role from domain, or default to student
+        domain = email.split("@")[-1]
+        school = db.query(School).filter(School.domain == domain).first()
+        
+        # Determine role
+        # If domain matches school, it's a student at that school.
+        # Otherwise, default to student role for new Google signups.
+        role = "student"
+        
+        user = User(
+            email=email,
+            google_id=google_id,
+            password_hash=None, # passwordless
+            role=role,
+            first_name=first_name,
+            last_name=last_name,
+            is_verified=True, # Auto-verify Google accounts
+            school_id=school.id if school else None
+        )
+        db.add(user)
+        db.flush()
+        
+        # Initialize Student Profile
+        class_id = None
+        if school:
+            default_class = db.query(SchoolClass).filter(SchoolClass.school_id == school.id).first()
+            if default_class:
+                class_id = default_class.id
+                
+        profile = StudentProfile(
+            user_id=user.id,
+            school_id=school.id if school else None,
+            class_id=class_id,
+            board="CBSE",
+            date_of_birth=date(2011, 1, 1), # Default DOB
+            interests=["Coding", "Science", "Space"],
+            learning_preference=["video", "reading"]
+        )
+        db.add(profile)
+        db.commit()
+    else:
+        # User exists, update Google ID link if empty
+        if not user.google_id:
+            user.google_id = google_id
+            db.commit()
+            
+    # 3. Generate JWT Token
+    access_token = create_access_token(
+        data={"sub": user.email, "role": user.role}
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "user_id": user.id
+    }

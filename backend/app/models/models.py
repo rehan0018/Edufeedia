@@ -52,7 +52,8 @@ class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, default=generate_uuid)
     email = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=True)
+    google_id = Column(String, unique=True, index=True, nullable=True)
     role = Column(String, nullable=False) # 'student', 'parent', 'teacher', 'school_admin', 'super_admin'
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
@@ -179,3 +180,52 @@ class SpacedRepetitionSchedule(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     student = relationship("User", back_populates="spaced_schedules")
+
+class Flashcard(Base):
+    __tablename__ = "flashcards"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    subject = Column(String, nullable=False)
+    topic = Column(String, nullable=False)
+    front_text = Column(String, nullable=False)
+    back_text = Column(String, nullable=False)
+    hint = Column(String, nullable=True)
+    grade_level = Column(Integer, default=10)
+    board = Column(String, default="CBSE")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class Badge(Base):
+    __tablename__ = "badges"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    code = Column(String, unique=True, index=True, nullable=False) # e.g. "streak_7", "quiz_100", "math_master"
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    icon = Column(String, nullable=False) # FontAwesome icon class e.g. "fa-fire"
+    category = Column(String, default="achievement")
+    xp_bonus = Column(Integer, default=50)
+
+class UserBadge(Base):
+    __tablename__ = "user_badges"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    badge_id = Column(String, ForeignKey("badges.id", ondelete="CASCADE"), nullable=False)
+    unlocked_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    badge = relationship("Badge")
+    user = relationship("User")
+
+class ClassAssignment(Base):
+    __tablename__ = "class_assignments"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    teacher_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    class_id = Column(String, ForeignKey("school_classes.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="SET NULL"), nullable=True)
+    quiz_id = Column(String, ForeignKey("quizzes.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String, nullable=False)
+    instructions = Column(String, nullable=True)
+    due_date = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    teacher = relationship("User")
+    school_class = relationship("SchoolClass")
+    content_item = relationship("ContentItem")
+    quiz = relationship("Quiz")
