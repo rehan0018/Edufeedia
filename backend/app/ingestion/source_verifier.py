@@ -141,6 +141,7 @@ class SourceVerifier:
         if not trusted_info:
             return {
                 "is_verified": False,
+                "is_trusted": False,
                 "domain": netloc,
                 "platform": "Unverified External Source",
                 "is_trusted_domain": False,
@@ -160,6 +161,7 @@ class SourceVerifier:
 
         return {
             "is_verified": True,
+            "is_trusted": True,
             "domain": netloc,
             "platform": trusted_info["platform"],
             "is_trusted_domain": True,

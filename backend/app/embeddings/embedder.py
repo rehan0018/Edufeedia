@@ -68,12 +68,24 @@ SEMANTIC_CLUSTERS = {
 class SemanticEmbedder:
     """
     384-Dimensional Semantic Dense Sentence Embedder.
-    Maps natural language inquiries, lesson transcripts, and student profiles
-    into a calibrated unit hypersphere with semantic concept subspace projection.
+    Supports dynamic Sentence-Transformer neural model loading (e.g. all-MiniLM-L6-v2)
+    with seamless fallback to calibrated 384-d semantic concept subspace projection.
     """
 
-    def __init__(self, dim: int = VECTOR_DIMENSION):
+    def __init__(self, dim: int = VECTOR_DIMENSION, model_name: str = "all-MiniLM-L6-v2"):
         self.dim = dim
+        self.model_name = model_name
+        self._transformer_model = None
+        self._is_transformer_active = False
+
+        # Attempt to load transformer model if sentence_transformers package is available
+        try:
+            from sentence_transformers import SentenceTransformer
+            self._transformer_model = SentenceTransformer(self.model_name)
+            self._is_transformer_active = True
+        except Exception:
+            # Operates on deterministic 384-d semantic concept subspace projection
+            self._is_transformer_active = False
 
     def _hash_token(self, token: str, seed: int = 0) -> int:
         raw = f"{token}:{seed}".encode('utf-8')
@@ -82,6 +94,16 @@ class SemanticEmbedder:
     def embed_text(self, text: str) -> List[float]:
         if not text:
             return [0.0] * self.dim
+
+        # 1. Neural Transformer Pathway (if available)
+        if self._is_transformer_active and self._transformer_model is not None:
+            try:
+                emb = self._transformer_model.encode(text, convert_to_numpy=True)
+                return [round(float(x), 5) for x in emb.tolist()[:self.dim]]
+            except Exception:
+                pass
+
+        # 2. Calibrated 384-d Semantic Concept Projection Pathway
 
         text_clean = text.lower()
         tokens = re.findall(r'\b[a-zA-Z0-9_\-\^]+\b', text_clean)

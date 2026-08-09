@@ -5,6 +5,11 @@ import datetime
 from app.models.models import QuizAttempt, Quiz, ContentItem, SpacedRepetitionSchedule, StudentProfile
 from app.core.algorithms import calculate_sm2
 
+class StudentAnalyticsEngine:
+    @staticmethod
+    def get_student_mastery_report(db: Session, student_id: str) -> Dict[str, Any]:
+        return compute_student_topic_mastery(db, student_id)
+
 def compute_student_topic_mastery(db: Session, student_id: str) -> Dict[str, Any]:
     """
     Analyzes student quiz attempts, computes topic-level mastery rates,

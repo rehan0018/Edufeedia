@@ -10,5 +10,7 @@ from app.models.models import (
     QuizAttempt,
     SpacedRepetitionSchedule,
     parent_student_links,
-    teacher_classes
+    teacher_classes,
+    CurriculumChunk,
+    IngestedSource
 )

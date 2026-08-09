@@ -142,7 +142,7 @@ class RAGEngine:
                 topic_name = item.topic
 
         # 2. Hybrid Retrieval (Dense Vector + BM25 Lexical)
-        top_chunks = cls._hybrid_retrieve_chunks(question, top_k=2)
+        top_chunks = cls._hybrid_retrieve_chunks(question, db=db, top_k=2)
 
         # 3. Assemble Curriculum Context
         curriculum_context_pieces = [lesson_context] if lesson_context else []
@@ -164,14 +164,32 @@ class RAGEngine:
         return response
 
     @classmethod
-    def _hybrid_retrieve_chunks(cls, query: str, top_k: int = 2) -> List[Tuple[Dict[str, Any], float]]:
+    def _hybrid_retrieve_chunks(cls, query: str, db: Optional[Session] = None, top_k: int = 2) -> List[Tuple[Dict[str, Any], float]]:
         query_clean = query.lower()
         query_terms = set(re.findall(r'\b[a-z]{3,}\b', query_clean))
         query_vec = embed_query(query)
 
+        # Merge in-memory verified corpus with dynamic database chunks
+        active_corpus = list(CURRICULUM_DOCUMENT_CORPUS)
+        if db is not None:
+            try:
+                from app.models.models import CurriculumChunk
+                db_chunks = db.query(CurriculumChunk).all()
+                for dbc in db_chunks:
+                    active_corpus.append({
+                        "doc_id": dbc.id,
+                        "subject": dbc.subject,
+                        "topic": dbc.topic,
+                        "grade": dbc.grade_level,
+                        "section": dbc.section,
+                        "text": dbc.chunk_text
+                    })
+            except Exception:
+                pass
+
         # --- A. Dense Vector Similarity Scoring ---
         dense_scores = []
-        for idx, doc in enumerate(CURRICULUM_DOCUMENT_CORPUS):
+        for idx, doc in enumerate(active_corpus):
             doc_vec = embed_content(doc["topic"], doc["text"], doc["subject"], doc["section"])
             sim = cosine_similarity(query_vec, doc_vec)
             dense_scores.append((idx, sim))
@@ -179,7 +197,7 @@ class RAGEngine:
 
         # --- B. BM25-Style Lexical Scoring ---
         lexical_scores = []
-        for idx, doc in enumerate(CURRICULUM_DOCUMENT_CORPUS):
+        for idx, doc in enumerate(active_corpus):
             doc_text_clean = f"{doc['topic']} {doc['section']} {doc['text']}".lower()
             doc_words = set(re.findall(r'\b[a-z]{3,}\b', doc_text_clean))
             overlap = len(query_terms.intersection(doc_words))
@@ -202,6 +220,6 @@ class RAGEngine:
 
         results = []
         for doc_idx, score in sorted_rrf[:top_k]:
-            results.append((CURRICULUM_DOCUMENT_CORPUS[doc_idx], round(score, 4)))
+            results.append((active_corpus[doc_idx], round(score, 4)))
 
         return results

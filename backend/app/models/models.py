@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON, ForeignKey, Table
+from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON, ForeignKey, Table, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -248,3 +248,46 @@ class ClassAssignment(Base):
     school_class = relationship("SchoolClass")
     content_item = relationship("ContentItem")
     quiz = relationship("Quiz")
+
+class CurriculumChunk(Base):
+    """
+    Structured database-backed curriculum knowledge chunk for RAG and semantic vector search.
+    Supports pgvector embeddings and PostgreSQL database storage.
+    """
+    __tablename__ = "curriculum_chunks"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    board = Column(String, default="CBSE") # 'CBSE', 'ICSE', 'State_Board'
+    grade_level = Column(Integer, default=10)
+    subject = Column(String, nullable=False) # 'Mathematics', 'Science', 'Computer Science', 'Space Science'
+    topic = Column(String, nullable=False)
+    section = Column(String, nullable=False)
+    curriculum_code = Column(String, index=True, nullable=True) # e.g. "CBSE-G10-MATH-QUADRA"
+    chunk_text = Column(Text, nullable=False)
+    embedding = Column(JSON, nullable=True) # 384-dimensional dense vector
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class IngestedSource(Base):
+    """
+    Staging table for the automated Content Intelligence Ingestion Pipeline.
+    Stores fetched transcripts, SHA-256 deduplication hashes, and moderation reviews.
+    """
+    __tablename__ = "ingested_sources"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    source_url = Column(String, nullable=False)
+    url_hash = Column(String, unique=True, index=True, nullable=False) # SHA-256 canonical digest
+    source_platform = Column(String, nullable=False) # 'youtube', 'khan_academy', 'ncert_oer', 'phet'
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    raw_text = Column(Text, nullable=True) # Extracted transcript or OER text
+    subject = Column(String, nullable=True)
+    topic = Column(String, nullable=True)
+    grade_level = Column(Integer, default=10)
+    board = Column(String, default="CBSE")
+    curriculum_code = Column(String, nullable=True)
+    status = Column(String, default="pending_review") # 'pending_review', 'approved', 'rejected'
+    safety_audit = Column(JSON, nullable=True)
+    edu_score = Column(Integer, default=80)
+    submitted_by = Column(String, nullable=True)
+    reviewed_by = Column(String, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
