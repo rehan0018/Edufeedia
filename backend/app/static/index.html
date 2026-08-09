@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edufeedia - Safe, Focused Learning Platform</title>
+  <!-- Google Fonts Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <!-- Background decorations -->
+  <div class="bg-glow glow-1"></div>
+  <div class="bg-glow glow-2"></div>
+
+  <!-- Header Nav -->
+  <header>
+    <div class="logo">
+      <i class="fa-solid fa-graduation-cap logo-icon"></i>
+      <span>Edufeedia</span>
+    </div>
+    <div id="nav-actions" class="hidden">
+      <span class="user-badge" id="user-badge-display">
+        <i class="fa-regular fa-user"></i> <span id="user-name">Guest</span>
+      </span>
+      <button id="btn-logout" class="btn btn-secondary btn-sm">
+        <i class="fa-solid fa-right-from-bracket"></i> Logout
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    
+    <!-- ==================== AUTH SCREEN ==================== -->
+    <section id="auth-screen" class="view-section">
+      <div class="auth-card glass">
+        <div class="auth-header">
+          <h2>Welcome to Edufeedia</h2>
+          <p>Please log in with your credentials or register a student account.</p>
+        </div>
+        
+        <div class="auth-tabs">
+          <button id="tab-login" class="tab-btn active">Login</button>
+          <button id="tab-register" class="tab-btn">Student Register</button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form">
+          <div class="form-group">
+            <label for="login-email">Email Address</label>
+            <div class="input-icon-wrapper">
+              <i class="fa-regular fa-envelope input-icon"></i>
+              <input type="email" id="login-email" placeholder="student@apexschool.edu" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <div class="input-icon-wrapper">
+              <i class="fa-solid fa-lock input-icon"></i>
+              <input type="password" id="login-password" placeholder="••••••••" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-right-to-bracket"></i> Login to Account
+          </button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="auth-form hidden">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reg-firstname">First Name</label>
+              <input type="text" id="reg-firstname" placeholder="Rahul" required>
+            </div>
+            <div class="form-group">
+              <label for="reg-lastname">Last Name</label>
+              <input type="text" id="reg-lastname" placeholder="Kumar" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="reg-email">School Email</label>
+            <div class="input-icon-wrapper">
+              <i class="fa-regular fa-envelope input-icon"></i>
+              <input type="email" id="reg-email" placeholder="rahul@apexschool.edu" required>
+            </div>
+            <small class="form-tip">Must be school provided address</small>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reg-password">Password</label>
+              <input type="password" id="reg-password" placeholder="Min. 6 characters" required>
+            </div>
+            <div class="form-group">
+              <label for="reg-dob">Date of Birth</label>
+              <input type="date" id="reg-dob" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="reg-parent">Parent Email</label>
+            <div class="input-icon-wrapper">
+              <i class="fa-regular fa-envelope input-icon"></i>
+              <input type="email" id="reg-parent" placeholder="parent@gmail.com" required>
+            </div>
+            <small class="form-tip">Used to verify registration consent</small>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-user-plus"></i> Submit Registration
+          </button>
+        </form>
+
+        <div class="demo-login-box">
+          <h4>💡 Demo Accounts</h4>
+          <p>The DB seeder sets up these test credentials:</p>
+          <div class="demo-buttons">
+            <button type="button" class="btn btn-sm btn-outline" onclick="loadDemoAccount('student')">
+              <i class="fa-solid fa-user-graduate"></i> Student Login
+            </button>
+            <button type="button" class="btn btn-sm btn-outline" onclick="loadDemoAccount('parent')">
+              <i class="fa-solid fa-users"></i> Parent Login
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== STUDENT DASHBOARD ==================== -->
+    <section id="student-screen" class="view-section hidden">
+      <!-- Greeting and Stats Bar -->
+      <div class="greeting-bar glass">
+        <div class="greet-text">
+          <h2 id="student-greeting-name">Good morning, Rahul! 👋</h2>
+          <p>Ready to unlock some masteries today? Minimum distraction, maximum value.</p>
+        </div>
+        <div class="greet-stats">
+          <div class="stat-bubble">
+            <i class="fa-solid fa-fire icon-streak"></i>
+            <div>
+              <span class="stat-num" id="student-streak">0</span>
+              <span class="stat-lbl">Streak Days</span>
+            </div>
+          </div>
+          <div class="stat-bubble">
+            <i class="fa-solid fa-star icon-xp"></i>
+            <div>
+              <span class="stat-num" id="student-xp">0</span>
+              <span class="stat-lbl">XP Score</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Learning Content -->
+      <div class="dashboard-grid">
+        <div class="main-panel">
+          <div class="section-title-wrapper">
+            <h3><i class="fa-solid fa-book-open title-icon"></i> Today's Learning Plan</h3>
+            <span class="badge badge-accent">No Infinite Scroll</span>
+          </div>
+          <div class="feed-list" id="feed-container">
+            <!-- Dynamic feed cards will load here -->
+          </div>
+
+          <!-- Daily Quiz Activation Card -->
+          <div class="quiz-launch-card glass hidden" id="quiz-launch-card">
+            <div class="quiz-launch-info">
+              <i class="fa-solid fa-circle-question quiz-icon-large"></i>
+              <div>
+                <h4>Ready for your Daily Quiz?</h4>
+                <p>Test your understanding of today's study material. Earn bonus XP!</p>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="btn-start-quiz">
+              <i class="fa-solid fa-play"></i> Start Quiz
+            </button>
+          </div>
+        </div>
+
+        <!-- Sidebar Progress -->
+        <div class="sidebar-panel">
+          <div class="section-title-wrapper">
+            <h3><i class="fa-solid fa-chart-line title-icon"></i> Subject Mastery</h3>
+          </div>
+          <div class="mastery-card glass" id="mastery-summary-card">
+            <!-- Custom Dynamic SVG Mastery Chart -->
+            <div class="progress-radial-container">
+              <svg class="radial-svg" width="120" height="120" viewBox="0 0 120 120">
+                <circle class="radial-bg" cx="60" cy="60" r="50"></circle>
+                <circle class="radial-progress" id="mastery-radial-bar" cx="60" cy="60" r="50" stroke-dasharray="314" stroke-dashoffset="314"></circle>
+              </svg>
+              <div class="radial-label">
+                <span class="radial-val" id="mastery-lessons-count">0</span>
+                <span class="radial-lbl">Completed</span>
+              </div>
+            </div>
+            
+            <div class="mastery-list" id="mastery-list-container">
+              <!-- Mastery items seeded here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== PARENT DASHBOARD ==================== -->
+    <section id="parent-screen" class="view-section hidden">
+      <div class="greeting-bar glass">
+        <div class="greet-text">
+          <h2>Parent Analytics Portal <i class="fa-solid fa-shield-halved text-accent"></i></h2>
+          <p>Educational outcomes monitoring dashboard. Secure and privacy-focused.</p>
+        </div>
+        <div class="linked-students-selector">
+          <label for="student-select">Select Child:</label>
+          <select id="student-select" class="dropdown">
+            <!-- Student options loaded here -->
+          </select>
+        </div>
+      </div>
+
+      <div class="parent-grid" id="parent-dashboard-content">
+        <!-- KPI Card row -->
+        <div class="parent-kpi-row">
+          <div class="kpi-card glass">
+            <span class="kpi-lbl">Quiz Accuracy</span>
+            <div class="kpi-main">
+              <span class="kpi-val" id="parent-accuracy">0%</span>
+              <i class="fa-solid fa-bullseye kpi-icon text-cyan"></i>
+            </div>
+            <div class="kpi-footer">Standard target: >80%</div>
+          </div>
+          <div class="kpi-card glass">
+            <span class="kpi-lbl">Total Lessons Done</span>
+            <div class="kpi-main">
+              <span class="kpi-val" id="parent-lessons-count">0</span>
+              <i class="fa-solid fa-circle-check kpi-icon text-green"></i>
+            </div>
+            <div class="kpi-footer">CBSE Syllabus standard</div>
+          </div>
+          <div class="kpi-card glass">
+            <span class="kpi-lbl">Consistency Streak</span>
+            <div class="kpi-main">
+              <span class="kpi-val" id="parent-streak-count">0 Days</span>
+              <i class="fa-solid fa-fire kpi-icon text-orange"></i>
+            </div>
+            <div class="kpi-footer">Active revision frequency</div>
+          </div>
+        </div>
+
+        <div class="parent-charts-grid">
+          <!-- Subject breakdown card -->
+          <div class="chart-panel glass">
+            <h4>Subject Completion Breakdown</h4>
+            <div class="bar-chart-container" id="parent-subject-bars">
+              <!-- Custom bars injected via JS -->
+            </div>
+          </div>
+
+          <!-- Academic insights & recommendation card -->
+          <div class="chart-panel glass">
+            <h4>AI Learning Insights</h4>
+            <div class="insights-container">
+              <div class="insight-item strength">
+                <i class="fa-solid fa-circle-up insight-arrow"></i>
+                <div>
+                  <h5>Academic Strengths</h5>
+                  <p id="parent-strengths-text">Analyzing performance...</p>
+                </div>
+              </div>
+              <div class="insight-item focus">
+                <i class="fa-solid fa-circle-down insight-arrow"></i>
+                <div>
+                  <h5>Focus Areas Needed</h5>
+                  <p id="parent-focus-text">Analyzing performance...</p>
+                </div>
+              </div>
+              <div class="insight-item tip">
+                <i class="fa-regular fa-lightbulb insight-arrow"></i>
+                <div>
+                  <h5>Spaced Revision Alert</h5>
+                  <p>Spaced repetition cycles are active. If your child gets incorrect answers on quizzes, Edufeedia will automatically re-queue that topic in their feed after a calculated retention interval.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== LEARNING MODAL OVERLAY ==================== -->
+  <div class="modal" id="learning-modal">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3 id="modal-content-title">Lesson Title</h3>
+        <button class="modal-close" id="btn-close-learning"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Video container or Reading content container -->
+        <div id="video-iframe-container" class="video-container hidden">
+          <!-- YouTube embed goes here -->
+        </div>
+        <div id="reading-text-container" class="reading-container hidden">
+          <!-- Text document goes here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="simulation-note"><i class="fa-solid fa-circle-info"></i> Watch to complete the lesson and unlock the daily quiz!</span>
+        <button class="btn btn-success" id="btn-complete-lesson">
+          <i class="fa-solid fa-circle-check"></i> Mark as Completed
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== QUIZ MODAL OVERLAY ==================== -->
+  <div class="modal" id="quiz-modal">
+    <div class="modal-content glass quiz-modal-content">
+      <div class="modal-header">
+        <h3 id="quiz-title">Daily Practice Quiz</h3>
+        <button class="modal-close" id="btn-close-quiz"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div id="quiz-question-container">
+          <!-- Loaded quiz question card -->
+          <div class="quiz-nav-dots" id="quiz-dots"></div>
+          <div class="quiz-question-card">
+            <span class="quiz-difficulty" id="q-difficulty">Difficulty: Medium</span>
+            <h4 id="q-text">Loading question text...</h4>
+            <div class="quiz-options-list" id="q-options">
+              <!-- Interactive radio options -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Grading Report (Visible after submission) -->
+        <div id="quiz-report-container" class="hidden">
+          <div class="report-header">
+            <i class="fa-solid fa-square-poll-vertical report-icon"></i>
+            <h3>Quiz Completed!</h3>
+            <div class="report-score-box">
+              <span class="report-score" id="report-score-fraction">0 / 0</span>
+              <span class="report-percentage" id="report-score-pct">0% Accuracy</span>
+            </div>
+            <div class="report-xp-box">
+              <i class="fa-solid fa-star"></i> Earned <span id="report-xp-earned">0</span> XP
+            </div>
+          </div>
+          <div class="report-solutions" id="report-solutions-list">
+            <!-- Solutions details with explanations -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-prev-question">Prev</button>
+        <button class="btn btn-primary" id="btn-next-question">Next</button>
+        <button class="btn btn-success hidden" id="btn-submit-quiz">Submit Quiz</button>
+        <button class="btn btn-primary hidden" id="btn-finish-quiz">Close Report</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <p>&copy; 2026 Edufeedia. Safe, personalized learning. Built for students under 18.</p>
+  </footer>
+
+  <!-- Script logic -->
+  <script src="app.js"></script>
+</body>
+</html>
