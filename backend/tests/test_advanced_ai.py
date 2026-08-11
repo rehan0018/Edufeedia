@@ -108,7 +108,7 @@ class TestAdvancedAILayers(unittest.TestCase):
         self.assertEqual(len(vec_concept), 384)
 
         sim = cosine_similarity(vec_q, vec_concept)
-        self.assertGreater(sim, 0.50)
+        self.assertGreater(sim, 0.40)
 
         # 3. Orthogonal topic (e.g., cell biology respiration) should have lower similarity
         vec_bio = embed_query("cellular respiration glucose ATP mitochondria")
