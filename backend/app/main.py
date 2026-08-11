@@ -39,9 +39,40 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ingestion.router, prefix="/api/v1")
 app.include_router(privacy.router, prefix="/api/v1")
 
-@app.get("/api/health", tags=["health"])
+from app.core.logging_config import logger
+
+logger.info(f"Initializing {settings.PROJECT_NAME} backend service...")
+
+@app.get("/health", tags=["system"])
+@app.get("/api/health", tags=["system"])
 def health_check():
-    return {"status": "healthy", "project": settings.PROJECT_NAME}
+    """Liveness probe for container orchestrators and load balancers."""
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "environment": "production" if "postgres" in settings.DATABASE_URL else "development"
+    }
+
+@app.get("/ready", tags=["system"])
+@app.get("/api/ready", tags=["system"])
+def readiness_check():
+    """Readiness probe verifying database connectivity."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {
+            "status": "ready",
+            "database": "connected",
+            "service": settings.PROJECT_NAME
+        }
+    except Exception as e:
+        logger.error(f"[Readiness Failure]: Database check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e)
+        }
 
 # Mount static frontend directories for hosting the web client dashboard
 static_path = os.path.join(os.path.dirname(__file__), "static")

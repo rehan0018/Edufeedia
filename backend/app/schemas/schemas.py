@@ -334,7 +334,7 @@ class TutorChatMessage(BaseModel):
     text: str
 
 class TutorAskRequest(BaseModel):
-    content_item_id: str
+    content_item_id: Optional[str] = None
     question: str
     conversation_history: Optional[List[TutorChatMessage]] = []
 

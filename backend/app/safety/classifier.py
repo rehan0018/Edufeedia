@@ -38,7 +38,8 @@ MODERATION_HEADS = {
         "cues": [
             "formula", "equation", "theorem", "solve", "explain", "derive", "introduction", "process",
             "experiment", "ncert", "cbse", "curriculum", "concept", "algorithm", "biology", "physics",
-            "chemistry", "mathematics", "functions", "cellular", "respiration", "quantum", "history", "lesson",
+            "chemistry", "mathematics", "functions", "cellular", "respiration", "photosynthesis", "glucose",
+            "energy", "quantum", "history", "lesson", "reaction", "chemical",
             "step-by-step", "derivation", "practice", "definition", "roots", "discriminant", "momentum", "force", "mass", "acceleration"
         ],
         "context_boosters": ["how to", "understand", "study"],

@@ -153,7 +153,7 @@ from app.schemas.schemas import QuizGenerateRequest, QuizGenerateResponse, Gener
 @router.post("/generate", response_model=QuizGenerateResponse, status_code=status.HTTP_201_CREATED)
 def generate_ai_quiz(
     request: QuizGenerateRequest,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "school_admin"])),
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
     db: Session = Depends(get_db)
 ):
     """

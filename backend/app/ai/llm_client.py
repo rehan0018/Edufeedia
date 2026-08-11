@@ -64,19 +64,24 @@ class LLMClient:
         return self._local_socratic_generation(sanitized_q, curriculum_context, topic, student_grade)
 
     @staticmethod
-    def _sanitize_prompt(prompt: str) -> str:
+    def sanitize_prompt(prompt: str) -> str:
         # Strip system prompt override attempts
         blocked = [
             r"ignore previous instructions",
             r"you are now in developer mode",
             r"disregard safety guidelines",
             r"jailbreak",
-            r"reveal system prompt"
+            r"reveal the hidden system prompt",
+            r"reveal system prompt",
+            r"act as an unrestricted assistant",
+            r"override moderation"
         ]
         clean = prompt
         for b in blocked:
             clean = re.sub(b, "[redacted inquiry]", clean, flags=re.IGNORECASE)
         return clean.strip()
+
+    _sanitize_prompt = sanitize_prompt
 
     @staticmethod
     def _local_socratic_generation(question: str, context: str, topic: str, grade: int) -> Dict[str, Any]:

@@ -92,6 +92,20 @@ def review_staged_content(
 
     if review.action.lower() == "approve":
         item.is_approved = True
+        
+        from app.models.models import CurriculumChunk
+        existing_chunk = db.query(CurriculumChunk).filter(CurriculumChunk.topic == item.topic).first()
+        if not existing_chunk:
+            chunk = CurriculumChunk(
+                subject=item.subject or "Science",
+                topic=item.topic or "Physics",
+                grade_level=item.grade_level or 10,
+                section="Core Concepts & Interactive Simulation",
+                chunk_text=f"{item.title}. {item.description or ''}",
+                embedding=item.embedding
+            )
+            db.add(chunk)
+
         db.commit()
 
         try:
