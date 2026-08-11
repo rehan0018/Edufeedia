@@ -114,6 +114,21 @@ def compute_student_topic_mastery(db: Session, student_id: str) -> Dict[str, Any
             "level": "Excellent" if pct >= 80 else ("Moderate" if pct >= 60 else "Attention Required")
         })
 
+    # Fetch all upcoming active spaced repetition schedules
+    schedules = db.query(SpacedRepetitionSchedule).filter(
+        SpacedRepetitionSchedule.student_user_id == student_id
+    ).order_by(SpacedRepetitionSchedule.next_review_date.asc()).all()
+
+    upcoming_revisions = [
+        {
+            "topic": s.topic,
+            "subject": s.subject,
+            "interval_days": s.interval_days,
+            "scheduled_date": s.next_review_date.isoformat() if s.next_review_date else "Today"
+        }
+        for s in schedules
+    ]
+
     return {
         "student_id": student_id,
         "total_topics_evaluated": len(topic_stats),
@@ -122,5 +137,6 @@ def compute_student_topic_mastery(db: Session, student_id: str) -> Dict[str, Any
         "strong_topics": strong_topics,
         "all_topics": list(topic_stats.values()),
         "subject_mastery": subject_mastery,
-        "remedial_schedules_activated": remedial_queued
+        "remedial_schedules_activated": remedial_queued,
+        "upcoming_revisions": upcoming_revisions
     }

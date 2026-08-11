@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, List
 
 from app.database import get_db
-from app.models.models import User, StudentProfile, StudentProgress, QuizAttempt, parent_student_links
+from app.models.models import User, StudentProfile, StudentProgress, QuizAttempt, parent_student_links, ParentalConsentLog
 from app.core.security import get_current_user, RoleChecker
 
 router = APIRouter(prefix="/parents", tags=["parents"])
@@ -24,13 +24,21 @@ def get_linked_students(
     results = []
     for s in students:
         profile = db.query(StudentProfile).filter(StudentProfile.user_id == s.id).first()
+        consent = db.query(ParentalConsentLog).filter(
+            ParentalConsentLog.parent_user_id == current_user.id,
+            ParentalConsentLog.student_user_id == s.id,
+            ParentalConsentLog.consent_status == "granted"
+        ).first()
+
         results.append({
             "student_id": s.id,
             "name": f"{s.first_name} {s.last_name}",
             "email": s.email,
             "board": profile.board if profile else "CBSE",
             "xp": profile.xp_score if profile else 0,
-            "streak": profile.streak_count if profile else 0
+            "streak": profile.streak_count if profile else 0,
+            "consent_verified": bool(consent),
+            "consent_granted_at": consent.granted_at.isoformat() if consent and consent.granted_at else None
         })
         
     return results
@@ -80,7 +88,6 @@ def get_student_progress_summary(
         subject_completion[sub] = subject_completion.get(sub, 0) + 1
         
     # Identify strengths and weaknesses
-    # Subjects with highest accuracy are strengths; lowest are weaknesses
     subject_accuracies = {}
     subject_counts = {}
     
@@ -99,11 +106,16 @@ def get_student_progress_summary(
         elif avg_sub_acc < 70:
             weaknesses.append({"subject": sub, "accuracy": avg_sub_acc})
             
-    # Mock some basic insights if they are empty
     if not strengths:
         strengths = [{"subject": "General Subjects", "accuracy": 85.0}]
     if not weaknesses and len(attempts) > 0:
         weaknesses = [{"subject": "Focus Areas", "accuracy": 65.0}]
+
+    consent = db.query(ParentalConsentLog).filter(
+        ParentalConsentLog.parent_user_id == current_user.id,
+        ParentalConsentLog.student_user_id == student_id,
+        ParentalConsentLog.consent_status == "granted"
+    ).first()
         
     return {
         "student_name": f"{student.first_name} {student.last_name}",
@@ -119,5 +131,10 @@ def get_student_progress_summary(
             "strengths": strengths,
             "weaknesses": weaknesses,
             "revision_urgency": "Medium" if weaknesses else "Low"
+        },
+        "consent": {
+            "is_verified": bool(consent),
+            "purpose": "Curated Educational Learning & AI Tutoring",
+            "granted_at": consent.granted_at.isoformat() if consent and consent.granted_at else None
         }
     }

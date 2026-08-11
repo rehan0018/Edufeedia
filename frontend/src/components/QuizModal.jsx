@@ -11,7 +11,6 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState([]);
   const [selectedOption, setSelectedOption] = useState(null);
-  const [isAnswered, setIsAnswered] = useState(false);
   
   const [submitting, setSubmitting] = useState(false);
   const [backendResult, setBackendResult] = useState(null);
@@ -25,7 +24,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
           setLoading(false);
         })
         .catch(err => {
-          setError(err.message || 'No quiz available for this module.');
+          setError(err.message || 'No assessment quiz available for this lesson.');
           setLoading(false);
         });
     }
@@ -35,29 +34,36 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
   const currentQ = questions[currentIdx];
 
   const handleSelectOption = (opt) => {
-    if (isAnswered) return;
     setSelectedOption(opt);
-    setIsAnswered(true);
-
-    const updatedAnswers = [...answers, { question_id: currentQ.id, selected_answer: opt }];
-    setAnswers(updatedAnswers);
+    // Keep answers map updated
+    const remaining = answers.filter(a => a.question_id !== currentQ.id);
+    setAnswers([...remaining, { question_id: currentQ.id, selected_answer: opt }]);
   };
 
   const handleNext = async () => {
+    if (!selectedOption) return;
+
     if (currentIdx + 1 < questions.length) {
-      setCurrentIdx(prev => prev + 1);
-      setSelectedOption(null);
-      setIsAnswered(false);
+      const nextIdx = currentIdx + 1;
+      setCurrentIdx(nextIdx);
+      const nextQ = questions[nextIdx];
+      const prevAnswer = answers.find(a => a.question_id === nextQ?.id);
+      setSelectedOption(prevAnswer ? prevAnswer.selected_answer : null);
     } else {
-      // Submit full quiz attempt to backend
+      // Build final answers payload ensuring the last question is included
+      const finalAnswers = [
+        ...answers.filter(a => a.question_id !== currentQ.id),
+        { question_id: currentQ.id, selected_answer: selectedOption }
+      ];
+
       setSubmitting(true);
       try {
-        const result = await submitQuizAttempt(quiz.id, answers);
+        const result = await submitQuizAttempt(quiz.id, finalAnswers);
         setBackendResult(result);
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         onQuizComplete?.(result);
       } catch (err) {
-        setError(err.message || 'Failed to submit quiz to grading server.');
+        setError(err.message || 'Failed to submit quiz to server.');
       } finally {
         setSubmitting(false);
       }
@@ -68,7 +74,9 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
     <div className="modal-overlay">
       <div className="glass-panel" style={{
         width: '100%',
-        maxWidth: '680px',
+        maxWidth: '720px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
         padding: '32px',
         background: 'var(--bg-card-solid)',
         border: '1px solid var(--border-glow)'
@@ -114,9 +122,10 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
           </div>
         )}
 
+        {/* Question Player View */}
         {!loading && !error && currentQ && !backendResult && (
           <div>
-            {/* Bloom's / Difficulty Pill */}
+            {/* Difficulty Pill */}
             <div style={{ display: 'inline-block', marginBottom: '14px' }}>
               <span style={{
                 fontSize: '0.75rem',
@@ -139,127 +148,150 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
             {/* Options List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
               {currentQ.options.map((opt, idx) => {
-                let btnStyle = {
-                  padding: '14px 18px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-space)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.98rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: isAnswered ? 'default' : 'pointer',
-                  transition: 'var(--transition-fast)'
-                };
-
-                if (isAnswered) {
-                  if (opt === currentQ.correct_answer) {
-                    btnStyle.border = '2px solid var(--accent-emerald)';
-                    btnStyle.background = 'hsla(152, 76%, 50%, 0.15)';
-                  } else if (opt === selectedOption) {
-                    btnStyle.border = '2px solid var(--accent-rose)';
-                    btnStyle.background = 'hsla(346, 84%, 61%, 0.15)';
-                  }
-                }
-
+                const isSelected = selectedOption === opt;
                 return (
                   <div
                     key={idx}
-                    style={btnStyle}
+                    style={{
+                      padding: '14px 18px',
+                      borderRadius: 'var(--radius-md)',
+                      border: isSelected ? '2px solid var(--accent-cyan)' : '1px solid var(--border-subtle)',
+                      background: isSelected ? 'hsla(188, 95%, 53%, 0.12)' : 'var(--bg-space)',
+                      color: isSelected ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                      fontSize: '0.98rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'var(--transition-fast)'
+                    }}
                     onClick={() => handleSelectOption(opt)}
                   >
                     <span>{opt}</span>
-                    {isAnswered && opt === currentQ.correct_answer && (
-                      <CheckCircle2 size={20} color="var(--accent-emerald)" />
-                    )}
-                    {isAnswered && opt === selectedOption && opt !== currentQ.correct_answer && (
-                      <XCircle size={20} color="var(--accent-rose)" />
-                    )}
+                    {isSelected && <CheckCircle2 size={20} color="var(--accent-cyan)" />}
                   </div>
                 );
               })}
             </div>
 
-            {/* Explanation Card */}
-            {isAnswered && (
-              <div style={{
-                padding: '16px 20px',
-                borderRadius: 'var(--radius-md)',
-                background: selectedOption === currentQ.correct_answer ? 'hsla(152, 76%, 50%, 0.1)' : 'hsla(346, 84%, 61%, 0.1)',
-                border: `1px solid ${selectedOption === currentQ.correct_answer ? 'var(--accent-emerald)' : 'var(--accent-rose)'}`,
-                marginBottom: '20px'
-              }}>
-                <div style={{ fontWeight: 700, marginBottom: '4px', color: selectedOption === currentQ.correct_answer ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
-                  {selectedOption === currentQ.correct_answer ? '✓ Correct Answer' : '⚠ Concept Clarification'}
-                </div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                  {currentQ.explanation}
-                </div>
-              </div>
-            )}
-
-            {/* Next Action */}
-            {isAnswered && (
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '12px' }}
-                disabled={submitting}
-                onClick={handleNext}
-              >
-                {submitting ? 'Submitting to Backend...' : (currentIdx + 1 < questions.length ? 'Next Question' : 'Submit Quiz to Server')} <ArrowRight size={16} />
-              </button>
-            )}
+            {/* Next / Submit Button */}
+            <button
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '12px' }}
+              disabled={!selectedOption || submitting}
+              onClick={handleNext}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="spin" /> Submitting to Server...
+                </>
+              ) : currentIdx + 1 < questions.length ? (
+                <>
+                  Next Question <ArrowRight size={16} />
+                </>
+              ) : (
+                'Submit Quiz for Server Evaluation'
+              )}
+            </button>
           </div>
         )}
 
-        {/* Backend Live Grading Results */}
+        {/* Server Evaluated Result & Explanations */}
         {backendResult && (
-          <div style={{ textAlign: 'center', padding: '10px 0' }}>
-            <div style={{
-              width: '72px',
-              height: '72px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--accent-amber), var(--accent-purple))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px auto'
-            }}>
-              <Trophy size={36} color="#0a0f1d" />
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--accent-amber), var(--accent-purple))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 12px auto'
+              }}>
+                <Trophy size={32} color="#0a0f1d" />
+              </div>
+
+              <h3 style={{ fontSize: '1.6rem', marginBottom: '4px' }}>Quiz Evaluated! 🎉</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                Your responses have been recorded in the database, updating topic mastery and SM-2 schedules.
+              </p>
             </div>
 
-            <h3 style={{ fontSize: '1.8rem', marginBottom: '8px' }}>Backend Evaluated! 🎉</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              Your attempt has been recorded in the database, updating your mastery profile and SM-2 spaced repetition queue.
-            </p>
-
+            {/* Score Overview */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '14px',
-              marginBottom: '28px'
+              gap: '12px',
+              marginBottom: '24px'
             }}>
-              <div style={{ padding: '14px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Score</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
+              <div style={{ padding: '12px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Score</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
                   {backendResult.score} / {backendResult.max_score}
                 </div>
               </div>
 
-              <div style={{ padding: '14px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Accuracy</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+              <div style={{ padding: '12px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Accuracy</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
                   {Math.round(backendResult.accuracy_percentage)}%
                 </div>
               </div>
 
-              <div style={{ padding: '14px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>XP Awarded</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
+              <div style={{ padding: '12px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>XP Earned</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
                   +{backendResult.xp_gained} XP
                 </div>
               </div>
+            </div>
+
+            {/* Question Breakdown with Explanations */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+              <h4 style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>Detailed Question Review</h4>
+              {backendResult.results?.map((res, idx) => {
+                const qObj = questions.find(q => q.id === res.question_id);
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '14px 18px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--bg-space)',
+                      borderLeft: `4px solid ${res.is_correct ? 'var(--accent-emerald)' : 'var(--accent-rose)'}`
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: res.is_correct ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                        {res.is_correct ? '✓ Correct' : '✗ Incorrect'}
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Question {idx + 1}</span>
+                    </div>
+
+                    <p style={{ fontSize: '0.92rem', marginBottom: '6px', fontWeight: 600 }}>
+                      {qObj?.question_text || `Question ${idx + 1}`}
+                    </p>
+
+                    <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Your Answer: <span style={{ color: res.is_correct ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{res.selected_answer}</span>
+                    </div>
+
+                    {!res.is_correct && (
+                      <div style={{ fontSize: '0.84rem', color: 'var(--accent-emerald)', marginBottom: '4px' }}>
+                        Correct Answer: {res.correct_answer}
+                      </div>
+                    )}
+
+                    {res.explanation && (
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '4px', fontStyle: 'italic' }}>
+                        💡 {res.explanation}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <button

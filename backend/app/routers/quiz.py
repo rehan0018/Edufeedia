@@ -4,7 +4,7 @@ from typing import Dict, Any
 import datetime
 
 from app.database import get_db
-from app.models.models import User, Quiz, Question, QuizAttempt, StudentProfile, SpacedRepetitionSchedule
+from app.models.models import User, Quiz, Question, QuizAttempt, StudentProfile, SpacedRepetitionSchedule, ContentItem
 from app.schemas.schemas import QuizOut, QuizSubmit, QuizAttemptOut
 from app.core.security import get_current_user, RoleChecker
 from app.core.algorithms import calculate_sm2
@@ -14,26 +14,23 @@ router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 @router.get("/content/{content_item_id}", response_model=QuizOut)
 def get_quiz_by_content_item(
     content_item_id: str,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    current_user: User = Depends(RoleChecker(["student", "teacher", "school_admin"])),
     db: Session = Depends(get_db)
 ):
     quiz = db.query(Quiz).filter(Quiz.content_item_id == content_item_id).first()
     if not quiz:
-        # Fallback to general quiz with matching topic
+        # Match by topic if available
         item = db.query(ContentItem).filter(ContentItem.id == content_item_id).first()
         if item:
-            quiz = db.query(Quiz).join(ContentItem).filter(ContentItem.topic == item.topic).first()
+            quiz = db.query(Quiz).join(ContentItem, Quiz.content_item_id == ContentItem.id).filter(ContentItem.topic == item.topic).first()
     if not quiz:
-        # Return first available approved quiz for practice
-        quiz = db.query(Quiz).first()
-    if not quiz:
-        raise HTTPException(status_code=404, detail="No assessment quiz found")
+        raise HTTPException(status_code=404, detail="No assessment quiz found for this lesson")
     return quiz
 
 @router.get("/{quiz_id}", response_model=QuizOut)
 def get_quiz(
     quiz_id: str,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    current_user: User = Depends(RoleChecker(["student", "teacher", "school_admin"])),
     db: Session = Depends(get_db)
 ):
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()

@@ -25,6 +25,10 @@ export default function MasteryDashboard({ onStartRevision }) {
       });
   };
 
+  const subjectMasteryList = analytics?.subject_mastery || [];
+  const weakTopicsList = analytics?.weak_topics || [];
+  const upcomingRevisionsList = analytics?.upcoming_revisions || [];
+
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 20px' }}>
       
@@ -72,64 +76,73 @@ export default function MasteryDashboard({ onStartRevision }) {
         <>
           {/* Subject Mastery Overview */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-            {Object.entries(analytics.subject_mastery || {}).map(([subj, score], idx) => (
-              <div key={idx} className="glass-panel" style={{ padding: '20px 24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{subj}</span>
-                  <span style={{ fontWeight: 800, color: score >= 80 ? 'var(--accent-emerald)' : 'var(--accent-cyan)' }}>{score}%</span>
+            {subjectMasteryList.map((item, idx) => {
+              const score = Math.round(item.mastery_percentage || 0);
+              return (
+                <div key={idx} className="glass-panel" style={{ padding: '20px 24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{item.subject}</span>
+                    <span style={{ fontWeight: 800, color: score >= 80 ? 'var(--accent-emerald)' : 'var(--accent-cyan)' }}>{score}%</span>
+                  </div>
+                  <div className="progress-bar-track">
+                    <div
+                      className="progress-bar-fill"
+                      style={{
+                        width: `${score}%`,
+                        background: score >= 80 ? 'linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan))' : 'linear-gradient(90deg, var(--accent-cyan), var(--accent-purple))'
+                      }}
+                    ></div>
+                  </div>
+                  <div style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Level: {item.level || (score >= 80 ? 'Excellent' : 'Moderate')}
+                  </div>
                 </div>
-                <div className="progress-bar-track">
-                  <div
-                    className="progress-bar-fill"
-                    style={{
-                      width: `${score}%`,
-                      background: score >= 80 ? 'linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan))' : 'linear-gradient(90deg, var(--accent-cyan), var(--accent-purple))'
-                    }}
-                  ></div>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {score >= 80 ? '✓ Proficient mastery' : 'Targeted revision recommended'}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Weak Topics Diagnostic */}
           <div style={{ marginBottom: '32px' }}>
             <h2 style={{ fontSize: '1.35rem', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <AlertTriangle size={20} color="var(--accent-rose)" /> Topics Needing Targeted Practice
+              <AlertTriangle size={20} color="var(--accent-rose)" /> Topics Needing Targeted Practice ({weakTopicsList.length})
             </h2>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {(analytics.weak_topics || []).map((t, idx) => (
-                <div
-                  key={idx}
-                  className="glass-panel"
-                  style={{
-                    padding: '18px 24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderLeft: '4px solid var(--accent-rose)'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                      <span className="badge badge-weak-topic">Mastery: {t.mastery_score}%</span>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{t.subject}</span>
+            {weakTopicsList.length === 0 ? (
+              <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--accent-emerald)' }}>
+                ✓ No critical weak topics identified! All evaluated curriculum units are currently above proficiency thresholds.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {weakTopicsList.map((t, idx) => (
+                  <div
+                    key={idx}
+                    className="glass-panel"
+                    style={{
+                      padding: '18px 24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderLeft: '4px solid var(--accent-rose)'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                        <span className="badge badge-weak-topic">Accuracy: {Math.round(t.accuracy_percentage)}%</span>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{t.subject}</span>
+                      </div>
+                      <h3 style={{ fontSize: '1.15rem' }}>{t.topic}</h3>
+                      <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                        Diagnostic status: <strong>{t.status || 'Needs Practice'}</strong>. Recommended for active recall review.
+                      </p>
                     </div>
-                    <h3 style={{ fontSize: '1.15rem' }}>{t.topic}</h3>
-                    <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                      Recent quiz accuracy indicates conceptual confusion. Revision scheduled for <strong>{t.next_revision_date}</strong>.
-                    </p>
-                  </div>
 
-                  <button className="btn btn-outline" onClick={() => onStartRevision(t.topic)}>
-                    Practice Now
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <button className="btn btn-outline" onClick={() => onStartRevision(t.topic)}>
+                      Practice with AI Tutor
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Upcoming Spaced Repetition Calendar */}
@@ -138,20 +151,26 @@ export default function MasteryDashboard({ onStartRevision }) {
               <RotateCcw size={20} color="var(--accent-amber)" /> Upcoming Spaced Revision (Active Recall)
             </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
-              {(analytics.upcoming_revisions || []).map((r, idx) => (
-                <div key={idx} className="glass-panel" style={{ padding: '18px 22px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span className="badge badge-spaced-due">Scheduled: {r.scheduled_date}</span>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>SM-2 Interval: {r.interval_days}d</span>
+            {upcomingRevisionsList.length === 0 ? (
+              <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                No spaced revisions pending today. Complete curriculum lessons and quizzes to activate retention schedules.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                {upcomingRevisionsList.map((r, idx) => (
+                  <div key={idx} className="glass-panel" style={{ padding: '18px 22px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span className="badge badge-spaced-due">Scheduled: {r.scheduled_date}</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>SM-2 Interval: {r.interval_days}d</span>
+                    </div>
+                    <h4 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>{r.topic}</h4>
+                    <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                      Active recall review timed to prevent forgetting curves and lock concepts into long-term memory.
+                    </p>
                   </div>
-                  <h4 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>{r.topic}</h4>
-                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                    Active recall review timed to prevent forgetting curves and lock concepts into long-term memory.
-                  </p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

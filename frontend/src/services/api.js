@@ -178,7 +178,28 @@ export const reviewStagedContent = async (contentId, action, notes = '') => {
   return await res.json();
 };
 
-// 10. Parent Linked Student Progress
+// 10. Teacher Class Analytics
+export const fetchTeacherClasses = async () => {
+  const res = await fetch(`${API_BASE_URL}/teachers/classes`, {
+    headers: defaultHeaders()
+  });
+  if (!res.ok) {
+    throw new Error('Failed to load teacher class roster');
+  }
+  return await res.json();
+};
+
+export const fetchClassAnalytics = async (classId) => {
+  const res = await fetch(`${API_BASE_URL}/teachers/classes/${classId}/analytics`, {
+    headers: defaultHeaders()
+  });
+  if (!res.ok) {
+    throw new Error('Failed to load class analytics');
+  }
+  return await res.json();
+};
+
+// 11. Parent Linked Student Progress
 export const fetchParentStudentSummary = async () => {
   const res = await fetch(`${API_BASE_URL}/parents/students`, {
     headers: defaultHeaders()

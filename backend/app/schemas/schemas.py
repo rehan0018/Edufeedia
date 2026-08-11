@@ -386,6 +386,12 @@ class SubjectMasteryItem(BaseModel):
     mastery_percentage: float
     level: str
 
+class UpcomingRevisionItem(BaseModel):
+    topic: str
+    subject: str
+    interval_days: int
+    scheduled_date: str
+
 class TopicMasteryResponse(BaseModel):
     student_id: str
     total_topics_evaluated: int
@@ -395,3 +401,4 @@ class TopicMasteryResponse(BaseModel):
     all_topics: List[TopicMasteryItem]
     subject_mastery: List[SubjectMasteryItem]
     remedial_schedules_activated: List[str]
+    upcoming_revisions: Optional[List[UpcomingRevisionItem]] = None
