@@ -42,7 +42,10 @@ venv.bak/
 edufeedia.db
 
 # Excel Synchronized Export Files
+*.xlsx
+*.xls
 edufeedia_database_records.xlsx
+edufeedia_database_records_latest.xlsx
 ~$*.xlsx
 
 # Environment variables & secrets
