@@ -59,5 +59,41 @@ class TestTwoStageRecommender(unittest.TestCase):
         scores = [r["score"] for r in ranked]
         self.assertEqual(scores, sorted(scores, reverse=True))
 
+    def test_learning_loop_dynamic_reranking(self):
+        """
+        Validates the educational closed loop:
+        When a topic is flagged as weak/due for revision, its score is boosted
+        and it is prioritized with an explainable pedagogical badge.
+        """
+        item_normal = self.candidate_items[0]
+
+        # Normal extraction
+        f_normal = RecommendationFeatureBuilder.extract_interaction_features(
+            db=self.db,
+            student_user=self.student,
+            item=item_normal,
+            weak_topics=[],
+            due_schedule_topics=[]
+        )
+
+        # Extraction when topic is flagged weak
+        f_boosted = RecommendationFeatureBuilder.extract_interaction_features(
+            db=self.db,
+            student_user=self.student,
+            item=item_normal,
+            weak_topics=[item_normal.topic],
+            due_schedule_topics=[item_normal.topic]
+        )
+
+        self.assertEqual(f_normal["is_weak_topic"], 0.0)
+        self.assertEqual(f_normal["is_spaced_due"], 0.0)
+        self.assertEqual(f_boosted["is_weak_topic"], 1.0)
+        self.assertEqual(f_boosted["is_spaced_due"], 1.0)
+
+        # Pointwise score under normal vs weak topic
+        score_normal = TwoStageMLRanker.compute_pointwise_score(f_normal)
+        score_boosted = TwoStageMLRanker.compute_pointwise_score(f_boosted)
+        self.assertGreater(score_boosted, score_normal)
+
 if __name__ == "__main__":
     unittest.main()

@@ -52,6 +52,18 @@ def get_class_analytics(
     if not school_class:
         raise HTTPException(status_code=404, detail="School class not found")
 
+    # Tenant Isolation: Ensure teacher is assigned to this specific class
+    if current_user.role == "teacher":
+        is_assigned = db.query(teacher_classes).filter(
+            teacher_classes.c.teacher_user_id == current_user.id,
+            teacher_classes.c.class_id == class_id
+        ).first()
+        if not is_assigned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You are not assigned to this school class or tenant."
+            )
+
     profiles = db.query(StudentProfile).filter(StudentProfile.class_id == class_id).all()
     
     roster = []

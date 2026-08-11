@@ -94,14 +94,20 @@ def review_staged_content(
         item.is_approved = True
         
         from app.models.models import CurriculumChunk
-        existing_chunk = db.query(CurriculumChunk).filter(CurriculumChunk.topic == item.topic).first()
+        chunk_body = f"{item.title}. {item.description or ''}"
+        existing_chunk = db.query(CurriculumChunk).filter(
+            CurriculumChunk.topic == item.topic,
+            CurriculumChunk.subject == (item.subject or "Science"),
+            CurriculumChunk.grade_level == (item.grade_level or 10),
+            CurriculumChunk.chunk_text == chunk_body
+        ).first()
         if not existing_chunk:
             chunk = CurriculumChunk(
                 subject=item.subject or "Science",
                 topic=item.topic or "Physics",
                 grade_level=item.grade_level or 10,
                 section="Core Concepts & Interactive Simulation",
-                chunk_text=f"{item.title}. {item.description or ''}",
+                chunk_text=chunk_body,
                 embedding=item.embedding
             )
             db.add(chunk)

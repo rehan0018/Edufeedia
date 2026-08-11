@@ -39,6 +39,22 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ingestion.router, prefix="/api/v1")
 app.include_router(privacy.router, prefix="/api/v1")
 
+import uuid
+import time
+from fastapi import Request, Response
+from fastapi.responses import JSONResponse
+
+# Request-ID Correlation Middleware
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    start_time = time.time()
+    response: Response = await call_next(request)
+    duration_ms = round((time.time() - start_time) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Response-Time-MS"] = str(duration_ms)
+    return response
+
 from app.core.logging_config import logger
 
 logger.info(f"Initializing {settings.PROJECT_NAME} backend service...")
@@ -68,11 +84,14 @@ def readiness_check():
         }
     except Exception as e:
         logger.error(f"[Readiness Failure]: Database check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "database": "disconnected",
-            "error": str(e)
-        }
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
 
 # Mount static frontend directories for hosting the web client dashboard
 static_path = os.path.join(os.path.dirname(__file__), "static")

@@ -83,6 +83,16 @@ def ask_ai_tutor(
         student_grade=grade_lvl
     )
 
+    # 3. Output Safety Gate — Validate synthesized LLM response before returning to minor
+    output_audit = SafetyEngine.audit_content(rag_result["answer"], target_age=16)
+    if not output_audit["is_safe"]:
+        return TutorResponse(
+            answer="Let's focus on the foundational principles of this lesson. What core definition would you like to review together?",
+            socratic_cue="Can you explain the problem in your own words?",
+            follow_up_questions=["Would you like a step-by-step example?", "Which part seems challenging?"],
+            is_safe=True
+        )
+
     return TutorResponse(
         answer=rag_result["answer"],
         socratic_cue=rag_result["socratic_cue"],

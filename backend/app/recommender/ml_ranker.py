@@ -57,18 +57,7 @@ class TwoStageMLRanker:
                 due_schedule_topics=due_topics
             )
 
-            # Linear + Non-linear tree interaction scoring
-            raw_logit = 0.0
-            for feat_name, weight in cls.FEATURE_WEIGHTS.items():
-                raw_logit += features.get(feat_name, 0.0) * weight
-
-            # Non-linear boost: If spaced due AND weak topic, amplify score
-            if features["is_spaced_due"] > 0 and features["is_weak_topic"] > 0:
-                raw_logit += 0.20
-
-            # Sigmoidal Calibration to [0.0, 1.0]
-            ranking_score = 1.0 / (1.0 + math.exp(-3.0 * (raw_logit - 0.40)))
-            ranking_score = max(0.05, min(0.99, ranking_score))
+            ranking_score = cls.compute_pointwise_score(features)
 
             # Explainable Recommendation Reason
             reason = "Recommended for your curriculum"
@@ -81,7 +70,7 @@ class TwoStageMLRanker:
 
             scored_candidates.append({
                 "item": item,
-                "score": round(ranking_score, 4),
+                "score": ranking_score,
                 "features": features,
                 "reason": reason
             })
@@ -90,3 +79,20 @@ class TwoStageMLRanker:
         scored_candidates.sort(key=lambda x: x["score"], reverse=True)
 
         return scored_candidates[:top_n]
+
+    @classmethod
+    def compute_pointwise_score(cls, features: Dict[str, float]) -> float:
+        """
+        Computes calibrated sigmoidal pointwise ranking score from feature vector.
+        """
+        raw_logit = 0.0
+        for feat_name, weight in cls.FEATURE_WEIGHTS.items():
+            raw_logit += features.get(feat_name, 0.0) * weight
+
+        # Non-linear boost: If spaced due AND weak topic, amplify score
+        if features.get("is_spaced_due", 0) > 0 and features.get("is_weak_topic", 0) > 0:
+            raw_logit += 0.20
+
+        # Sigmoidal Calibration to [0.0, 1.0]
+        ranking_score = 1.0 / (1.0 + math.exp(-3.0 * (raw_logit - 0.40)))
+        return round(max(0.05, min(0.99, ranking_score)), 4)

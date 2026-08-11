@@ -49,7 +49,7 @@ MODERATION_HEADS = {
 
 class MultiHeadSafetyClassifier:
     """
-    Multi-Head Semantic Safety & Pedagogy Classifier for under-18 students.
+    Multi-Label Safety & Pedagogical Depth Classifier for under-18 students.
     Provides calibrated risk probabilities across toxicity, violence, NSFW,
     substances, dangerous activities, commercial clickbait, and educational pedagogical depth.
     """

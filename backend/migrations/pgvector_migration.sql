@@ -25,8 +25,9 @@ BEGIN
     END IF;
 END $$;
 
--- 3. Create Approximate Nearest Neighbor (ANN) IVFFlat Indices for Sub-millisecond Cosine Search
--- Note: Recommended after populating initial corpus rows (e.g. lists = 100 for 10k-100k chunks)
+-- 3. Create Approximate Nearest Neighbor (ANN) IVFFlat Indices for Vector Similarity Search
+-- Note: Create indexes after initial corpus load.
+-- Tune lists (e.g. rows/1000 for up to 1M rows) and SET ivfflat.probes based on accuracy/speed benchmarks.
 CREATE INDEX IF NOT EXISTS idx_content_items_vector_cosine 
 ON content_items USING ivfflat (vector_embedding vector_cosine_ops)
 WITH (lists = 100);

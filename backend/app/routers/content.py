@@ -18,6 +18,8 @@ def explore_content(
     board: str = None,
     content_type: str = None,
     difficulty: str = None,
+    limit: int = 50,
+    offset: int = 0,
     current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
     db: Session = Depends(get_db)
 ):
@@ -42,7 +44,7 @@ def explore_content(
     if difficulty:
         q = q.filter(ContentItem.difficulty == difficulty)
 
-    items = q.order_by(ContentItem.created_at.desc()).all()
+    items = q.order_by(ContentItem.created_at.desc()).offset(max(0, offset)).limit(min(100, max(1, limit))).all()
 
     # Get student progress if student
     completed_ids = set()

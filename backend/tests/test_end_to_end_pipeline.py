@@ -20,19 +20,21 @@ class TestEndToEndEdufeediaPipeline(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # 1. Authenticate Teacher
+        teacher_email = os.getenv("TEST_TEACHER_EMAIL", "sharma@apexschool.edu")
+        teacher_pwd = os.getenv("TEST_TEACHER_PASSWORD", "Teacher123!")
         t_res = client.post("/api/v1/auth/login", json={
-            "email": "sharma@apexschool.edu",
-            "password": "Teacher123!"
+            "email": teacher_email,
+            "password": teacher_pwd
         })
         assert t_res.status_code == 200
         cls.teacher_token = t_res.json()["access_token"]
         cls.teacher_headers = {"Authorization": f"Bearer {cls.teacher_token}"}
 
-        # 2. Authenticate Student
+        student_email = os.getenv("TEST_STUDENT_EMAIL", "rahul@apexschool.edu")
+        student_pwd = os.getenv("TEST_STUDENT_PASSWORD", "Student123!")
         s_res = client.post("/api/v1/auth/login", json={
-            "email": "rahul@apexschool.edu",
-            "password": "Student123!"
+            "email": student_email,
+            "password": student_pwd
         })
         assert s_res.status_code == 200
         cls.student_token = s_res.json()["access_token"]
