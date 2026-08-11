@@ -11,10 +11,29 @@ from app.core.algorithms import calculate_sm2
 
 router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 
+@router.get("/content/{content_item_id}", response_model=QuizOut)
+def get_quiz_by_content_item(
+    content_item_id: str,
+    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    quiz = db.query(Quiz).filter(Quiz.content_item_id == content_item_id).first()
+    if not quiz:
+        # Fallback to general quiz with matching topic
+        item = db.query(ContentItem).filter(ContentItem.id == content_item_id).first()
+        if item:
+            quiz = db.query(Quiz).join(ContentItem).filter(ContentItem.topic == item.topic).first()
+    if not quiz:
+        # Return first available approved quiz for practice
+        quiz = db.query(Quiz).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="No assessment quiz found")
+    return quiz
+
 @router.get("/{quiz_id}", response_model=QuizOut)
 def get_quiz(
     quiz_id: str,
-    current_user: User = Depends(RoleChecker(["student"])),
+    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
     db: Session = Depends(get_db)
 ):
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { Brain, Send, Sparkles, ShieldCheck, HelpCircle, Loader2 } from 'lucide-react';
+import { Brain, Send, Sparkles, ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
 import { askSocraticTutor } from '../services/api';
 
 export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
   const [messages, setMessages] = useState([
     {
       sender: 'tutor',
-      text: `Hello! I am your Edufeedia Socratic study companion. We are currently exploring **${activeTopic}**. What core concept or formula would you like to examine together?`,
-      socratic_cue: "Can you describe the physical relationship between force, mass, and velocity in your own words?",
+      text: `Hello! I am your Edufeedia Socratic study companion. We are currently exploring **${activeTopic}**. What core concept or problem step would you like to examine together?`,
+      socratic_cue: "Can you describe the physical relationship between force, mass, and acceleration in your own words?",
       follow_ups: [
         "Why does acceleration increase when net force rises?",
         "What is the difference between mass and weight?"
@@ -16,6 +16,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
   ]);
   const [inputQuestion, setInputQuestion] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSend = async (questionText = inputQuestion) => {
     if (!questionText.trim() || loading) return;
@@ -24,6 +25,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
     setMessages(prev => [...prev, userMsg]);
     setInputQuestion('');
     setLoading(true);
+    setError('');
 
     try {
       const resp = await askSocraticTutor(questionText);
@@ -35,10 +37,11 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
       };
       setMessages(prev => [...prev, tutorMsg]);
     } catch (err) {
+      setError(err.message || 'The AI Tutor is temporarily unavailable. Please try again.');
       setMessages(prev => [...prev, {
         sender: 'tutor',
-        text: "Let's review the fundamental definitions of this curriculum unit. What specific part would you like to clarify?",
-        socratic_cue: "Would you like a step-by-step calculation example?"
+        text: '⚠ Tutor service is currently unavailable. Please try again or ask a question about a different topic.',
+        is_error: true
       }]);
     } finally {
       setLoading(false);
@@ -62,7 +65,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                 gap: '4px',
                 fontWeight: 600
               }}>
-                <ShieldCheck size={14} /> Safety Gate Active
+                <ShieldCheck size={14} /> Multi-Label Safety Gate
               </span>
             </div>
             <h1 style={{ fontSize: '1.8rem' }}>🧠 Socratic Study Companion</h1>
@@ -107,9 +110,13 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
               maxWidth: '82%',
               padding: '14px 18px',
               borderRadius: 'var(--radius-md)',
-              background: m.sender === 'student' ? 'linear-gradient(135deg, var(--accent-cyan), var(--accent-blue))' : 'var(--bg-card-solid)',
+              background: m.sender === 'student' 
+                ? 'linear-gradient(135deg, var(--accent-cyan), var(--accent-blue))' 
+                : m.is_error 
+                  ? 'hsla(346, 84%, 61%, 0.15)'
+                  : 'var(--bg-card-solid)',
               color: m.sender === 'student' ? 'hsl(222, 47%, 9%)' : 'var(--text-primary)',
-              border: m.sender === 'student' ? 'none' : '1px solid var(--border-subtle)',
+              border: m.sender === 'student' ? 'none' : m.is_error ? '1px solid var(--accent-rose)' : '1px solid var(--border-subtle)',
               fontWeight: m.sender === 'student' ? 600 : 400,
               lineHeight: '1.5'
             }}>
@@ -154,7 +161,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
 
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-cyan)', fontSize: '0.9rem' }}>
-            <Loader2 size={18} className="spin" /> Socratic tutor is reasoning against curriculum corpus...
+            <Loader2 size={18} className="spin" /> Socratic tutor is querying curriculum context...
           </div>
         )}
       </div>

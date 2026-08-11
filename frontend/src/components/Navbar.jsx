@@ -1,7 +1,11 @@
 import React from 'react';
 import { Sparkles, BookOpen, Brain, Trophy, LogOut, Flame, Zap, ShieldCheck } from 'lucide-react';
 
-export default function Navbar({ currentTab, setTab, user, onLogout, onSwitchPersona }) {
+export default function Navbar({ currentTab, setTab, user, onLogout }) {
+  const isStudent = user?.role === 'student';
+  const isTeacher = user?.role === 'teacher' || user?.role === 'school_admin';
+  const isParent = user?.role === 'parent';
+
   return (
     <header style={{
       position: 'sticky',
@@ -16,7 +20,7 @@ export default function Navbar({ currentTab, setTab, user, onLogout, onSwitchPer
       borderBottom: '1px solid var(--border-subtle)',
     }}>
       {/* Brand Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setTab('feed')}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setTab(isStudent ? 'feed' : isTeacher ? 'teacher' : 'parent')}>
         <div style={{
           width: '36px',
           height: '36px',
@@ -34,56 +38,60 @@ export default function Navbar({ currentTab, setTab, user, onLogout, onSwitchPer
         </span>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs (Strictly Role Separated) */}
       <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button
-          className={`btn ${currentTab === 'feed' ? 'btn-primary' : 'btn-outline'}`}
-          onClick={() => setTab('feed')}
-          style={{ padding: '8px 16px', fontSize: '0.88rem' }}
-        >
-          <Sparkles size={16} /> Today's Plan
-        </button>
+        {isStudent && (
+          <>
+            <button
+              className={`btn ${currentTab === 'feed' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setTab('feed')}
+              style={{ padding: '8px 16px', fontSize: '0.88rem' }}
+            >
+              <Sparkles size={16} /> Today's Plan
+            </button>
 
-        <button
-          className={`btn ${currentTab === 'tutor' ? 'btn-accent' : 'btn-outline'}`}
-          onClick={() => setTab('tutor')}
-          style={{ padding: '8px 16px', fontSize: '0.88rem' }}
-        >
-          <Brain size={16} /> AI Tutor
-        </button>
+            <button
+              className={`btn ${currentTab === 'tutor' ? 'btn-accent' : 'btn-outline'}`}
+              onClick={() => setTab('tutor')}
+              style={{ padding: '8px 16px', fontSize: '0.88rem' }}
+            >
+              <Brain size={16} /> AI Tutor
+            </button>
 
-        <button
-          className={`btn ${currentTab === 'mastery' ? 'btn-primary' : 'btn-outline'}`}
-          onClick={() => setTab('mastery')}
-          style={{ padding: '8px 16px', fontSize: '0.88rem' }}
-        >
-          <Trophy size={16} /> Mastery & Revision
-        </button>
+            <button
+              className={`btn ${currentTab === 'mastery' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setTab('mastery')}
+              style={{ padding: '8px 16px', fontSize: '0.88rem' }}
+            >
+              <Trophy size={16} /> Mastery & Revision
+            </button>
+          </>
+        )}
 
-        {user?.role === 'teacher' && (
+        {isTeacher && (
           <button
             className={`btn ${currentTab === 'teacher' ? 'btn-accent' : 'btn-outline'}`}
             onClick={() => setTab('teacher')}
             style={{ padding: '8px 16px', fontSize: '0.88rem' }}
           >
-            <BookOpen size={16} /> Teacher Portal
+            <BookOpen size={16} /> Class Analytics & Moderation
           </button>
         )}
 
-        {user?.role === 'parent' && (
+        {isParent && (
           <button
             className={`btn ${currentTab === 'parent' ? 'btn-accent' : 'btn-outline'}`}
             onClick={() => setTab('parent')}
             style={{ padding: '8px 16px', fontSize: '0.88rem' }}
           >
-            <ShieldCheck size={16} /> Parent Portal
+            <ShieldCheck size={16} /> Child Learning Summary
           </button>
         )}
       </nav>
 
-      {/* User Stats & Persona Switcher */}
+      {/* User Info, Gamification Badges, & Logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-        {user?.role === 'student' && (
+        {isStudent && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               display: 'flex',
@@ -112,7 +120,7 @@ export default function Navbar({ currentTab, setTab, user, onLogout, onSwitchPer
               fontSize: '0.85rem',
               fontWeight: 700
             }}>
-              <Zap size={16} /> 350 XP
+              <Zap size={16} /> {user?.xp_score || 350} XP
             </div>
           </div>
         )}

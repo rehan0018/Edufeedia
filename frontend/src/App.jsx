@@ -14,19 +14,36 @@ export default function App() {
   const [session, setSession] = useState(getSession());
   const [currentTab, setCurrentTab] = useState('feed');
   const [dailyPlan, setDailyPlan] = useState(null);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [feedError, setFeedError] = useState('');
+  
   const [activeLesson, setActiveLesson] = useState(null);
   const [quizModalOpen, setQuizModalOpen] = useState(false);
+  const [quizLessonTarget, setQuizLessonTarget] = useState(null);
   const [tutorFocusTopic, setTutorFocusTopic] = useState("Newton's Laws");
 
   useEffect(() => {
-    if (session.user) {
-      fetchDailyPlanFeed().then(setDailyPlan);
+    if (session.user && session.user.role === 'student') {
+      loadFeed();
     }
   }, [session.user]);
 
+  const loadFeed = async () => {
+    setLoadingFeed(true);
+    setFeedError('');
+    try {
+      const data = await fetchDailyPlanFeed();
+      setDailyPlan(data);
+    } catch (err) {
+      setFeedError(err.message || 'Could not fetch daily recommendations');
+    } finally {
+      setLoadingFeed(false);
+    }
+  };
+
   const handleLoginSuccess = (user) => {
     setSession({ user, role: user.role, token: localStorage.getItem('edufeedia_token') });
-    if (user.role === 'teacher') setCurrentTab('teacher');
+    if (user.role === 'teacher' || user.role === 'school_admin') setCurrentTab('teacher');
     else if (user.role === 'parent') setCurrentTab('parent');
     else setCurrentTab('feed');
   };
@@ -42,6 +59,7 @@ export default function App() {
 
   const handleCompleteAndQuiz = (lesson) => {
     setActiveLesson(null);
+    setQuizLessonTarget(lesson);
     setQuizModalOpen(true);
   };
 
@@ -51,17 +69,9 @@ export default function App() {
     setCurrentTab('tutor');
   };
 
-  const handleQuizComplete = (score) => {
-    // Refresh daily plan and XP after quiz attempt
-    if (dailyPlan) {
-      const updatedItems = dailyPlan.items.map(item => {
-        if (item.topic === "Newton's Laws" || item.topic === "Human Respiration") {
-          return { ...item, is_completed: true };
-        }
-        return item;
-      });
-      setDailyPlan({ ...dailyPlan, items: updatedItems, xp: (dailyPlan.xp || 350) + score * 20 });
-    }
+  const handleQuizComplete = (result) => {
+    // Re-fetch fresh daily plan from backend after real quiz attempt is stored
+    loadFeed();
   };
 
   if (!session.user) {
@@ -85,9 +95,15 @@ export default function App() {
         {currentTab === 'feed' && (
           <DailyPlanFeed
             dailyPlan={dailyPlan}
+            loading={loadingFeed}
+            error={feedError}
             onSelectLesson={handleSelectLesson}
-            onOpenQuiz={() => setQuizModalOpen(true)}
+            onOpenQuiz={() => {
+              setQuizLessonTarget(dailyPlan?.items?.[0] || null);
+              setQuizModalOpen(true);
+            }}
             onOpenTutor={(topic) => handleOpenTutorFromLesson(topic)}
+            onRetry={loadFeed}
           />
         )}
 
@@ -122,8 +138,11 @@ export default function App() {
       {/* Quiz Modal */}
       {quizModalOpen && (
         <QuizModal
-          lesson={activeLesson}
-          onClose={() => setQuizModalOpen(false)}
+          lesson={quizLessonTarget}
+          onClose={() => {
+            setQuizModalOpen(false);
+            setQuizLessonTarget(null);
+          }}
           onQuizComplete={handleQuizComplete}
         />
       )}

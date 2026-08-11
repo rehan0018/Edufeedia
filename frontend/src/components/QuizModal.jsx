@@ -1,63 +1,37 @@
-import React, { useState } from 'react';
-import { X, CheckCircle2, XCircle, Trophy, Sparkles, ArrowRight, RotateCcw, Brain, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, CheckCircle2, XCircle, Trophy, ArrowRight, Brain, Loader2, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
-
-const SAMPLE_QUESTIONS = [
-  {
-    id: 'q1',
-    question_text: "According to Newton's Second Law of Motion, which equation correctly relates Force (F), Mass (m), and Acceleration (a)?",
-    options: ["F = m / a", "F = m * a", "F = m + a", "F = a / m"],
-    correct_answer: "F = m * a",
-    explanation: "Newton's Second Law states that force is directly proportional to the product of mass and acceleration (F = ma).",
-    bloom_level: "Recall",
-    topic: "Newton's Laws"
-  },
-  {
-    id: 'q2',
-    question_text: "If you apply a constant net force of 20 N to a 4 kg box on a frictionless floor, what is its acceleration?",
-    options: ["80 m/s²", "5 m/s²", "16 m/s²", "0.2 m/s²"],
-    correct_answer: "5 m/s²",
-    explanation: "Using F = ma, we solve for a = F / m = 20 N / 4 kg = 5 m/s².",
-    bloom_level: "Apply",
-    topic: "Newton's Laws"
-  },
-  {
-    id: 'q3',
-    question_text: "What is the primary cellular organelle where aerobic respiration and major ATP synthesis occur?",
-    options: ["Ribosome", "Endoplasmic Reticulum", "Mitochondria", "Golgi Apparatus"],
-    correct_answer: "Mitochondria",
-    explanation: "Mitochondria are the powerhouses of the cell where the Krebs cycle and oxidative phosphorylation take place to generate ATP.",
-    bloom_level: "Understand",
-    topic: "Human Respiration"
-  },
-  {
-    id: 'q4',
-    question_text: "In quadratic equations of the form ax² + bx + c = 0, what does the discriminant value D = b² - 4ac > 0 indicate?",
-    options: ["Two distinct real roots", "Two equal real roots", "No real roots", "Infinite roots"],
-    correct_answer: "Two distinct real roots",
-    explanation: "A positive discriminant (D > 0) indicates two distinct, real roots on the Cartesian parabola.",
-    bloom_level: "Analyze",
-    topic: "Quadratic Equations"
-  },
-  {
-    id: 'q5',
-    question_text: "In Python, which keyword is used to declare a user-defined function?",
-    options: ["function", "func", "def", "lambda"],
-    correct_answer: "def",
-    explanation: "The 'def' keyword is standard in Python syntax to define a function block.",
-    bloom_level: "Recall",
-    topic: "Python Functions"
-  }
-];
+import { fetchQuizForContent, submitQuizAttempt } from '../services/api';
 
 export default function QuizModal({ lesson, onClose, onQuizComplete }) {
+  const [quiz, setQuiz] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [answers, setAnswers] = useState([]);
   const [selectedOption, setSelectedOption] = useState(null);
   const [isAnswered, setIsAnswered] = useState(false);
-  const [score, setScore] = useState(0);
-  const [quizFinished, setQuizFinished] = useState(false);
+  
+  const [submitting, setSubmitting] = useState(false);
+  const [backendResult, setBackendResult] = useState(null);
 
-  const questions = SAMPLE_QUESTIONS;
+  useEffect(() => {
+    if (lesson?.id) {
+      setLoading(true);
+      fetchQuizForContent(lesson.id)
+        .then(data => {
+          setQuiz(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          setError(err.message || 'No quiz available for this module.');
+          setLoading(false);
+        });
+    }
+  }, [lesson]);
+
+  const questions = quiz?.questions || [];
   const currentQ = questions[currentIdx];
 
   const handleSelectOption = (opt) => {
@@ -65,19 +39,28 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
     setSelectedOption(opt);
     setIsAnswered(true);
 
-    if (opt === currentQ.correct_answer) {
-      setScore(prev => prev + 1);
-    }
+    const updatedAnswers = [...answers, { question_id: currentQ.id, selected_answer: opt }];
+    setAnswers(updatedAnswers);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIdx + 1 < questions.length) {
       setCurrentIdx(prev => prev + 1);
       setSelectedOption(null);
       setIsAnswered(false);
     } else {
-      setQuizFinished(true);
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      // Submit full quiz attempt to backend
+      setSubmitting(true);
+      try {
+        const result = await submitQuizAttempt(quiz.id, answers);
+        setBackendResult(result);
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        onQuizComplete?.(result);
+      } catch (err) {
+        setError(err.message || 'Failed to submit quiz to grading server.');
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -95,18 +78,45 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <span className="badge badge-subject-coding">Assessment Quiz</span>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Question {currentIdx + 1} of {questions.length}</span>
+              {questions.length > 0 && !backendResult && (
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Question {currentIdx + 1} of {questions.length}
+                </span>
+              )}
             </div>
-            <h2 style={{ fontSize: '1.35rem' }}>{currentQ?.topic || 'Curriculum Diagnostic'}</h2>
+            <h2 style={{ fontSize: '1.35rem' }}>{quiz?.title || lesson?.title || 'Interactive Assessment'}</h2>
           </div>
           <button className="btn btn-outline btn-sm" onClick={onClose} style={{ padding: '6px' }}>
             <X size={20} />
           </button>
         </div>
 
-        {!quizFinished ? (
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--accent-cyan)' }}>
+            <Loader2 size={32} className="spin" style={{ margin: '0 auto 12px auto' }} />
+            <p>Loading curriculum assessment from learning server...</p>
+          </div>
+        )}
+
+        {error && !loading && !backendResult && (
+          <div style={{
+            padding: '16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'hsla(346, 84%, 61%, 0.15)',
+            border: '1px solid var(--accent-rose)',
+            color: 'var(--accent-rose)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <AlertCircle size={20} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {!loading && !error && currentQ && !backendResult && (
           <div>
-            {/* Bloom's Level Pill */}
+            {/* Bloom's / Difficulty Pill */}
             <div style={{ display: 'inline-block', marginBottom: '14px' }}>
               <span style={{
                 fontSize: '0.75rem',
@@ -117,7 +127,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                 color: 'var(--accent-purple)',
                 border: '1px solid hsla(265, 89%, 66%, 0.4)'
               }}>
-                Bloom's Taxonomy: {currentQ.bloom_level}
+                Difficulty: {currentQ.difficulty || 'Medium'}
               </span>
             </div>
 
@@ -181,7 +191,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                 marginBottom: '20px'
               }}>
                 <div style={{ fontWeight: 700, marginBottom: '4px', color: selectedOption === currentQ.correct_answer ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
-                  {selectedOption === currentQ.correct_answer ? '✓ Correct! +20 XP' : '⚠ Key Concept Explanation'}
+                  {selectedOption === currentQ.correct_answer ? '✓ Correct Answer' : '⚠ Concept Clarification'}
                 </div>
                 <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                   {currentQ.explanation}
@@ -194,14 +204,17 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
               <button
                 className="btn btn-primary"
                 style={{ width: '100%', padding: '12px' }}
+                disabled={submitting}
                 onClick={handleNext}
               >
-                {currentIdx + 1 < questions.length ? 'Next Question' : 'Complete Quiz'} <ArrowRight size={16} />
+                {submitting ? 'Submitting to Backend...' : (currentIdx + 1 < questions.length ? 'Next Question' : 'Submit Quiz to Server')} <ArrowRight size={16} />
               </button>
             )}
           </div>
-        ) : (
-          /* Quiz Results Screen */
+        )}
+
+        {/* Backend Live Grading Results */}
+        {backendResult && (
           <div style={{ textAlign: 'center', padding: '10px 0' }}>
             <div style={{
               width: '72px',
@@ -216,9 +229,9 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
               <Trophy size={36} color="#0a0f1d" />
             </div>
 
-            <h3 style={{ fontSize: '1.8rem', marginBottom: '8px' }}>Quiz Completed! 🎉</h3>
+            <h3 style={{ fontSize: '1.8rem', marginBottom: '8px' }}>Backend Evaluated! 🎉</h3>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              Your answers have updated your curriculum mastery profile and spaced repetition intervals.
+              Your attempt has been recorded in the database, updating your mastery profile and SM-2 spaced repetition queue.
             </p>
 
             <div style={{
@@ -229,27 +242,30 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
             }}>
               <div style={{ padding: '14px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Score</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>{score} / {questions.length}</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
+                  {backendResult.score} / {backendResult.max_score}
+                </div>
               </div>
 
               <div style={{ padding: '14px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Accuracy</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{Math.round((score / questions.length) * 100)}%</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+                  {Math.round(backendResult.accuracy_percentage)}%
+                </div>
               </div>
 
               <div style={{ padding: '14px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>XP Gained</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-amber)' }}>+{score * 20} XP</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>XP Awarded</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
+                  +{backendResult.xp_gained} XP
+                </div>
               </div>
             </div>
 
             <button
               className="btn btn-primary"
               style={{ width: '100%', padding: '12px' }}
-              onClick={() => {
-                onQuizComplete?.(score);
-                onClose();
-              }}
+              onClick={onClose}
             >
               Continue to Daily Plan
             </button>
