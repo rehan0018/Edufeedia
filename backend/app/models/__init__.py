@@ -12,5 +12,6 @@ from app.models.models import (
     parent_student_links,
     teacher_classes,
     CurriculumChunk,
-    IngestedSource
+    IngestedSource,
+    ParentalConsentLog
 )

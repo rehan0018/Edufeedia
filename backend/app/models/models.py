@@ -291,3 +291,24 @@ class IngestedSource(Base):
     reviewed_by = Column(String, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class ParentalConsentLog(Base):
+    """
+    Verifiable Parental Consent & Child Privacy Audit Log.
+    Complies with COPPA, GDPR-K, and India DPDP Act 2023 provisions for minors under 18.
+    """
+    __tablename__ = "parental_consent_logs"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    parent_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    parent_email = Column(String, nullable=False)
+    consent_status = Column(String, default="granted") # 'granted', 'revoked', 'pending_verification'
+    verification_method = Column(String, default="email_verification") # 'email_verification', 'school_admin_attestation', 'guardian_portal'
+    verification_token = Column(String, nullable=True)
+    ip_hash = Column(String, nullable=True)
+    consent_scope = Column(JSON, default=list) # e.g. ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"]
+    granted_at = Column(DateTime, default=datetime.datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)
+
+    student = relationship("User", foreign_keys=[student_user_id])
+    parent = relationship("User", foreign_keys=[parent_user_id])

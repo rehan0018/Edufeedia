@@ -59,12 +59,17 @@ class ContentIntelligencePipeline:
                 "curriculum_code": existing.curriculum_code
             }
 
+        # 3. Live Adapter Metadata Fetching
+        from app.ingestion.adapters.factory import ContentFetcherFactory
+        adapter_fetch = ContentFetcherFactory.fetch(url)
+        fetched_title = adapter_fetch.get("title") if adapter_fetch.get("success") else None
+
         # Resolve title & text
-        final_title = title or f"Educational Resource from {verification['platform'].capitalize()}"
+        final_title = title or fetched_title or f"Educational Resource from {verification['platform'].capitalize()}"
         final_desc = description or ""
         final_text = raw_text or f"{final_title}. {final_desc}"
 
-        # 3. Metadata & Pedagogical Extraction
+        # 4. Metadata & Pedagogical Extraction
         metadata = MetadataExtractor.extract_metadata(
             title=final_title,
             description=final_desc,

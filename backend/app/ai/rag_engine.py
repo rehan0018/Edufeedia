@@ -1,11 +1,14 @@
 import re
 import math
+import logging
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.models import ContentItem
 from app.embeddings.embedder import embed_query, embed_content, cosine_similarity
 from app.ai.llm_client import llm_client
+
+logger = logging.getLogger(__name__)
 
 # Comprehensive Curriculum Document Chunks (Structured across CBSE / ICSE Grades 6–12)
 CURRICULUM_DOCUMENT_CORPUS = [
@@ -168,7 +171,6 @@ class RAGEngine:
         query_clean = query.lower()
         query_terms = set(re.findall(r'\b[a-z]{3,}\b', query_clean))
         query_vec = embed_query(query)
-
         # Merge in-memory verified corpus with dynamic database chunks
         active_corpus = list(CURRICULUM_DOCUMENT_CORPUS)
         if db is not None:
@@ -184,8 +186,8 @@ class RAGEngine:
                         "section": dbc.section,
                         "text": dbc.chunk_text
                     })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("[RAG Database Chunk Query Warning]: %s", e)
 
         # --- A. Dense Vector Similarity Scoring ---
         dense_scores = []
@@ -195,14 +197,35 @@ class RAGEngine:
             dense_scores.append((idx, sim))
         dense_scores.sort(key=lambda x: x[1], reverse=True)
 
-        # --- B. BM25-Style Lexical Scoring ---
+        # --- B. Calibrated Okapi BM25 Lexical Scoring (k1=1.2, b=0.75) ---
+        N = max(1, len(active_corpus))
+        doc_token_lists = [
+            re.findall(r'\b[a-z]{3,}\b', f"{doc['topic']} {doc['section']} {doc['text']}".lower())
+            for doc in active_corpus
+        ]
+        doc_lens = [max(1, len(tokens)) for tokens in doc_token_lists]
+        avgdl = sum(doc_lens) / N
+
+        k1 = 1.2
+        b = 0.75
+
         lexical_scores = []
-        for idx, doc in enumerate(active_corpus):
-            doc_text_clean = f"{doc['topic']} {doc['section']} {doc['text']}".lower()
-            doc_words = set(re.findall(r'\b[a-z]{3,}\b', doc_text_clean))
-            overlap = len(query_terms.intersection(doc_words))
-            lex_score = overlap / max(1, math.sqrt(len(doc_words)))
-            lexical_scores.append((idx, lex_score))
+        for idx, tokens in enumerate(doc_token_lists):
+            score = 0.0
+            doc_len = doc_lens[idx]
+            token_counts = {}
+            for t in tokens:
+                token_counts[t] = token_counts.get(t, 0) + 1
+
+            for q_term in query_terms:
+                if q_term in token_counts:
+                    freq = token_counts[q_term]
+                    df = sum(1 for t_list in doc_token_lists if q_term in t_list)
+                    idf = math.log((N - df + 0.5) / (df + 0.5) + 1.0)
+                    tf = (freq * (k1 + 1.0)) / (freq + k1 * (1.0 - b + b * (doc_len / avgdl)))
+                    score += (idf * tf)
+
+            lexical_scores.append((idx, round(score, 4)))
         lexical_scores.sort(key=lambda x: x[1], reverse=True)
 
         # --- C. Reciprocal Rank Fusion (RRF) Reranking ---

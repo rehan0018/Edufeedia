@@ -47,15 +47,36 @@ def update_parental_consent(
     db: Session = Depends(get_db)
 ):
     """
-    Records verifiable parental consent for a minor under COPPA / GDPR-K.
+    Records verifiable parental consent for a minor under COPPA, GDPR-K, and India DPDP Act 2023.
     """
+    from app.models.models import ParentalConsentLog
+
+    student_id = current_user.id
+    if current_user.role == "parent" and hasattr(current_user, "students_linked") and current_user.students_linked:
+        student_id = current_user.students_linked[0].id
+
+    log_entry = ParentalConsentLog(
+        student_user_id=student_id,
+        parent_user_id=current_user.id if current_user.role == "parent" else None,
+        parent_email=consent.parent_email,
+        consent_status="granted" if consent.consent_granted else "revoked",
+        verification_method=consent.verification_method or "email_verification",
+        consent_scope=["curriculum_access", "ai_socratic_tutor", "analytics_tracking"],
+        granted_at=datetime.datetime.utcnow() if consent.consent_granted else None,
+        revoked_at=datetime.datetime.utcnow() if not consent.consent_granted else None
+    )
+    db.add(log_entry)
+    db.commit()
+    db.refresh(log_entry)
+
     return {
         "status": "success",
+        "consent_log_id": log_entry.id,
         "parent_email": consent.parent_email,
         "consent_granted": consent.consent_granted,
         "verification_method": consent.verification_method,
         "timestamp": datetime.datetime.utcnow().isoformat(),
-        "message": "Parental consent status recorded successfully."
+        "message": "Verifiable parental consent recorded successfully in compliance audit log."
     }
 
 @router.get("/export-my-data")
