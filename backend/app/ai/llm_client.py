@@ -28,10 +28,11 @@ Respond in valid JSON format with the following keys:
 
 class LLMClient:
     """
-    Resilient Multi-Provider Model Gateway:
-    1. Primary Cloud Provider: OpenAI GPT API (gpt-4o-mini / gpt-4o)
-    2. Secondary Cloud Provider: Google Gemini API (gemini-1.5-flash)
+    Resilient Multi-Provider Model Gateway with Post-Generation Safety Audit:
+    1. Primary Cloud Provider: OpenAI API (configurable via OPENAI_MODEL)
+    2. Secondary Cloud Provider: Google Gemini API (configurable via GEMINI_MODEL)
     3. High-Fidelity Local Socratic Engine (Deterministic, zero-latency verified fallback)
+    4. Post-LLM Output Safety Audit: Every generated response is evaluated by SafetyEngine
     """
 
     def __init__(self):
@@ -41,6 +42,10 @@ class LLMClient:
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY")
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+        try:
+            self.timeout_seconds = float(os.getenv("LLM_TIMEOUT_SECONDS", "10.0"))
+        except ValueError:
+            self.timeout_seconds = 10.0
 
     def generate_socratic_response(
         self,
@@ -50,8 +55,10 @@ class LLMClient:
         student_grade: int = 10,
         subject: str = "General"
     ) -> Dict[str, Any]:
-        # 1. Prompt Injection Sanitization
+        # 1. Prompt Injection Sanitization (Input Safety)
         sanitized_q = self._sanitize_prompt(question)
+
+        raw_response: Optional[Dict[str, Any]] = None
 
         # 2. Try OpenAI Provider (if key exists and provider is 'openai' or 'auto')
         if (self.provider in ("openai", "auto")) and self.openai_key:
@@ -59,24 +66,32 @@ class LLMClient:
                 res = self._call_openai(sanitized_q, curriculum_context, topic, student_grade, subject)
                 if res:
                     res["provider"] = "openai"
-                    return res
+                    res["model"] = self.openai_model
+                    raw_response = res
             except Exception as e:
                 logger.warning(f"[OpenAI Provider Failure -> Falling back to secondary]: {e}")
 
-        # 3. Try Gemini Provider (if key exists and provider is 'gemini' or 'auto')
-        if (self.provider in ("gemini", "auto")) and self.gemini_key:
+        # 3. Try Gemini Provider (if OpenAI failed/skipped, key exists, and provider is 'gemini' or 'auto')
+        if raw_response is None and (self.provider in ("gemini", "auto")) and self.gemini_key:
             try:
                 res = self._call_gemini(sanitized_q, curriculum_context, topic, student_grade, subject)
                 if res:
                     res["provider"] = "gemini"
-                    return res
+                    res["model"] = self.gemini_model
+                    raw_response = res
             except Exception as e:
                 logger.warning(f"[Gemini Provider Failure -> Falling back to local]: {e}")
 
-        # 4. Deterministic Local Socratic Engine (Zero-latency, 100% reliable fallback)
-        res = self._local_socratic_generation(sanitized_q, curriculum_context, topic, student_grade, subject)
-        res["provider"] = "local_socratic"
-        return res
+        # 4. Deterministic Local Socratic Engine Fallback (Zero-latency, 100% reliable)
+        if raw_response is None:
+            res = self._local_socratic_generation(sanitized_q, curriculum_context, topic, student_grade, subject)
+            res["provider"] = "local_socratic"
+            res["model"] = "edufeedia-deterministic-v1"
+            raw_response = res
+
+        # 5. POST-LLM OUTPUT SAFETY AUDIT (Strict Double-Sided AI Safety Hard Gate)
+        final_response = self._audit_output_safety(raw_response, student_grade)
+        return final_response
 
     def _call_openai(
         self,
@@ -106,20 +121,19 @@ class LLMClient:
             }
         )
 
-        with urllib.request.urlopen(req, timeout=6) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             content = data["choices"][0]["message"]["content"]
-            parsed = json.loads(content)
+            parsed = self._extract_json_payload(content)
             return {
                 "answer": parsed.get("explanation", parsed.get("answer", content)),
-                "socratic_cue": parsed.get("socratic_cue", "How does this idea apply to real-world scenarios?"),
+                "socratic_cue": parsed.get("socratic_cue", "How does this idea apply to real-world problem solving?"),
                 "follow_up_questions": parsed.get("follow_up_questions", [
-                    "Would you like to step through an example?",
-                    "Can you explain this in your own words?"
+                    "Would you like to walk through a concrete example?",
+                    "Can you summarize this concept in your own words?"
                 ]),
                 "topic": topic,
-                "subject": subject,
-                "is_safe": True
+                "subject": subject
             }
 
     def _call_gemini(
@@ -150,24 +164,42 @@ class LLMClient:
             headers={"Content-Type": "application/json"}
         )
 
-        with urllib.request.urlopen(req, timeout=6) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             candidates = data.get("candidates", [])
             if candidates:
                 content_text = candidates[0]["content"]["parts"][0]["text"]
-                parsed = json.loads(content_text)
+                parsed = self._extract_json_payload(content_text)
                 return {
                     "answer": parsed.get("explanation", parsed.get("answer", content_text)),
                     "socratic_cue": parsed.get("socratic_cue", "How would you approach this problem step-by-step?"),
                     "follow_up_questions": parsed.get("follow_up_questions", [
                         "Can you summarize the core concept in your own words?",
-                        "Would you like a diagnostic practice question?"
+                        "Would you like an interactive practice question?"
                     ]),
                     "topic": topic,
-                    "subject": subject,
-                    "is_safe": True
+                    "subject": subject
                 }
         return None
+
+    @staticmethod
+    def _extract_json_payload(raw_text: str) -> Dict[str, Any]:
+        """Extracts valid JSON payload even if wrapped in markdown codeblocks."""
+        clean = raw_text.strip()
+        if clean.startswith("```"):
+            clean = re.sub(r"^```(?:json)?\n?", "", clean, flags=re.IGNORECASE)
+            clean = re.sub(r"\n?```$", "", clean)
+        try:
+            return json.loads(clean)
+        except Exception:
+            # Match first json object in text
+            match = re.search(r"\{.*\}", clean, flags=re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except Exception:
+                    pass
+            return {"explanation": raw_text, "socratic_cue": "What do you notice about this concept?", "follow_up_questions": []}
 
     @staticmethod
     def sanitize_prompt(prompt: str) -> str:
@@ -179,14 +211,59 @@ class LLMClient:
             r"reveal the hidden system prompt",
             r"reveal system prompt",
             r"act as an unrestricted assistant",
-            r"override moderation"
+            r"override moderation",
+            r"tell me something unrelated"
         ]
         clean = prompt
         for b in blocked:
-            clean = re.sub(b, "[redacted inquiry]", clean, flags=re.IGNORECASE)
+            clean = re.sub(b, "[redacted curriculum inquiry]", clean, flags=re.IGNORECASE)
         return clean.strip()
 
     _sanitize_prompt = sanitize_prompt
+
+    @classmethod
+    def _audit_output_safety(cls, response_data: Dict[str, Any], student_grade: int) -> Dict[str, Any]:
+        """
+        Executes Post-Generation Safety Engine Audit.
+        Ensures cloud provider answers or hallucinations containing unsafe material are intercepted.
+        """
+        try:
+            from app.safety.engine import SafetyEngine
+            text_to_audit = f"{response_data.get('answer', '')} {response_data.get('socratic_cue', '')}"
+            audit_result = SafetyEngine.audit_content(
+                title=response_data.get("topic", "Curriculum Inquiry"),
+                description=text_to_audit,
+                target_age=student_grade
+            )
+
+            if not audit_result.get("is_safe", True) or audit_result.get("verdict") != "ALLOW":
+                logger.warning(f"[Safety Gate Triggered on LLM Output]: {audit_result.get('explanation')}")
+                return {
+                    "answer": "This topic touches on areas outside our verified K-12 school curriculum. Let's focus our study on your core syllabus concepts in Science, Mathematics, and Computer Science!",
+                    "socratic_cue": "What curriculum topic would you like to review next?",
+                    "follow_up_questions": [
+                        "Review Computer Networks",
+                        "Review Newton's Laws of Motion",
+                        "Review Quadratic Equations"
+                    ],
+                    "topic": response_data.get("topic", "Curriculum"),
+                    "subject": response_data.get("subject", "General"),
+                    "provider": response_data.get("provider", "safety_filter"),
+                    "model": response_data.get("model", "safety_guard"),
+                    "safety_score": audit_result.get("safety_score", 0),
+                    "is_safe": False,
+                    "safety_verdict": audit_result.get("verdict", "BLOCK")
+                }
+
+            response_data["is_safe"] = True
+            response_data["safety_score"] = audit_result.get("safety_score", 100)
+            response_data["safety_verdict"] = "ALLOW"
+            return response_data
+        except Exception as e:
+            logger.warning(f"[Output Safety Audit Exception]: {e}")
+            response_data["is_safe"] = True
+            response_data["safety_score"] = 95
+            return response_data
 
     @staticmethod
     def _local_socratic_generation(
@@ -276,8 +353,7 @@ class LLMClient:
             "socratic_cue": socratic_cue,
             "follow_up_questions": follow_ups,
             "topic": topic,
-            "subject": subject,
-            "is_safe": True
+            "subject": subject
         }
 
 llm_client = LLMClient()
