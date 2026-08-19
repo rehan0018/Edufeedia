@@ -21,11 +21,15 @@ class Settings:
     def __init__(self):
         # Strict security validation for production deployments
         if self.ENVIRONMENT == "production":
-            if "change-in-production" in self.SECRET_KEY or len(self.SECRET_KEY) < 32:
-                raise ValueError("SECURITY ALERT: Production environment requires a strong, random 32+ char SECRET_KEY.")
+            if not os.getenv("SECRET_KEY") or "change-in-production" in self.SECRET_KEY or len(self.SECRET_KEY) < 32:
+                raise ValueError("CRITICAL SECURITY ERROR: Production environment requires an explicitly set, random 32+ char SECRET_KEY.")
+            if self.ALLOWED_ORIGINS_RAW == "*":
+                raise ValueError("CRITICAL SECURITY ERROR: Production environment cannot use wildcard '*' ALLOWED_ORIGINS.")
 
     @property
     def ALLOWED_ORIGINS(self) -> list:
+        if self.ENVIRONMENT == "production" and self.ALLOWED_ORIGINS_RAW == "*":
+            return ["https://edufeedia.com"]
         if self.ALLOWED_ORIGINS_RAW == "*":
             return ["*"]
         return [origin.strip() for origin in self.ALLOWED_ORIGINS_RAW.split(",") if origin.strip()]

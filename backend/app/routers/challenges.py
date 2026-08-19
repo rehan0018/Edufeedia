@@ -19,7 +19,6 @@ def get_weekly_challenge(
     Returns the active weekly academic challenge for the school.
     Pedagogical focus: Collaborative class-level mastery rather than toxic child rankings.
     """
-    # Calculate days left in the current week (resets every Monday)
     today = datetime.date.today()
     days_to_sunday = 6 - today.weekday() if today.weekday() <= 6 else 0
     next_monday = today + datetime.timedelta(days=days_to_sunday + 1)
@@ -46,29 +45,34 @@ def get_class_leaderboard(
     db: Session = Depends(get_db)
 ):
     """
-    Returns class-level aggregated standing (Class 10A vs Class 10B vs Class 9A).
-    Strict Under-18 Safety: NO individual student rankings are publicly exposed.
+    Returns authentic class-level aggregated standings for the user's school.
+    Multi-School Tenant Isolation: Only returns classes belonging to current_user.school_id.
+    Zero Metric Fabrication: Returns authentic database totals only.
     """
-    classes = db.query(SchoolClass).all()
+    school_id = current_user.school_id
+    if not school_id and current_user.student_profile:
+        school_id = current_user.student_profile.school_id
+
+    # Filter strictly by school tenant boundary
+    class_query = db.query(SchoolClass)
+    if school_id:
+        class_query = class_query.filter(SchoolClass.school_id == school_id)
+    classes = class_query.all()
+    
     leaderboard = []
 
     for cls in classes:
-        # Sum student XP in this class
         profiles = db.query(StudentProfile).filter(StudentProfile.class_id == cls.id).all()
         student_user_ids = [p.user_id for p in profiles]
 
         total_xp = sum(p.xp_score for p in profiles)
         student_count = len(profiles)
 
-        # Average accuracy across quiz attempts for students in this class
-        avg_acc = 0.0
+        avg_acc = None
         if student_user_ids:
             attempts = db.query(QuizAttempt).filter(QuizAttempt.student_user_id.in_(student_user_ids)).all()
             if attempts:
                 avg_acc = round(sum(a.accuracy_percentage for a in attempts) / len(attempts), 1)
-
-        # If a class has baseline students seeded with 0 XP, give a realistic active team score
-        display_xp = max(total_xp, 400 + (cls.grade_level * 35) + (len(cls.section_name) * 42))
 
         leaderboard.append({
             "class_id": cls.id,
@@ -76,9 +80,10 @@ def get_class_leaderboard(
             "section_name": cls.section_name,
             "class_name": f"Class {cls.grade_level}{cls.section_name}",
             "academic_year": cls.academic_year,
-            "total_xp": display_xp,
-            "student_count": max(student_count, 28),
-            "average_accuracy": max(avg_acc, 82.5),
+            "total_xp": total_xp,
+            "student_count": student_count,
+            "average_accuracy": avg_acc,
+            "data_status": "active" if student_count > 0 else "insufficient_data",
             "is_my_class": (
                 current_user.role == "student" and
                 current_user.student_profile is not None and
@@ -89,7 +94,6 @@ def get_class_leaderboard(
     # Sort leaderboard by total XP descending
     leaderboard.sort(key=lambda x: x["total_xp"], reverse=True)
 
-    # Assign rank
     for rank, item in enumerate(leaderboard, 1):
         item["rank"] = rank
 
@@ -101,29 +105,43 @@ def get_my_personal_growth(
     db: Session = Depends(get_db)
 ):
     """
-    Returns private personal improvement indicators for the logged-in student.
-    Pedagogical principle: Improvement > Screen Time > Popularity.
+    Returns authentic personal learning growth based on historical quiz performance.
+    Zero Metric Fabrication: If insufficient historical data, returns clear status.
     """
-    profile = current_user.student_profile
-    if not profile:
-        raise HTTPException(status_code=404, detail="Student profile not found")
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+    
+    # Calculate genuine growth based on quiz attempts
+    attempts = db.query(QuizAttempt).filter(
+        QuizAttempt.student_user_id == current_user.id
+    ).order_by(QuizAttempt.completed_at.asc()).all()
 
-    # Recent quiz attempts
-    attempts = db.query(QuizAttempt).filter(QuizAttempt.student_user_id == current_user.id).all()
-    completed_lessons = db.query(StudentProgress).filter(
-        StudentProgress.student_user_id == current_user.id,
-        StudentProgress.progress_percentage == 100
-    ).count()
+    growth_pct = None
+    statement = "Complete your first 3 quizzes to calculate your personal learning growth rate!"
+    data_status = "insufficient_data"
 
-    avg_accuracy = round(sum(a.accuracy_percentage for a in attempts) / len(attempts), 1) if attempts else 85.0
+    if len(attempts) >= 2:
+        midpoint = len(attempts) // 2
+        earlier_attempts = attempts[:midpoint]
+        recent_attempts = attempts[midpoint:]
+
+        avg_early = sum(float(a.accuracy_percentage) for a in earlier_attempts) / len(earlier_attempts)
+        avg_recent = sum(float(a.accuracy_percentage) for a in recent_attempts) / len(recent_attempts)
+
+        if avg_early > 0:
+            growth_pct = round(((avg_recent - avg_early) / avg_early) * 100.0, 1)
+            statement = f"Your quiz accuracy improved by {growth_pct:+.1f}% compared to your earlier attempts!"
+            data_status = "verified"
+        else:
+            growth_pct = round(avg_recent, 1)
+            statement = f"Your current quiz accuracy average is {avg_recent:.1f}%."
+            data_status = "verified"
 
     return {
-        "student_name": f"{current_user.first_name} {current_user.last_name}",
-        "current_xp": profile.xp_score,
-        "streak_days": profile.streak_count,
-        "monthly_improvement_percentage": 18.5, # Growth metric over prior period
-        "average_accuracy": avg_accuracy,
-        "lessons_mastered": completed_lessons,
-        "class_xp_contribution": min(profile.xp_score, profile.xp_score),
-        "growth_statement": "Your concept retention improved by +18.5% this month! Keep up the momentum!"
+        "student_id": current_user.id,
+        "current_xp": profile.xp_score if profile else 0,
+        "streak_days": profile.streak_count if profile else 0,
+        "monthly_improvement_percentage": growth_pct,
+        "growth_statement": statement,
+        "data_status": data_status,
+        "privacy_note": "This personal growth metric is completely private to you and your guardian."
     }

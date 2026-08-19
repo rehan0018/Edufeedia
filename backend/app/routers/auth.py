@@ -1,3 +1,4 @@
+import secrets
 from datetime import timedelta, date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -17,16 +18,19 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-        
+
     # Create new User
     password_hash = get_password_hash(user_in.password)
+    # Verification is true only if associated with a recognized school boundary
+    is_verified = bool(user_in.school_id)
+    
     user = User(
         email=user_in.email,
         password_hash=password_hash,
         role=user_in.role,
         first_name=user_in.first_name,
         last_name=user_in.last_name,
-        is_verified=True, # Auto-verify accounts for seamless student onboarding & testing
+        is_verified=is_verified,
         school_id=user_in.school_id
     )
     
@@ -47,23 +51,25 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             class_id=user_in.class_id,
             board=user_in.board or "CBSE",
             date_of_birth=user_in.date_of_birth,
-            interests=["Coding", "Science", "Space"], # Default MVP interests
+            interests=["Coding", "Science", "Space"],
             learning_preference=["video", "reading"]
         )
         db.add(profile)
         
-        # Link to parent if parent_email is provided
+        # Link to parent if parent_email is provided via secure invitation
         if user_in.parent_email:
-            # Check if parent already registered
             parent = db.query(User).filter(User.email == user_in.parent_email, User.role == "parent").first()
             if not parent:
+                # Generate unique random password hash (never hardcoded Parent123!)
+                random_initial_key = secrets.token_urlsafe(32)
                 parent = User(
                     email=user_in.parent_email,
-                    password_hash=get_password_hash("Parent123!"),
+                    password_hash=get_password_hash(random_initial_key),
                     role="parent",
                     first_name="Guardian",
                     last_name="Account",
-                    is_verified=True
+                    is_verified=False, # Must be verified via parent OTP flow
+                    school_id=user_in.school_id
                 )
                 db.add(parent)
                 db.flush()
@@ -72,19 +78,12 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             association = parent_student_links.insert().values(
                 parent_user_id=parent.id,
                 student_user_id=user.id,
-                is_verified=True
+                is_verified=False # Verified when parent confirms OTP
             )
             db.execute(association)
             
     db.commit()
     db.refresh(user)
-
-    # Sync live database to owner's read-only Excel workbook
-    try:
-        from app.core.excel_exporter import sync_database_to_excel
-        sync_database_to_excel(db)
-    except Exception as e:
-        print(f"[Excel Sync Warning]: {e}")
 
     return user
 
@@ -187,7 +186,7 @@ def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)
             role=role,
             first_name=first_name,
             last_name=last_name,
-            is_verified=True, # Auto-verify Google accounts
+            is_verified=(school is not None),
             school_id=school.id if school else None
         )
         db.add(user)
@@ -205,7 +204,7 @@ def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)
             school_id=school.id if school else None,
             class_id=class_id,
             board="CBSE",
-            date_of_birth=date(2011, 1, 1), # Default DOB
+            date_of_birth=None, # Never invent false DOB; collected upon onboarding
             interests=["Coding", "Science", "Space"],
             learning_preference=["video", "reading"]
         )

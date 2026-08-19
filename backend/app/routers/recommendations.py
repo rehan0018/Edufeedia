@@ -39,6 +39,17 @@ def record_interaction(
     """
     Records an implicit interaction (view, click, like, bookmark, dwell time, skip) to train collaborative feedback.
     """
+    from app.models.models import ContentItem
+    item = db.query(ContentItem).filter(
+        ContentItem.id == interaction_in.content_item_id,
+        ContentItem.is_approved == True
+    ).first()
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Content item not found or not approved for student interaction"
+        )
+
     interaction = log_interaction(
         db=db,
         user_id=current_user.id,
@@ -46,13 +57,6 @@ def record_interaction(
         interaction_type=interaction_in.interaction_type,
         dwell_time_seconds=interaction_in.dwell_time_seconds or 0
     )
-
-    # Sync live database to owner's read-only Excel workbook
-    try:
-        from app.core.excel_exporter import sync_database_to_excel
-        sync_database_to_excel(db)
-    except Exception as e:
-        print(f"[Excel Sync Warning]: {e}")
 
     return interaction
 

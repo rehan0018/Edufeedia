@@ -75,6 +75,14 @@ def submit_quiz(
         
     accuracy = (correct_count / total_questions) * 100.0
     
+    # Anti-Farming XP Protection:
+    # Check prior attempts BEFORE adding current attempt.
+    # Full XP rewarded only on initial attempt; duplicate retries award 0 XP to preserve leaderboard integrity.
+    prior_attempts_count = db.query(QuizAttempt).filter(
+        QuizAttempt.student_user_id == current_user.id,
+        QuizAttempt.quiz_id == quiz.id
+    ).count()
+
     # Store attempt
     attempt = QuizAttempt(
         student_user_id=current_user.id,
@@ -84,15 +92,16 @@ def submit_quiz(
         accuracy_percentage=accuracy
     )
     db.add(attempt)
-    
-    # Reward XP
-    xp_gained = correct_count * 5 # 5 XP per correct answer
-    if accuracy == 100.0:
-        xp_gained += 25 # 25 XP bonus for 100% score
-        
-    profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
-    if profile:
-        profile.xp_score += xp_gained
+
+    xp_gained = 0
+    if prior_attempts_count == 0: # First attempt
+        xp_gained = correct_count * 5 # 5 XP per correct answer
+        if accuracy == 100.0:
+            xp_gained += 25 # 25 XP bonus for 100% score
+            
+        profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+        if profile:
+            profile.xp_score += xp_gained
         
     # Spaced Repetition (SM-2) Interval Calculation
     # Scale accuracy to 0-5 response quality grade
@@ -225,13 +234,6 @@ def create_custom_quiz(
     db.commit()
     db.refresh(new_quiz)
 
-    # Sync to Excel
-    try:
-        from app.core.excel_exporter import sync_database_to_excel
-        sync_database_to_excel(db)
-    except Exception as e:
-        print(f"[Excel Sync Warning]: {e}")
-
     return new_quiz
 
 @router.post("/generate", response_model=QuizGenerateResponse, status_code=status.HTTP_201_CREATED)
@@ -280,13 +282,6 @@ def generate_ai_quiz(
         ))
 
     db.commit()
-
-    # Sync to Excel
-    try:
-        from app.core.excel_exporter import sync_database_to_excel
-        sync_database_to_excel(db)
-    except Exception as e:
-        print(f"[Excel Sync Warning]: {e}")
 
     return {
         "quiz_id": new_quiz.id,

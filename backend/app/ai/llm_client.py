@@ -260,10 +260,23 @@ class LLMClient:
             response_data["safety_verdict"] = "ALLOW"
             return response_data
         except Exception as e:
-            logger.warning(f"[Output Safety Audit Exception]: {e}")
-            response_data["is_safe"] = True
-            response_data["safety_score"] = 95
-            return response_data
+            logger.error(f"[CRITICAL: Safety Engine Failure -> Failing Closed]: {e}")
+            return {
+                "answer": "The Socratic tutor is temporarily undergoing routine safety verification. Please try your question again in a moment.",
+                "socratic_cue": "In the meantime, feel free to explore lessons in the Explore Catalog.",
+                "follow_up_questions": [
+                    "Explore Computer Networks",
+                    "Explore Newton's Laws",
+                    "Explore Quadratic Equations"
+                ],
+                "topic": response_data.get("topic", "Curriculum"),
+                "subject": response_data.get("subject", "General"),
+                "provider": "safety_circuit_breaker",
+                "model": "fail_closed_guard",
+                "safety_score": 0,
+                "is_safe": False,
+                "safety_verdict": "ERROR_BLOCKED"
+            }
 
     @staticmethod
     def _local_socratic_generation(

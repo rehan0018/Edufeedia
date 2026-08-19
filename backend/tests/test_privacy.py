@@ -32,9 +32,10 @@ class TestChildPrivacy(unittest.TestCase):
         res = client.get("/api/v1/privacy/consent-status", headers=self.student_headers)
         self.assertEqual(res.status_code, 200)
         data = res.json()
-        self.assertTrue(data["coppa_compliant"])
-        self.assertTrue(data["gdpr_k_compliant"])
+        self.assertIn("consent_status", data)
+        self.assertTrue(data["data_minimization_enforced"])
         self.assertTrue(data["targeted_advertising_blocked"])
+        self.assertTrue(data["third_party_tracking_blocked"])
 
     def test_parental_consent_update(self):
         res = client.post(

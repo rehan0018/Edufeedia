@@ -145,6 +145,8 @@ def get_content_item(
     item = db.query(ContentItem).filter(ContentItem.id == content_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Content item not found")
+    if current_user.role == "student" and not item.is_approved:
+        raise HTTPException(status_code=404, detail="Content item not found or pending administrative approval")
     return item
 
 @router.post("/progress", response_model=ProgressResponse)
@@ -153,9 +155,12 @@ def update_progress(
     current_user: User = Depends(RoleChecker(["student"])),
     db: Session = Depends(get_db)
 ):
-    item = db.query(ContentItem).filter(ContentItem.id == progress_data.content_item_id).first()
+    item = db.query(ContentItem).filter(
+        ContentItem.id == progress_data.content_item_id,
+        ContentItem.is_approved == True
+    ).first()
     if not item:
-        raise HTTPException(status_code=404, detail="Content item not found")
+        raise HTTPException(status_code=404, detail="Content item not found or not approved for students")
         
     progress = db.query(StudentProgress).filter(
         StudentProgress.student_user_id == current_user.id,
