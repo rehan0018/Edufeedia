@@ -408,5 +408,38 @@ class TestAIModelGateway(unittest.TestCase):
         self.assertTrue(invited_user.is_verified)
         db.close()
 
+    def test_transactional_email_service_smtp_delivery(self):
+        """Verify EmailService transactional SMTP dispatch and provider acceptance."""
+        from unittest.mock import patch, MagicMock
+        from app.core.email_service import EmailService
+
+        service = EmailService()
+        # 1. Test unconfigured local dev fallback
+        res_dev = service.send_parent_consent_otp("guardian@example.com", "Rahul", "654321")
+        self.assertEqual(res_dev["status"], "simulated_local_dev")
+
+        # 2. Test live SMTP provider dispatch
+        with patch.dict(os.environ, {
+            "SMTP_HOST": "email-smtp.us-east-1.amazonaws.com",
+            "SMTP_USER": "AKIATESTUSER",
+            "SMTP_PASSWORD": "SecretPassword123!",
+            "SMTP_PORT": "587"
+        }):
+            live_service = EmailService()
+            self.assertTrue(live_service.is_live_configured)
+
+            with patch("smtplib.SMTP") as mock_smtp_cls:
+                mock_server = MagicMock()
+                mock_smtp_cls.return_value = mock_server
+
+                res_live = live_service.send_parent_consent_otp("guardian@example.com", "Rahul", "654321")
+                self.assertEqual(res_live["status"], "accepted_by_provider")
+                self.assertEqual(res_live["provider"], "smtp_live")
+                self.assertIn("message_id", res_live)
+                mock_server.starttls.assert_called_once()
+                mock_server.login.assert_called_once_with("AKIATESTUSER", "SecretPassword123!")
+                mock_server.send_message.assert_called_once()
+                mock_server.quit.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()
