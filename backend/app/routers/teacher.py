@@ -109,6 +109,7 @@ def get_class_analytics(
         section_name=school_class.section_name,
         total_students=len(profiles),
         class_average_accuracy=class_avg,
+        average_mastery_percentage=class_avg,
         total_lessons_completed=total_class_lessons,
         at_risk_students_count=at_risk_count,
         students=roster

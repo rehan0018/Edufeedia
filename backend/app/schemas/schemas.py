@@ -181,6 +181,7 @@ class ClassAnalyticsOut(BaseModel):
     section_name: str
     total_students: int
     class_average_accuracy: float
+    average_mastery_percentage: Optional[float] = None
     total_lessons_completed: int
     at_risk_students_count: int
     students: List[StudentRosterItem]

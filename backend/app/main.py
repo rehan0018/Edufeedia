@@ -61,6 +61,7 @@ logger.info(f"Initializing {settings.PROJECT_NAME} backend service...")
 
 @app.get("/health", tags=["system"])
 @app.get("/api/health", tags=["system"])
+@app.get("/api/v1/health", tags=["system"])
 def health_check():
     """Liveness probe for container orchestrators and load balancers."""
     return {
@@ -71,6 +72,7 @@ def health_check():
 
 @app.get("/ready", tags=["system"])
 @app.get("/api/ready", tags=["system"])
+@app.get("/api/v1/ready", tags=["system"])
 def readiness_check():
     """Readiness probe verifying database connectivity."""
     try:
