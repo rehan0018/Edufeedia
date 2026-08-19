@@ -165,7 +165,16 @@ def seed_database():
     )
     db.add_all([profile_rahul, profile_priya, profile_aman, profile_sneha])
 
-    # 5. Add Parent User
+    # 5. Add Parent & Admin Users
+    admin_user = User(
+        email="admin@apexschool.edu",
+        password_hash=get_password_hash("Admin123!"),
+        role="school_admin",
+        first_name="Principal",
+        last_name="Verma",
+        is_verified=True,
+        school_id=school.id
+    )
     parent_user = User(
         email="parent@gmail.com",
         password_hash=get_password_hash("Parent123!"),
@@ -174,7 +183,7 @@ def seed_database():
         last_name="Kumar",
         is_verified=True
     )
-    db.add(parent_user)
+    db.add_all([admin_user, parent_user])
     db.flush()
 
     # Link parent to Rahul

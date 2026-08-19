@@ -30,23 +30,44 @@ class TestParentalPrivacyAndConsent(unittest.TestCase):
         self.db.close()
 
     def test_verifiable_parental_consent_grant_and_audit(self):
-        # 1. Post verifiable parental consent update
-        res = client.post(
-            "/api/v1/privacy/parental-consent",
-            headers=self.parent_headers,
+        from app.core.redis_client import redis_client
+        # 1. Student requests OTP
+        s_res = client.post("/api/v1/auth/login", json={
+            "email": "rahul@apexschool.edu",
+            "password": "Student123!"
+        })
+        student_headers = {"Authorization": f"Bearer {s_res.json()['access_token']}"}
+
+        req_res = client.post(
+            "/api/v1/privacy/request-parent-verification",
+            headers=student_headers,
+            json={"parent_email": "parent@gmail.com"}
+        )
+        self.assertEqual(req_res.status_code, 200)
+
+        # Retrieve generated OTP from Redis
+        student_id = s_res.json()["user_id"]
+        otp = redis_client.get(f"guardian_otp:parent@gmail.com:{student_id}")
+        self.assertIsNotNone(otp)
+
+        # 2. Verify OTP
+        v_res = client.post(
+            "/api/v1/privacy/verify-parent-otp",
+            headers=student_headers,
             json={
                 "parent_email": "parent@gmail.com",
-                "consent_granted": True,
-                "verification_method": "email_otp_verified"
+                "otp_code": otp,
+                "student_id": student_id,
+                "consent_scope": ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"]
             }
         )
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-        self.assertEqual(data["status"], "success")
+        self.assertEqual(v_res.status_code, 200)
+        data = v_res.json()
+        self.assertEqual(data["status"], "verified")
         self.assertTrue(data["consent_granted"])
         self.assertIn("consent_log_id", data)
 
-        # 2. Verify audit record in database
+        # 3. Verify audit record in database
         log_entry = self.db.query(ParentalConsentLog).filter(
             ParentalConsentLog.id == data["consent_log_id"]
         ).first()
@@ -56,21 +77,20 @@ class TestParentalPrivacyAndConsent(unittest.TestCase):
         self.assertIn("curriculum_access", log_entry.consent_scope)
 
     def test_parental_consent_revocation(self):
-        # Revoke consent
+        # 1. Revoke consent
         res = client.post(
-            "/api/v1/privacy/parental-consent",
+            "/api/v1/privacy/revoke-consent",
             headers=self.parent_headers,
             json={
-                "parent_email": "parent@gmail.com",
-                "consent_granted": False,
-                "verification_method": "parent_portal_revocation"
+                "parent_email": "parent@gmail.com"
             }
         )
         self.assertEqual(res.status_code, 200)
         data = res.json()
+        self.assertEqual(data["status"], "revoked")
         self.assertFalse(data["consent_granted"])
 
-        # Check database log
+        # 2. Check database log
         log_entry = self.db.query(ParentalConsentLog).filter(
             ParentalConsentLog.id == data["consent_log_id"]
         ).first()

@@ -322,15 +322,20 @@ class TestAIModelGateway(unittest.TestCase):
             json={"parent_email": "parent_guard@apexschool.edu"}
         )
         self.assertEqual(req_res.status_code, 200)
-        dev_otp = req_res.json().get("dev_otp_preview") or "123456"
 
-        # 2. Verify OTP Challenge
+        # Retrieve real OTP generated and saved in Redis
+        from app.core.redis_client import redis_client
+        student_id = client.get("/api/v1/privacy/consent-status", headers=headers).json()["user_id"]
+        real_otp = redis_client.get(f"guardian_otp:parent_guard@apexschool.edu:{student_id}")
+        self.assertIsNotNone(real_otp)
+
+        # 2. Verify OTP Challenge with authentic cryptographic token
         verify_res = client.post(
             "/api/v1/privacy/verify-parent-otp",
             headers=headers,
             json={
                 "parent_email": "parent_guard@apexschool.edu",
-                "otp_code": dev_otp,
+                "otp_code": real_otp,
                 "consent_scope": ["curriculum_access", "ai_socratic_tutor"]
             }
         )
@@ -342,6 +347,66 @@ class TestAIModelGateway(unittest.TestCase):
         status_res = client.get("/api/v1/privacy/consent-status", headers=headers)
         self.assertEqual(status_res.status_code, 200)
         self.assertEqual(status_res.json()["consent_status"], "verified")
+
+    def test_staff_invitation_and_activation_lifecycle(self):
+        """Verify school admin can invite teacher and teacher can activate account via token."""
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.models.models import User
+        from app.database import SessionLocal
+
+        db = SessionLocal()
+        client = TestClient(app)
+        admin_login = client.post("/api/v1/auth/login", json={
+            "email": "admin@apexschool.edu",
+            "password": "Admin123!"
+        })
+        self.assertEqual(admin_login.status_code, 200)
+        admin_token = admin_login.json()["access_token"]
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+        # 1. School Admin invites teacher
+        new_teacher_email = "new_math_faculty@apexschool.edu"
+        invite_res = client.post(
+            "/api/v1/admin/invite-teacher",
+            headers=admin_headers,
+            json={
+                "email": new_teacher_email,
+                "first_name": "Siddharth",
+                "last_name": "Rao"
+            }
+        )
+        self.assertEqual(invite_res.status_code, 200)
+        self.assertEqual(invite_res.json()["status"], "invitation_dispatched")
+
+        from app.core.redis_client import redis_client
+
+        # Find the invite token in Redis
+        invited_user = db.query(User).filter(User.email == new_teacher_email).first()
+        self.assertIsNotNone(invited_user)
+        self.assertEqual(invited_user.role, "teacher")
+        self.assertFalse(invited_user.is_verified)
+
+        # 2. Teacher activates invite with password
+        # Find key in Redis
+        invite_token = None
+        for key in redis_client._local_store:
+            if key.startswith("invite_token:") and redis_client._local_store[key] == invited_user.id:
+                invite_token = key.replace("invite_token:", "")
+                break
+
+        self.assertIsNotNone(invite_token)
+
+        act_res = client.post("/api/v1/auth/activate-invite", json={
+            "token": invite_token,
+            "password": "StrongPassword123!"
+        })
+        self.assertEqual(act_res.status_code, 200)
+        self.assertEqual(act_res.json()["role"], "teacher")
+        self.assertIn("access_token", act_res.json())
+        db.refresh(invited_user)
+        self.assertTrue(invited_user.is_verified)
+        db.close()
 
 if __name__ == "__main__":
     unittest.main()

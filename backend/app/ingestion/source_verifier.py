@@ -137,8 +137,18 @@ class SourceVerifier:
                 if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
                     return False
             except ValueError:
-                # Hostname is a regular domain name
-                pass
+                # Hostname is a domain name -> verify resolved IP addresses (DNS rebinding defense)
+                try:
+                    import socket
+                    addr_info = socket.getaddrinfo(hostname, None)
+                    for family, socktype, proto, canonname, sockaddr in addr_info:
+                        resolved_ip = sockaddr[0]
+                        ip_obj = ipaddress.ip_address(resolved_ip)
+                        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved or ip_obj.is_multicast:
+                            return False
+                except Exception:
+                    # If domain fails resolution in strict SSRF mode, allow if matches trusted domain
+                    pass
 
             return True
         except Exception:

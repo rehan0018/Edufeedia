@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from app.database import get_db
 from app.models.models import (
     User, StudentProfile, ContentItem, QuizAttempt, Quiz,
     UserInteraction, Flashcard, Badge, ClassAssignment, School
 )
+from app.core.security import get_password_hash, RoleChecker
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -118,7 +119,130 @@ def get_all_database_records(db: Session = Depends(get_db)):
     }
 
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, EmailStr
 from app.core.excel_exporter import sync_database_to_excel
+from app.core.security import get_current_user, RoleChecker
+from app.core.redis_client import redis_client
+from app.core.email_service import email_service
+import secrets
+
+class TeacherInviteRequest(BaseModel):
+    email: EmailStr
+    first_name: str
+    last_name: str
+    class_ids: Optional[List[str]] = []
+
+class SchoolAdminCreateRequest(BaseModel):
+    email: EmailStr
+    first_name: str
+    last_name: str
+    school_id: str
+
+@router.post("/invite-teacher")
+def invite_teacher(
+    req: TeacherInviteRequest,
+    current_user: User = Depends(RoleChecker(["school_admin", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    School Admin / Platform Admin endpoint to invite a certified teacher into the tenant boundary.
+    Generates an encrypted invitation token and delivers it via transactional email.
+    """
+    existing = db.query(User).filter(User.email == req.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User with this email already exists.")
+
+    school_id = current_user.school_id
+    if not school_id:
+        school = db.query(School).first()
+        school_id = school.id if school else None
+
+    # Create unverified teacher account with random temporary unusable hash
+    teacher_user = User(
+        email=req.email,
+        password_hash=get_password_hash(secrets.token_urlsafe(32)),
+        role="teacher",
+        first_name=req.first_name,
+        last_name=req.last_name,
+        is_verified=False, # Must activate via invitation token
+        school_id=school_id
+    )
+    db.add(teacher_user)
+    db.flush()
+
+    # Link to classes if specified
+    if req.class_ids:
+        from app.models.models import teacher_classes
+        for cid in req.class_ids:
+            db.execute(teacher_classes.insert().values(
+                teacher_user_id=teacher_user.id,
+                class_id=cid
+            ))
+
+    db.commit()
+
+    # Generate 7-day invitation token
+    invite_token = secrets.token_urlsafe(32)
+    redis_client.setex(f"invite_token:{invite_token}", 7 * 86400, teacher_user.id)
+
+    school_obj = db.query(School).filter(School.id == school_id).first()
+    school_name = school_obj.name if school_obj else "Partner School"
+
+    email_result = email_service.send_staff_invitation(
+        recipient_email=req.email,
+        role="teacher",
+        invitation_token=invite_token,
+        school_name=school_name
+    )
+
+    return {
+        "status": "invitation_dispatched",
+        "email": req.email,
+        "role": "teacher",
+        "school_id": school_id,
+        "delivery": email_result["status"]
+    }
+
+@router.post("/create-school-admin")
+def create_school_admin(
+    req: SchoolAdminCreateRequest,
+    current_user: User = Depends(RoleChecker(["admin", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Platform Super-Admin endpoint to establish school administrator credentials.
+    """
+    existing = db.query(User).filter(User.email == req.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User with this email already exists.")
+
+    admin_user = User(
+        email=req.email,
+        password_hash=get_password_hash(secrets.token_urlsafe(32)),
+        role="school_admin",
+        first_name=req.first_name,
+        last_name=req.last_name,
+        is_verified=False,
+        school_id=req.school_id
+    )
+    db.add(admin_user)
+    db.commit()
+
+    invite_token = secrets.token_urlsafe(32)
+    redis_client.setex(f"invite_token:{invite_token}", 7 * 86400, admin_user.id)
+
+    email_service.send_staff_invitation(
+        recipient_email=req.email,
+        role="school_admin",
+        invitation_token=invite_token,
+        school_name="Edufeedia School Administration"
+    )
+
+    return {
+        "status": "school_admin_invited",
+        "email": req.email,
+        "school_id": req.school_id
+    }
 
 @router.get("/export-excel")
 def export_database_records_to_excel(db: Session = Depends(get_db)):

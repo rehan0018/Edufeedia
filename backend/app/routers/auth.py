@@ -9,8 +9,23 @@ from app.core.security import get_password_hash, verify_password, create_access_
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel
+from app.core.redis_client import redis_client
+from app.core.email_service import email_service
+
+class InviteActivationRequest(BaseModel):
+    token: str
+    password: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserRegister, db: Session = Depends(get_db)):
+    """
+    Public Registration Endpoint: Strictly restricted to Student accounts only.
+    Teachers and School Administrators must be invited by authorized school administrators.
+    """
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == user_in.email).first()
     if existing_user:
@@ -19,73 +34,120 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
 
-    # Create new User
+    if not user_in.date_of_birth:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Date of birth is required for student registration"
+        )
+
+    # Public registration is strictly locked to student role
+    assigned_role = "student"
+    
     password_hash = get_password_hash(user_in.password)
-    # Verification is true only if associated with a recognized school boundary
-    is_verified = bool(user_in.school_id)
     
     user = User(
         email=user_in.email,
         password_hash=password_hash,
-        role=user_in.role,
+        role=assigned_role,
         first_name=user_in.first_name,
         last_name=user_in.last_name,
-        is_verified=is_verified,
+        is_verified=False, # Must be activated via parental consent / school enrollment
         school_id=user_in.school_id
     )
     
     db.add(user)
     db.flush() # Populate user.id
     
-    # Custom logic for Student registration
-    if user_in.role == "student":
-        if not user_in.date_of_birth:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Date of birth is required for students"
+    profile = StudentProfile(
+        user_id=user.id,
+        school_id=user_in.school_id,
+        class_id=user_in.class_id,
+        board=user_in.board or "CBSE",
+        date_of_birth=user_in.date_of_birth,
+        interests=["Coding", "Science", "Space"],
+        learning_preference=["video", "reading"]
+    )
+    db.add(profile)
+    
+    # Link to parent if parent_email is provided via secure invitation
+    if user_in.parent_email:
+        parent = db.query(User).filter(User.email == user_in.parent_email, User.role == "parent").first()
+        if not parent:
+            # Generate unique random password hash (never hardcoded Parent123!)
+            random_initial_key = secrets.token_urlsafe(32)
+            parent = User(
+                email=user_in.parent_email,
+                password_hash=get_password_hash(random_initial_key),
+                role="parent",
+                first_name="Guardian",
+                last_name="Account",
+                is_verified=False, # Must be verified via parent OTP flow
+                school_id=user_in.school_id
             )
+            db.add(parent)
+            db.flush()
             
-        profile = StudentProfile(
-            user_id=user.id,
-            school_id=user_in.school_id,
-            class_id=user_in.class_id,
-            board=user_in.board or "CBSE",
-            date_of_birth=user_in.date_of_birth,
-            interests=["Coding", "Science", "Space"],
-            learning_preference=["video", "reading"]
+        # Associate via linked table
+        association = parent_student_links.insert().values(
+            parent_user_id=parent.id,
+            student_user_id=user.id,
+            is_verified=False # Verified when parent confirms OTP
         )
-        db.add(profile)
+        db.execute(association)
         
-        # Link to parent if parent_email is provided via secure invitation
-        if user_in.parent_email:
-            parent = db.query(User).filter(User.email == user_in.parent_email, User.role == "parent").first()
-            if not parent:
-                # Generate unique random password hash (never hardcoded Parent123!)
-                random_initial_key = secrets.token_urlsafe(32)
-                parent = User(
-                    email=user_in.parent_email,
-                    password_hash=get_password_hash(random_initial_key),
-                    role="parent",
-                    first_name="Guardian",
-                    last_name="Account",
-                    is_verified=False, # Must be verified via parent OTP flow
-                    school_id=user_in.school_id
-                )
-                db.add(parent)
-                db.flush()
-                
-            # Associate via linked table
-            association = parent_student_links.insert().values(
-                parent_user_id=parent.id,
-                student_user_id=user.id,
-                is_verified=False # Verified when parent confirms OTP
-            )
-            db.execute(association)
-            
     db.commit()
     db.refresh(user)
 
     return user
+
+@router.post("/activate-invite", response_model=Token)
+def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_db)):
+    """
+    Staff / Guardian Invitation Activation Endpoint:
+    Allows an invited teacher, school admin, or guardian to establish their credentials securely.
+    """
+    # Look up token in Redis
+    user_id = redis_client.get(f"invite_token:{req.token}")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired invitation token."
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User account not found.")
+
+    if len(req.password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 8 characters.")
+
+    user.password_hash = get_password_hash(req.password)
+    if req.first_name:
+        user.first_name = req.first_name
+    if req.last_name:
+        user.last_name = req.last_name
+    user.is_verified = True
+
+    db.commit()
+    db.refresh(user)
+
+    # Invalidate token
+    redis_client.delete(f"invite_token:{req.token}")
+
+    access_token = create_access_token(
+        data={"sub": user.email, "role": user.role, "user_id": user.id},
+        expires_delta=timedelta(minutes=60)
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role,
+        "user_id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "is_verified": user.is_verified
+    }
 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
