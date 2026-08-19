@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: edufeedia-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
   api:
     build:
       context: .
@@ -13,7 +24,7 @@ services:
       - ENVIRONMENT=production
       - DATABASE_URL=postgresql://edufeedia_user:edufeedia_pass@postgres:5432/edufeedia_db
       - SECRET_KEY=edufeedia-prod-cryptographic-strong-key-2026-secure
-      - ALLOWED_ORIGINS=http://localhost:8000,http://localhost:3000
+      - ALLOWED_ORIGINS=http://localhost:8000,http://localhost:3000,http://localhost:80
     depends_on:
       postgres:
         condition: service_healthy

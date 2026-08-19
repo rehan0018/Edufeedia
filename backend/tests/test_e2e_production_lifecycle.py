@@ -179,7 +179,7 @@ class TestE2EProductionLifecycle(unittest.TestCase):
             db.commit()
         except Exception as e:
             db.rollback()
-            print(f"[Cleanup Warning]: {e}")
+            raise RuntimeError(f"[E2E Cleanup Failure]: Failed to clean test fixtures: {e}") from e
 
     @classmethod
     def tearDownClass(cls):
