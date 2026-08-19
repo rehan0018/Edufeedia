@@ -25,6 +25,23 @@ class Settings:
                 raise ValueError("CRITICAL SECURITY ERROR: Production environment requires an explicitly set, random 32+ char SECRET_KEY.")
             if self.ALLOWED_ORIGINS_RAW == "*":
                 raise ValueError("CRITICAL SECURITY ERROR: Production environment cannot use wildcard '*' ALLOWED_ORIGINS.")
+            
+            # Database check: Production must run PostgreSQL
+            db_url = os.getenv("DATABASE_URL", "")
+            if not db_url or "sqlite" in db_url.lower():
+                raise ValueError("CRITICAL CONFIG ERROR: Production environment must use RDS/PostgreSQL database (sqlite not permitted).")
+
+            # Cache check: Production requires Redis
+            redis_url = os.getenv("REDIS_URL", "")
+            if not redis_url:
+                raise ValueError("CRITICAL CONFIG ERROR: Production environment requires REDIS_URL for OTP and token cache.")
+
+            # Email check: Production requires live SMTP provider for verifiable parental consent
+            smtp_host = os.getenv("SMTP_HOST", "")
+            smtp_user = os.getenv("SMTP_USER", "")
+            smtp_pass = os.getenv("SMTP_PASSWORD", "")
+            if not (smtp_host and smtp_user and smtp_pass):
+                raise ValueError("CRITICAL CONFIG ERROR: Production environment requires valid SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASSWORD) for legal guardian consent dispatch.")
 
     @property
     def ALLOWED_ORIGINS(self) -> list:
