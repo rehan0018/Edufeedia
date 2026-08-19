@@ -1,80 +1,189 @@
 import unittest
+import datetime
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.main import app
-from app.database import get_db, SessionLocal
+from app.database import SessionLocal
 from app.models.models import (
     User, StudentProfile, StudentProgress, QuizAttempt, Quiz, Question,
     ContentItem, SpacedRepetitionSchedule, ParentalConsentLog, SchoolClass,
     teacher_classes, parent_student_links
 )
 from app.core.security import get_password_hash
+from app.embeddings.embedder import embed_content
 
 client = TestClient(app)
 
 class TestE2EProductionLifecycle(unittest.TestCase):
     """
-    End-to-End Production Verification Suite:
-    Validates all 20 steps of the real Edufeedia educational feedback loop.
+    Deterministic End-to-End Production Lifecycle Verification Suite:
+    Validates all 20 steps of the real Edufeedia educational feedback loop
+    with isolated fixtures and complete cleanup.
     """
+    CLASS_ID = "cls-e2e-isolated"
+    SCHOOL_ID = "sch-e2e-isolated"
+    TEACHER_ID = "u-teacher-e2e-det"
+    TEACHER_EMAIL = "teacher_e2e_det@apexschool.edu"
+    PARENT_ID = "u-parent-e2e-det"
+    PARENT_EMAIL = "parent_e2e_det@gmail.com"
+    STUDENT_EMAIL = "student_e2e_det@apexschool.edu"
+    CONTENT_ID = "c-e2e-physics-lesson"
+    QUIZ_ID = "q-e2e-physics-quiz"
+
     @classmethod
     def setUpClass(cls):
         cls.db: Session = SessionLocal()
-        
-        # Ensure school class exists
-        cls.school_class = cls.db.query(SchoolClass).first()
-        if not cls.school_class:
-            cls.school_class = SchoolClass(
-                id="cls-e2e-10a",
-                school_id="sch-apex-1",
-                grade_level=10,
-                section_name="A",
-                academic_year="2026-2027"
-            )
-            cls.db.add(cls.school_class)
-            cls.db.commit()
+        cls._cleanup_all(cls.db)
 
-        # Seed teacher
-        cls.teacher_user = cls.db.query(User).filter(User.email == "teacher_e2e@apexschool.edu").first()
-        if not cls.teacher_user:
-            cls.teacher_user = User(
-                id="u-teacher-e2e",
-                email="teacher_e2e@apexschool.edu",
-                password_hash=get_password_hash("Teacher123!"),
-                role="teacher",
-                first_name="Priya",
-                last_name="Sharma",
-                school_id="sch-apex-1"
-            )
-            cls.db.add(cls.teacher_user)
-            cls.db.commit()
+        # 1. Dedicated School Class Fixture
+        cls.school_class = SchoolClass(
+            id=cls.CLASS_ID,
+            school_id=cls.SCHOOL_ID,
+            grade_level=10,
+            section_name="E2E",
+            academic_year="2026-2027"
+        )
+        cls.db.add(cls.school_class)
 
-            cls.db.execute(
-                teacher_classes.insert().values(
-                    teacher_user_id=cls.teacher_user.id,
-                    class_id=cls.school_class.id,
-                    subject="Science"
-                )
-            )
-            cls.db.commit()
+        # 2. Dedicated Teacher Fixture
+        cls.teacher_user = User(
+            id=cls.TEACHER_ID,
+            email=cls.TEACHER_EMAIL,
+            password_hash=get_password_hash("Teacher123!"),
+            role="teacher",
+            first_name="Priya",
+            last_name="Sharma",
+            school_id=cls.SCHOOL_ID
+        )
+        cls.db.add(cls.teacher_user)
+        cls.db.flush()
 
-        # Seed parent
-        cls.parent_user = cls.db.query(User).filter(User.email == "parent_e2e@gmail.com").first()
-        if not cls.parent_user:
-            cls.parent_user = User(
-                id="u-parent-e2e",
-                email="parent_e2e@gmail.com",
-                password_hash=get_password_hash("Parent123!"),
-                role="parent",
-                first_name="Rajesh",
-                last_name="Kumar"
+        cls.db.execute(
+            teacher_classes.insert().values(
+                teacher_user_id=cls.teacher_user.id,
+                class_id=cls.school_class.id,
+                subject="Science"
             )
-            cls.db.add(cls.parent_user)
-            cls.db.commit()
+        )
+
+        # 3. Dedicated Parent Fixture
+        cls.parent_user = User(
+            id=cls.PARENT_ID,
+            email=cls.PARENT_EMAIL,
+            password_hash=get_password_hash("Parent123!"),
+            role="parent",
+            first_name="Rajesh",
+            last_name="Kumar"
+        )
+        cls.db.add(cls.parent_user)
+
+        # 4. Dedicated Content Item Fixture
+        emb = embed_content(
+            title="Newton's Laws of Motion & Forces",
+            description="Comprehensive guide to inertia, acceleration, and action-reaction pairs for Class 10.",
+            subject="Science",
+            topic="Physics",
+            tags=["Physics", "Science", "Force", "Newton", "CBSE"]
+        )
+        cls.content_item = ContentItem(
+            id=cls.CONTENT_ID,
+            title="Newton's Laws of Motion & Forces",
+            description="Comprehensive guide to inertia, acceleration, and action-reaction pairs for Class 10.",
+            source_url="https://www.khanacademy.org/science/class-10-physics/newtons-laws",
+            source_platform="khan_academy",
+            embed_code='<iframe src="https://www.khanacademy.org/embed"></iframe>',
+            type="video",
+            board="CBSE",
+            grade_level=10,
+            subject="Science",
+            topic="Physics",
+            difficulty="medium",
+            duration_minutes=15,
+            safety_score=98,
+            edu_score=95,
+            is_approved=True,
+            tags=["Physics", "Science", "Force", "Newton", "CBSE"],
+            embedding=emb
+        )
+        cls.db.add(cls.content_item)
+        cls.db.flush()
+
+        # 5. Dedicated Quiz & Questions Fixtures
+        cls.quiz = Quiz(
+            id=cls.QUIZ_ID,
+            content_item_id=cls.content_item.id,
+            title="Newton's Laws Diagnostic Quiz"
+        )
+        cls.db.add(cls.quiz)
+        cls.db.flush()
+
+        cls.q1 = Question(
+            id="ques-e2e-1",
+            quiz_id=cls.quiz.id,
+            question_text="What is the standard formula representing Newton's Second Law?",
+            options=["F = m * a", "E = m * c^2", "V = I * R", "P = W / t"],
+            correct_answer="F = m * a",
+            explanation="Newton's second law states that Force equals mass multiplied by acceleration (F = ma).",
+            difficulty="easy"
+        )
+        cls.q2 = Question(
+            id="ques-e2e-2",
+            quiz_id=cls.quiz.id,
+            question_text="Which law explains why passengers lean backward when a stationary vehicle accelerates forward?",
+            options=["Law of Inertia (First Law)", "Second Law", "Third Law", "Law of Gravitation"],
+            correct_answer="Law of Inertia (First Law)",
+            explanation="The law of inertia explains resistance to change in velocity.",
+            difficulty="medium"
+        )
+        cls.db.add_all([cls.q1, cls.q2])
+        cls.db.commit()
+
+    @classmethod
+    def _cleanup_all(cls, db: Session):
+        try:
+            # Delete any created student
+            student = db.query(User).filter(User.email == cls.STUDENT_EMAIL).first()
+            if student:
+                db.execute(parent_student_links.delete().where(parent_student_links.c.student_user_id == student.id))
+                db.query(ParentalConsentLog).filter(ParentalConsentLog.student_user_id == student.id).delete()
+                db.query(QuizAttempt).filter(QuizAttempt.student_user_id == student.id).delete()
+                db.query(StudentProgress).filter(StudentProgress.student_user_id == student.id).delete()
+                db.query(SpacedRepetitionSchedule).filter(SpacedRepetitionSchedule.student_user_id == student.id).delete()
+                db.query(StudentProfile).filter(StudentProfile.user_id == student.id).delete()
+                db.delete(student)
+
+            # Delete teacher & classes
+            teacher = db.query(User).filter(User.id == cls.TEACHER_ID).first()
+            if teacher:
+                db.execute(teacher_classes.delete().where(teacher_classes.c.teacher_user_id == teacher.id))
+                db.delete(teacher)
+
+            # Delete parent
+            parent = db.query(User).filter(User.id == cls.PARENT_ID).first()
+            if parent:
+                db.execute(parent_student_links.delete().where(parent_student_links.c.parent_user_id == parent.id))
+                db.delete(parent)
+
+            # Delete questions, quiz, content, school class
+            db.query(Question).filter(Question.quiz_id == cls.QUIZ_ID).delete()
+            db.query(Quiz).filter(Quiz.id == cls.QUIZ_ID).delete()
+            db.query(ContentItem).filter(ContentItem.id == cls.CONTENT_ID).delete()
+            db.query(SchoolClass).filter(SchoolClass.id == cls.CLASS_ID).delete()
+            
+            # Clean any staged content ingested during test
+            staged_items = db.query(ContentItem).filter(ContentItem.title == "Laws of Motion & Force Demonstration").all()
+            for it in staged_items:
+                db.delete(it)
+
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"[Cleanup Warning]: {e}")
 
     @classmethod
     def tearDownClass(cls):
+        cls._cleanup_all(cls.db)
         cls.db.close()
 
     def test_complete_20_step_production_lifecycle(self):
@@ -88,21 +197,15 @@ class TestE2EProductionLifecycle(unittest.TestCase):
         self.assertTrue(res.json()["database"])
 
         # 2. Register a brand new real student
-        student_email = "student_e2e_test@apexschool.edu"
-        existing = self.db.query(User).filter(User.email == student_email).first()
-        if existing:
-            self.db.delete(existing)
-            self.db.commit()
-
         reg_res = client.post("/api/v1/auth/register", json={
-            "email": student_email,
+            "email": self.STUDENT_EMAIL,
             "password": "Password123!",
             "first_name": "Aarav",
             "last_name": "Patel",
             "role": "student",
             "date_of_birth": "2010-05-15",
             "board": "CBSE",
-            "school_id": "sch-apex-1",
+            "school_id": self.SCHOOL_ID,
             "class_id": self.school_class.id
         })
         self.assertEqual(reg_res.status_code, 201)
@@ -128,7 +231,7 @@ class TestE2EProductionLifecycle(unittest.TestCase):
 
         # 3. Login as Student
         login_res = client.post("/api/v1/auth/login", json={
-            "email": student_email,
+            "email": self.STUDENT_EMAIL,
             "password": "Password123!"
         })
         self.assertEqual(login_res.status_code, 200)
@@ -141,17 +244,16 @@ class TestE2EProductionLifecycle(unittest.TestCase):
         feed_data = feed_res.json()
         self.assertIn("items", feed_data)
         self.assertGreater(len(feed_data["items"]), 0)
-        
-        # 5. Open Lesson Details (select lesson linked to assessment quiz)
-        quiz_obj = self.db.query(Quiz).first()
-        content_id = quiz_obj.content_item_id
-        lesson_res = client.get(f"/api/v1/content/{content_id}", headers=student_headers)
+
+        # 5. Open Dedicated Lesson Details
+        lesson_res = client.get(f"/api/v1/content/{self.CONTENT_ID}", headers=student_headers)
         self.assertEqual(lesson_res.status_code, 200)
-        self.assertEqual(lesson_res.json()["id"], content_id)
+        self.assertEqual(lesson_res.json()["id"], self.CONTENT_ID)
+        self.assertEqual(lesson_res.json()["topic"], "Physics")
 
         # 6. Complete Lesson & Log Progress
         prog_res = client.post("/api/v1/content/progress", headers=student_headers, json={
-            "content_item_id": content_id,
+            "content_item_id": self.CONTENT_ID,
             "progress_percentage": 100
         })
         self.assertEqual(prog_res.status_code, 200)
@@ -159,41 +261,40 @@ class TestE2EProductionLifecycle(unittest.TestCase):
         self.assertTrue(prog_res.json()["completed"])
 
         # 7. Fetch Assessment Quiz for Lesson
-        quiz_res = client.get(f"/api/v1/quizzes/content/{content_id}", headers=student_headers)
+        quiz_res = client.get(f"/api/v1/quizzes/content/{self.CONTENT_ID}", headers=student_headers)
         self.assertEqual(quiz_res.status_code, 200)
         quiz_data = quiz_res.json()
-        self.assertIn("questions", quiz_data)
-        self.assertGreater(len(quiz_data["questions"]), 0)
+        self.assertEqual(quiz_data["id"], self.QUIZ_ID)
+        self.assertEqual(len(quiz_data["questions"]), 2)
 
         # Verify Answer Key Security: Questions in GET quiz must NOT leak correct_answer
         for q in quiz_data["questions"]:
             self.assertNotIn("correct_answer", q)
             self.assertNotIn("explanation", q)
 
-        # 8. Submit Quiz Attempt with All Answers
-        quiz_id = quiz_data["id"]
-        answers_payload = [
-            {"question_id": q["id"], "selected_answer": q["options"][0]}
-            for q in quiz_data["questions"]
-        ]
+        # 8. Submit Quiz Attempt with Authoritative Answers
         submit_res = client.post("/api/v1/quizzes/submit", headers=student_headers, json={
-            "quiz_id": quiz_id,
-            "answers": answers_payload
+            "quiz_id": self.QUIZ_ID,
+            "answers": [
+                {"question_id": "ques-e2e-1", "selected_answer": "F = m * a"},
+                {"question_id": "ques-e2e-2", "selected_answer": "Law of Inertia (First Law)"}
+            ]
         })
         self.assertEqual(submit_res.status_code, 200)
         eval_result = submit_res.json()
-        self.assertIn("score", eval_result)
-        self.assertIn("accuracy_percentage", eval_result)
-        self.assertIn("xp_gained", eval_result)
-        self.assertIn("results", eval_result)
+        self.assertEqual(eval_result["score"], 2)
+        self.assertEqual(eval_result["max_score"], 2)
+        self.assertEqual(eval_result["accuracy_percentage"], 100.0)
+        self.assertGreaterEqual(eval_result["xp_gained"], 20)
 
         # 9. Verify QuizAttempt Record in Database
         attempt_db = self.db.query(QuizAttempt).filter(
             QuizAttempt.student_user_id == student_id,
-            QuizAttempt.quiz_id == quiz_id
+            QuizAttempt.quiz_id == self.QUIZ_ID
         ).first()
         self.assertIsNotNone(attempt_db)
-        self.assertEqual(attempt_db.score, eval_result["score"])
+        self.assertEqual(attempt_db.score, 2)
+        self.assertEqual(attempt_db.accuracy_percentage, 100.0)
 
         # 10. Verify XP Updated in StudentProfile
         profile_db = self.db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
@@ -202,7 +303,8 @@ class TestE2EProductionLifecycle(unittest.TestCase):
 
         # 11. Verify SM-2 Spaced Repetition Schedule Created
         schedule_db = self.db.query(SpacedRepetitionSchedule).filter(
-            SpacedRepetitionSchedule.student_user_id == student_id
+            SpacedRepetitionSchedule.student_user_id == student_id,
+            SpacedRepetitionSchedule.topic == "Physics"
         ).first()
         self.assertIsNotNone(schedule_db)
         self.assertGreaterEqual(schedule_db.interval_days, 1)
@@ -216,8 +318,8 @@ class TestE2EProductionLifecycle(unittest.TestCase):
 
         # 13. Socratic AI Tutor Interaction
         tutor_res = client.post("/api/v1/tutor/ask", headers=student_headers, json={
-            "question": "What is the formula for Newton's second law?",
-            "content_item_id": content_id
+            "question": "Can you explain how inertia connects to mass?",
+            "content_item_id": self.CONTENT_ID
         })
         self.assertEqual(tutor_res.status_code, 200)
         tutor_data = tutor_res.json()
@@ -226,7 +328,7 @@ class TestE2EProductionLifecycle(unittest.TestCase):
 
         # 14. Login as Parent
         parent_login = client.post("/api/v1/auth/login", json={
-            "email": "parent_e2e@gmail.com",
+            "email": self.PARENT_EMAIL,
             "password": "Parent123!"
         })
         self.assertEqual(parent_login.status_code, 200)
@@ -246,7 +348,7 @@ class TestE2EProductionLifecycle(unittest.TestCase):
 
         # 16. Login as Teacher
         teacher_login = client.post("/api/v1/auth/login", json={
-            "email": "teacher_e2e@apexschool.edu",
+            "email": self.TEACHER_EMAIL,
             "password": "Teacher123!"
         })
         self.assertEqual(teacher_login.status_code, 200)
@@ -258,10 +360,10 @@ class TestE2EProductionLifecycle(unittest.TestCase):
         classes_list = classes_res.json()
         self.assertGreater(len(classes_list), 0)
 
-        analytics_res = client.get(f"/api/v1/teachers/classes/{self.school_class.id}/analytics", headers=teacher_headers)
+        analytics_res = client.get(f"/api/v1/teachers/classes/{self.CLASS_ID}/analytics", headers=teacher_headers)
         self.assertEqual(analytics_res.status_code, 200)
         class_analytics = analytics_res.json()
-        self.assertIn("average_mastery_percentage", class_analytics)
+        self.assertIn("class_average_accuracy", class_analytics)
         self.assertGreaterEqual(class_analytics["total_students"], 1)
 
         # 18. Submit Staged Educational URL for Ingestion
