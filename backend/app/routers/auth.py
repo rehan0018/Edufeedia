@@ -105,7 +105,8 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer",
         "role": user.role,
-        "user_id": user.id
+        "user_id": user.id,
+        "user": user
     }
 
 from app.core.security import RoleChecker

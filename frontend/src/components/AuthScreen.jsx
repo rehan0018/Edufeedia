@@ -23,10 +23,19 @@ export default function AuthScreen({ onLoginSuccess }) {
     }
   };
 
-  const handleSelectDemo = (demoEmail, demoPass) => {
+  const handleSelectDemo = async (demoEmail, demoPass) => {
     setEmail(demoEmail);
     setPassword(demoPass);
-    apiLogin(demoEmail, demoPass).then(data => onLoginSuccess(data.user));
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiLogin(demoEmail, demoPass);
+      onLoginSuccess(data.user);
+    } catch (err) {
+      setError(err?.message || 'Authentication failed. Please verify credentials or backend status.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -167,7 +176,7 @@ export default function AuthScreen({ onLoginSuccess }) {
               type="button"
               className="btn btn-outline btn-sm"
               style={{ justifyContent: 'flex-start' }}
-              onClick={() => handleSelectDemo('priya@apexschool.edu', 'Teacher123!')}
+              onClick={() => handleSelectDemo('sharma@apexschool.edu', 'Teacher123!')}
             >
               👩‍🏫 <strong>Teacher:</strong> Mrs. Sharma (Apex School)
             </button>

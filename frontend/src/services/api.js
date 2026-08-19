@@ -53,8 +53,8 @@ export const apiLogin = async (email, password) => {
         const demoUser = { id: 'u-student-1', email, first_name: 'Rahul', last_name: 'Kumar', role: 'student', grade: 10, board: 'CBSE' };
         setAuthSession('demo-token-student', demoUser, 'student');
         return { access_token: 'demo-token-student', user: demoUser };
-      } else if (email.includes('priya') || email.includes('teacher')) {
-        const demoUser = { id: 'u-teacher-1', email, first_name: 'Priya', last_name: 'Sharma', role: 'teacher' };
+      } else if (email.includes('sharma') || email.includes('priya') || email.includes('teacher')) {
+        const demoUser = { id: 'u-teacher-1', email, first_name: 'Sunita', last_name: 'Sharma', role: 'teacher' };
         setAuthSession('demo-token-teacher', demoUser, 'teacher');
         return { access_token: 'demo-token-teacher', user: demoUser };
       } else {
@@ -68,8 +68,16 @@ export const apiLogin = async (email, password) => {
   }
 
   const data = await res.json();
-  setAuthSession(data.access_token, data.user, data.user.role);
-  return data;
+  const userRole = data.role || data.user?.role || 'student';
+  const userData = data.user || {
+    id: data.user_id,
+    email: email,
+    role: userRole,
+    first_name: userRole === 'teacher' ? 'Sunita' : (userRole === 'parent' ? 'Rajesh' : 'Rahul'),
+    last_name: userRole === 'teacher' ? 'Sharma' : (userRole === 'parent' ? 'Kumar' : 'Kumar')
+  };
+  setAuthSession(data.access_token, userData, userRole);
+  return { ...data, user: userData };
 };
 
 // 2. Student Daily Learning Plan Feed
