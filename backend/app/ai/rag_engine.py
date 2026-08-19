@@ -214,12 +214,15 @@ class RAGEngine:
         top_chunks = cls._hybrid_retrieve_chunks(question, db=db, top_k=3)
 
         # 4. Determine Dynamic Topic & Scope Context
+        subject_name = "General Science"
         if is_lesson_related and current_lesson:
             topic_name = current_lesson.topic
+            subject_name = current_lesson.subject
             lesson_context = f"Active Lesson: {current_lesson.title} ({current_lesson.subject} - {current_lesson.topic}). Description: {current_lesson.description or ''}."
         elif top_chunks:
             best_chunk, best_score = top_chunks[0]
             topic_name = best_chunk["topic"]
+            subject_name = best_chunk["subject"]
             lesson_context = f"Subject Domain: {best_chunk['subject']} — {best_chunk['topic']} ({best_chunk['section']})"
         else:
             topic_name = "General Curriculum"
@@ -232,13 +235,19 @@ class RAGEngine:
 
         assembled_context = "\n".join(curriculum_context_pieces)
 
-        # 6. Generate Socratic Guidance via LLM Client
+        # 6. Generate Socratic Guidance via Model Gateway (OpenAI / Gemini / Local Socratic)
         response = llm_client.generate_socratic_response(
             question=question,
             curriculum_context=assembled_context,
             topic=topic_name,
-            student_grade=student_grade
+            student_grade=student_grade,
+            subject=subject_name
         )
+
+        response["subject"] = subject_name
+        response["topic"] = topic_name
+        response["grade"] = student_grade
+        response["grounding_source"] = f"{subject_name} • Grade {student_grade}"
 
         return response
 
