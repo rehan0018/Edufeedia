@@ -7,6 +7,8 @@ import SocraticTutorChat from './components/SocraticTutorChat';
 import MasteryDashboard from './components/MasteryDashboard';
 import TeacherDashboard from './components/TeacherDashboard';
 import ParentDashboard from './components/ParentDashboard';
+import ExploreCatalog from './components/ExploreCatalog';
+import ClassChallenges from './components/ClassChallenges';
 import AuthScreen from './components/AuthScreen';
 import { getSession, clearAuthSession, fetchDailyPlanFeed } from './services/api';
 
@@ -107,8 +109,22 @@ export default function App() {
           />
         )}
 
+        {currentTab === 'explore' && (
+          <ExploreCatalog
+            onOpenLesson={handleSelectLesson}
+            onOpenQuiz={(lesson) => {
+              setQuizLessonTarget(lesson);
+              setQuizModalOpen(true);
+            }}
+          />
+        )}
+
         {currentTab === 'tutor' && (
           <SocraticTutorChat activeTopic={tutorFocusTopic} />
+        )}
+
+        {currentTab === 'challenges' && (
+          <ClassChallenges />
         )}
 
         {currentTab === 'mastery' && (

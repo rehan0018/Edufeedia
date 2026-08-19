@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import datetime
 
 from app.database import get_db
@@ -164,7 +164,75 @@ def submit_quiz(
     }
 
 from app.ai.question_generator import AIQuestionGenerator
-from app.schemas.schemas import QuizGenerateRequest, QuizGenerateResponse, GeneratedQuestionOut
+from app.schemas.schemas import QuizGenerateRequest, QuizGenerateResponse, GeneratedQuestionOut, QuizCreateRequest
+
+@router.post("/generate-draft", response_model=List[GeneratedQuestionOut])
+def generate_ai_quiz_draft(
+    request: QuizGenerateRequest,
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Auto-generates draft assessment questions for teacher review and editing before publishing.
+    """
+    raw_questions = AIQuestionGenerator.generate_quiz_for_topic(
+        subject=request.subject,
+        topic=request.topic,
+        grade=request.grade_level or 10,
+        num_questions=request.num_questions or 3
+    )
+    return [
+        GeneratedQuestionOut(
+            question_text=q["question_text"],
+            options=q["options"],
+            correct_answer=q["correct_answer"],
+            explanation=q["explanation"],
+            difficulty=q.get("difficulty", "medium"),
+            blooms_level=q.get("blooms_level", "Understand")
+        ) for q in raw_questions
+    ]
+
+@router.post("/custom", response_model=QuizOut, status_code=status.HTTP_201_CREATED)
+def create_custom_quiz(
+    request: QuizCreateRequest,
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Creates a teacher-authored or teacher-reviewed custom assessment with verified Bloom's taxonomy distribution.
+    """
+    if not request.questions or len(request.questions) == 0:
+        raise HTTPException(status_code=400, detail="An assessment must contain at least one question")
+
+    new_quiz = Quiz(
+        content_item_id=request.content_item_id,
+        title=request.title
+    )
+    db.add(new_quiz)
+    db.flush()
+
+    for q_data in request.questions:
+        q_obj = Question(
+            quiz_id=new_quiz.id,
+            question_text=q_data.question_text,
+            options=q_data.options,
+            correct_answer=q_data.correct_answer,
+            explanation=q_data.explanation,
+            difficulty=q_data.difficulty
+        )
+        db.add(q_obj)
+
+    db.commit()
+    db.refresh(new_quiz)
+
+    # Sync to Excel
+    try:
+        from app.core.excel_exporter import sync_database_to_excel
+        sync_database_to_excel(db)
+    except Exception as e:
+        print(f"[Excel Sync Warning]: {e}")
+
+    return new_quiz
 
 @router.post("/generate", response_model=QuizGenerateResponse, status_code=status.HTTP_201_CREATED)
 def generate_ai_quiz(

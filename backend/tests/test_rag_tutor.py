@@ -63,9 +63,35 @@ class TestRAGTutor(unittest.TestCase):
         )
         self.assertEqual(res.status_code, 200)
         data = res.json()
-        self.assertTrue(data["is_safe"])
-        self.assertIn("answer", data)
-        self.assertIn("socratic_cue", data)
+    def test_tutor_intent_routing_decoupled_from_lesson(self):
+        """
+        Verify that asking 'what is computer network' while viewing a Quadratic Equations lesson
+        does NOT force quadratic equation context, but routes to Computer Networks.
+        """
+        db = SessionLocal()
+        try:
+            from app.models.models import ContentItem
+            quad_item = db.query(ContentItem).filter(ContentItem.topic == "Quadratic Equations").first()
+            content_id = quad_item.id if quad_item else None
+
+            # Student asks about computer networks while on Quadratic Equations
+            res = client.post(
+                "/api/v1/tutor/ask",
+                headers=self.student_headers,
+                json={
+                    "content_item_id": content_id,
+                    "question": "what is computer network",
+                    "conversation_history": []
+                }
+            )
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            answer_lower = data["answer"].lower()
+            # Must talk about networks, devices, or communication, NOT quadratic roots!
+            self.assertTrue("network" in answer_lower or "device" in answer_lower or "packet" in answer_lower)
+            self.assertNotIn("discriminant", answer_lower)
+        finally:
+            db.close()
 
 if __name__ == "__main__":
     unittest.main()

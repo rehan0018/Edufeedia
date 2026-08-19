@@ -113,6 +113,37 @@ CURRICULUM_KNOWLEDGE_BASE: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
                 "difficulty": "medium",
                 "blooms_level": "Analyze"
             }
+        ],
+        "Computer Networks": [
+            {
+                "question_text": "In the OSI 7-Layer reference model, at which layer does IP packet routing and logical addressing occur?",
+                "options": ["Network Layer (Layer 3)", "Transport Layer (Layer 4)", "Data Link Layer (Layer 2)", "Physical Layer (Layer 1)"],
+                "correct_answer": "Network Layer (Layer 3)",
+                "explanation": "The Network Layer manages logical IP addressing and packet routing across intermediate routers.",
+                "difficulty": "medium",
+                "blooms_level": "Understand"
+            },
+            {
+                "question_text": "Which protocol provides reliable, connection-oriented byte stream transmission with error detection and packet retransmission?",
+                "options": ["TCP (Transmission Control Protocol)", "UDP (User Datagram Protocol)", "ICMP", "ARP"],
+                "correct_answer": "TCP (Transmission Control Protocol)",
+                "explanation": "TCP establishes a 3-way handshake and guarantees in-order delivery of data packets.",
+                "difficulty": "medium",
+                "blooms_level": "Apply"
+            },
+            {
+                "question_text": "What is the primary security function of a Network Firewall?",
+                "options": [
+                    "Monitors and filters incoming/outgoing network traffic based on security rules",
+                    "Increases computer CPU processing clock speed",
+                    "Translates domain names to IP addresses",
+                    "Converts digital signals to analog phone audio"
+                ],
+                "correct_answer": "Monitors and filters incoming/outgoing network traffic based on security rules",
+                "explanation": "Firewalls act as protective barriers between trusted internal networks and untrusted external traffic.",
+                "difficulty": "easy",
+                "blooms_level": "Remember"
+            }
         ]
     }
 }

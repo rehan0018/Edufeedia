@@ -228,3 +228,68 @@ export const fetchParentStudentSummary = async () => {
   const summary = await progressRes.json();
   return { student: firstStudent, summary };
 };
+
+// 12. Explore Catalog Search & Filter
+export const fetchExploreCatalog = async (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.query) queryParams.append('query', params.query);
+  if (params.subject && params.subject !== 'All') queryParams.append('subject', params.subject);
+  if (params.grade_level) queryParams.append('grade_level', params.grade_level);
+  if (params.content_type) queryParams.append('content_type', params.content_type);
+
+  const url = `${API_BASE_URL}/content/explore${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+  const res = await fetch(url, { headers: defaultHeaders() });
+  if (!res.ok) {
+    throw new Error('Failed to load explore catalog');
+  }
+  return await res.json();
+};
+
+// 13. Inter-Class Academic Challenges & Safe Leaderboard
+export const fetchWeeklyChallenge = async () => {
+  const res = await fetch(`${API_BASE_URL}/challenges/weekly`, { headers: defaultHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch weekly challenge');
+  return await res.json();
+};
+
+export const fetchClassLeaderboard = async () => {
+  const res = await fetch(`${API_BASE_URL}/challenges/class-leaderboard`, { headers: defaultHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch class leaderboard');
+  return await res.json();
+};
+
+export const fetchMyPersonalGrowth = async () => {
+  const res = await fetch(`${API_BASE_URL}/challenges/my-growth`, { headers: defaultHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch personal growth stats');
+  return await res.json();
+};
+
+// 14. Faculty Assessment Creation (Manual Builder & AI Draft Review)
+export const apiGenerateQuizDraft = async (subject, topic, gradeLevel = 10, numQuestions = 3) => {
+  const res = await fetch(`${API_BASE_URL}/quizzes/generate-draft`, {
+    method: 'POST',
+    headers: defaultHeaders(),
+    body: JSON.stringify({
+      subject,
+      topic,
+      grade_level: gradeLevel,
+      num_questions: numQuestions
+    })
+  });
+  if (!res.ok) {
+    throw new Error('Failed to generate AI quiz draft');
+  }
+  return await res.json();
+};
+
+export const apiCreateCustomQuiz = async (quizData) => {
+  const res = await fetch(`${API_BASE_URL}/quizzes/custom`, {
+    method: 'POST',
+    headers: defaultHeaders(),
+    body: JSON.stringify(quizData)
+  });
+  if (!res.ok) {
+    throw new Error('Failed to publish assessment');
+  }
+  return await res.json();
+};

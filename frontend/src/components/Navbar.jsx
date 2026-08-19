@@ -45,25 +45,41 @@ export default function Navbar({ currentTab, setTab, user, onLogout }) {
             <button
               className={`btn ${currentTab === 'feed' ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setTab('feed')}
-              style={{ padding: '8px 16px', fontSize: '0.88rem' }}
+              style={{ padding: '8px 14px', fontSize: '0.86rem' }}
             >
-              <Sparkles size={16} /> Today's Plan
+              <Sparkles size={15} /> Today's Plan
+            </button>
+
+            <button
+              className={`btn ${currentTab === 'explore' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setTab('explore')}
+              style={{ padding: '8px 14px', fontSize: '0.86rem' }}
+            >
+              <BookOpen size={15} /> Explore
             </button>
 
             <button
               className={`btn ${currentTab === 'tutor' ? 'btn-accent' : 'btn-outline'}`}
               onClick={() => setTab('tutor')}
-              style={{ padding: '8px 16px', fontSize: '0.88rem' }}
+              style={{ padding: '8px 14px', fontSize: '0.86rem' }}
             >
-              <Brain size={16} /> AI Tutor
+              <Brain size={15} /> AI Tutor
+            </button>
+
+            <button
+              className={`btn ${currentTab === 'challenges' ? 'btn-accent' : 'btn-outline'}`}
+              onClick={() => setTab('challenges')}
+              style={{ padding: '8px 14px', fontSize: '0.86rem' }}
+            >
+              <Trophy size={15} /> Challenges
             </button>
 
             <button
               className={`btn ${currentTab === 'mastery' ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setTab('mastery')}
-              style={{ padding: '8px 16px', fontSize: '0.88rem' }}
+              style={{ padding: '8px 14px', fontSize: '0.86rem' }}
             >
-              <Trophy size={16} /> Mastery & Revision
+              <Zap size={15} /> Mastery
             </button>
           </>
         )}

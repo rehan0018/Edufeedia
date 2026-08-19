@@ -392,10 +392,154 @@ def seed_database():
         is_approved=True
     )
 
-    db.add_all([item_math1, item_math2, item_sci1, item_sci2, item_sci3, item_code1, item_code2, item_space])
+    # Computer Science: Computer Networks & Topologies
+    item_cs_net1 = ContentItem(
+        title="Introduction to Computer Networks & Topologies",
+        description="Core principles of node interconnectivity, Star/Bus/Mesh topologies, guided vs unguided transmission, and LAN vs WAN geographic classification.",
+        source_url="https://www.youtube.com/embed/3QhU9jd03a0",
+        source_platform="YouTube Safe EDU",
+        embed_code='<iframe width="560" height="315" src="https://www.youtube.com/embed/3QhU9jd03a0" frameborder="0" allowfullscreen></iframe>',
+        type="video",
+        board="CBSE",
+        grade_level=10,
+        subject="Computer Science",
+        topic="Computer Networks",
+        difficulty="easy",
+        duration_minutes=12,
+        safety_score=100,
+        edu_score=98,
+        is_approved=True
+    )
+
+    # Computer Science: OSI Model & Protocols
+    item_cs_net2 = ContentItem(
+        title="The OSI 7-Layer Model & Internet Protocols",
+        description="Comprehensive guide through Physical, Data Link, Network (IP), Transport (TCP/UDP), and Application layers with packet encapsulation.",
+        source_url="https://www.youtube.com/embed/IPvYjXCsTg8",
+        source_platform="YouTube Safe EDU",
+        embed_code='<iframe width="560" height="315" src="https://www.youtube.com/embed/IPvYjXCsTg8" frameborder="0" allowfullscreen></iframe>',
+        type="video",
+        board="CBSE",
+        grade_level=10,
+        subject="Computer Science",
+        topic="Computer Networks",
+        difficulty="medium",
+        duration_minutes=14,
+        safety_score=100,
+        edu_score=99,
+        is_approved=True
+    )
+
+    # Science: Electricity & Circuits
+    item_sci_elec = ContentItem(
+        title="Electricity, Ohm's Law & Circuit Analysis",
+        description="Master potential difference (V), electric current (I), Ohm's law (V = IR), and calculating equivalent resistance for series and parallel resistor circuits.",
+        source_url="https://www.youtube.com/embed/hsglQ3PfG8I",
+        source_platform="YouTube Safe EDU",
+        embed_code='<iframe width="560" height="315" src="https://www.youtube.com/embed/hsglQ3PfG8I" frameborder="0" allowfullscreen></iframe>',
+        type="video",
+        board="CBSE",
+        grade_level=10,
+        subject="Science",
+        topic="Electricity & Circuits",
+        difficulty="medium",
+        duration_minutes=15,
+        safety_score=100,
+        edu_score=97,
+        is_approved=True
+    )
+
+    # Mathematics: Trigonometry
+    item_math_trig = ContentItem(
+        title="Introduction to Trigonometric Ratios & Identities",
+        description="Understanding right triangle side ratios (sine, cosine, tangent), standard angles (30°, 45°, 60°), and key identity sin²(θ) + cos²(θ) = 1.",
+        source_url="https://www.youtube.com/embed/PUB0TaZ7bhA",
+        source_platform="YouTube Safe EDU",
+        embed_code='<iframe width="560" height="315" src="https://www.youtube.com/embed/PUB0TaZ7bhA" frameborder="0" allowfullscreen></iframe>',
+        type="video",
+        board="CBSE",
+        grade_level=10,
+        subject="Mathematics",
+        topic="Trigonometry",
+        difficulty="medium",
+        duration_minutes=16,
+        safety_score=100,
+        edu_score=96,
+        is_approved=True
+    )
+
+    db.add_all([
+        item_math1, item_math2, item_sci1, item_sci2, item_sci3,
+        item_code1, item_code2, item_space, item_cs_net1, item_cs_net2,
+        item_sci_elec, item_math_trig
+    ])
     db.flush()
 
     # 8. Add Quizzes & Questions
+    # Quiz: Computer Networks (Topologies & Fundamentals)
+    quiz_net1 = Quiz(content_item_id=item_cs_net1.id, title="Computer Networks Foundations Quiz")
+    db.add(quiz_net1)
+    db.flush()
+    db.add_all([
+        Question(
+            quiz_id=quiz_net1.id,
+            question_text="Which network topology connects every node to a central device (like a switch or hub)?",
+            options=["Star Topology", "Bus Topology", "Ring Topology", "Mesh Topology"],
+            correct_answer="Star Topology",
+            explanation="In a star topology, all peripheral devices connect point-to-point to a central hub or switch.",
+            difficulty="easy"
+        ),
+        Question(
+            quiz_id=quiz_net1.id,
+            question_text="What is the primary geographic distinction between a LAN and a WAN?",
+            options=[
+                "LAN covers a local room or building, whereas WAN spans across cities, countries, or continents",
+                "LAN is only wireless while WAN is only wired",
+                "LAN uses satellite connections while WAN uses Ethernet cables",
+                "LAN is publicly accessible while WAN is strictly private"
+            ],
+            correct_answer="LAN covers a local room or building, whereas WAN spans across cities, countries, or continents",
+            explanation="Local Area Networks (LAN) operate within limited geographical areas (e.g. school/home), whereas Wide Area Networks (WAN) cover global distances.",
+            difficulty="easy"
+        ),
+        Question(
+            quiz_id=quiz_net1.id,
+            question_text="What is the role of a Router in a computer network?",
+            options=[
+                "Forwards data packets across different IP subnets to find the optimal path",
+                "Displays graphics on the user's computer monitor",
+                "Stores HTML files permanently on a hard drive",
+                "Converts software source code into binary machine instructions"
+            ],
+            correct_answer="Forwards data packets across different IP subnets to find the optimal path",
+            explanation="Routers operate at the Network Layer (Layer 3) to route IP packets between separate networks.",
+            difficulty="medium"
+        )
+    ])
+
+    # Quiz: Electricity & Circuits
+    quiz_elec = Quiz(content_item_id=item_sci_elec.id, title="Electricity & Circuits Diagnostic")
+    db.add(quiz_elec)
+    db.flush()
+    db.add_all([
+        Question(
+            quiz_id=quiz_elec.id,
+            question_text="What is the mathematical equation representing Ohm's Law?",
+            options=["V = I * R", "P = V * I", "E = m * c^2", "F = m * a"],
+            correct_answer="V = I * R",
+            explanation="Ohm's law states Voltage (V) equals Current (I) multiplied by Resistance (R).",
+            difficulty="easy"
+        ),
+        Question(
+            quiz_id=quiz_elec.id,
+            question_text="In a parallel circuit with two identical 10-Ohm resistors, what is the equivalent total resistance?",
+            options=["5 Ohms", "20 Ohms", "10 Ohms", "15 Ohms"],
+            correct_answer="5 Ohms",
+            explanation="For parallel resistors: 1/R_eq = 1/10 + 1/10 = 2/10 = 1/5 -> R_eq = 5 Ohms.",
+            difficulty="medium"
+        )
+    ])
+
     # Quiz 1: Math (Quadratic Equations)
     quiz_math1 = Quiz(content_item_id=item_math1.id, title="Quadratic Equations Mastery Check")
     db.add(quiz_math1)

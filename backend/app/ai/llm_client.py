@@ -86,42 +86,78 @@ class LLMClient:
     @staticmethod
     def _local_socratic_generation(question: str, context: str, topic: str, grade: int) -> Dict[str, Any]:
         q_lower = question.lower()
+        topic_lower = topic.lower()
 
-        # Dynamic template based on subject matter and context
-        if "quadratic" in topic.lower() or "math" in topic.lower() or "formula" in q_lower or "root" in q_lower:
-            answer = f"In {topic}, the key is recognizing how variables interact in equations. {context} For example, when solving a quadratic equation ax² + bx + c = 0, the discriminant D = b² - 4ac reveals the nature of the roots before you even graph the curve!"
-            socratic_cue = "If the value inside the square root (the discriminant) turns out to be zero, what does that tell you about the number of distinct solutions?"
+        # 1. Computer Networks & Internet Architecture
+        if "network" in q_lower or "network" in topic_lower or "internet" in q_lower or "osi" in q_lower or "router" in q_lower or "ip" in q_lower:
+            answer = f"A computer network is an interconnected system of autonomous devices that share data and computing resources. {context} For example, when you browse a webpage, your computer encapsulates data packets through the OSI layers (Application to Physical), routes them through intermediate routers via IP addressing, and reassembles them at the destination!"
+            socratic_cue = "Why do you think the Internet uses packet switching (breaking messages into smaller chunks) instead of keeping a dedicated physical line open between two computers?"
             follow_ups = [
-                "What happens to the shape of the parabola if the coefficient 'a' is negative?",
-                "Can you try finding the roots for x² - 5x + 6 = 0 using factorization?"
+                "What is the key functional difference between a Local Area Network (LAN) and a Wide Area Network (WAN)?",
+                "How does the Domain Name System (DNS) help us find web servers using human-friendly names?"
             ]
-        elif "respiration" in topic.lower() or "biology" in topic.lower() or "cell" in q_lower or "energy" in q_lower:
-            answer = f"In {topic}, energy transfer is the core principle. {context} During cellular respiration, glucose is oxidized step-by-step to produce ATP molecules, which act as the universal chemical energy currency for cells."
-            socratic_cue = "Why do muscle cells switch to anaerobic lactic acid fermentation during intense sprint exercises when oxygen runs low?"
+
+        # 2. Python & Computer Programming
+        elif "python" in topic_lower or "code" in q_lower or "loop" in q_lower or "function" in q_lower or "array" in q_lower:
+            answer = f"In Computer Science, programming logic is built from modular functions, sequences, and conditional algorithms. {context} In Python, functions defined with 'def' allow you to create reusable blocks, while loops iterate cleanly over lists and data structures."
+            socratic_cue = "What is the key difference between passing an immutable integer versus a mutable list into a Python function?"
             follow_ups = [
-                "How do alveoli in the lungs maximize the surface area for rapid gas exchange?",
-                "Where in the cell does glycolysis take place compared to the electron transport chain?"
+                "How does a dictionary achieve O(1) average lookup time compared to searching through a list?",
+                "Can you write a simple loop that filters all even numbers from a list?"
             ]
-        elif "python" in topic.lower() or "code" in q_lower or "loop" in q_lower or "function" in q_lower:
-            answer = f"In {topic}, logic is built from modular components. {context} In Python, functions encapsulate reusable logic so you don't have to repeat code, while loops automate repetitive iterations over datasets."
-            socratic_cue = "What is the difference between passing arguments by value versus modifying a mutable list inside a function?"
+
+        # 3. Electricity & Circuits
+        elif "circuit" in q_lower or "electricity" in q_lower or "ohm" in q_lower or "voltage" in q_lower or "current" in q_lower or "resistor" in q_lower:
+            answer = f"In Physics, electricity is the flow of electric charge through conductive materials. {context} According to Ohm's Law (V = I × R), the potential difference across a conductor drives current in direct proportion to voltage, moderated by the circuit's total resistance."
+            socratic_cue = "If two identical light bulbs are connected in parallel instead of series, why do they shine brighter?"
             follow_ups = [
-                "What happens if you write a recursive function without a base case?",
-                "How can list comprehensions make your data transformations cleaner?"
+                "What happens to the equivalent resistance of a circuit when you add more resistors in parallel?",
+                "How does the thickness and length of a wire change its electrical resistance?"
             ]
-        elif "newton" in topic.lower() or "force" in q_lower or "gravity" in q_lower:
-            answer = f"In {topic}, motion and forces obey conservation laws. {context} Newton's Second Law establishes that force equals mass times acceleration (F = ma), showing how acceleration depends on both the applied push and the body's inertia."
-            socratic_cue = "If an astronaut in deep space throws a wrench, will the wrench ever slow down if no external forces act on it?"
+
+        # 4. Newton's Laws & Dynamics
+        elif "newton" in topic_lower or "force" in q_lower or "gravity" in q_lower or "inertia" in q_lower or "acceleration" in q_lower:
+            answer = f"In Classical Mechanics, motion is governed by Newton's fundamental laws. {context} Newton's Second Law establishes that force equals mass times acceleration (F = ma), showing how acceleration is directly proportional to net force and inversely proportional to mass."
+            socratic_cue = "If a feather and a hammer are dropped in a complete vacuum on the Moon, why do they hit the ground at the exact same time?"
             follow_ups = [
-                "What is the action-reaction pair when you push down against the earth while jumping?",
-                "How does the force of gravity change if the distance between two planets is doubled?"
+                "What is the action-reaction pair when an airplane propeller pushes air backward to generate thrust?",
+                "How does Newton's First Law (Law of Inertia) explain why seatbelts protect passengers in sudden braking?"
             ]
+
+        # 5. Chemical Reactions & Bonding
+        elif "reaction" in q_lower or "chemical" in q_lower or "bond" in q_lower or "atom" in q_lower or "acid" in q_lower:
+            answer = f"In Chemistry, atoms bond and react to achieve stable electronic configurations (like the noble gas octet). {context} In chemical reactions, matter is conserved: bonds in reactants break and new bonds in products form, often exchanging energy as exothermic or endothermic processes."
+            socratic_cue = "In a single displacement reaction like Zinc reacting with Copper Sulfate, why does Zinc displace the Copper ions from the solution?"
+            follow_ups = [
+                "What is the key structural difference between high-melting ionic lattices (like NaCl) and covalent molecules (like H₂O)?",
+                "How can you determine whether a chemical species has undergone oxidation or reduction in a redox reaction?"
+            ]
+
+        # 6. Cellular Biology & Respiration
+        elif "respiration" in topic_lower or "biology" in topic_lower or "cell" in q_lower or "glucose" in q_lower or "atp" in q_lower:
+            answer = f"In Biological Sciences, cellular respiration is the bioenergetic engine of life. {context} Mitochondria break down glucose with oxygen (aerobic respiration) to generate 36–38 ATP molecules, powering all cellular metabolic work."
+            socratic_cue = "Why do muscle cells temporarily switch to anaerobic lactic acid fermentation when sprinting at maximum heart rate?"
+            follow_ups = [
+                "How do the microscopic alveoli in your lungs maximize the rate of oxygen diffusion into capillaries?",
+                "What is the essential role of chlorophyll in capturing photon energy during photosynthesis?"
+            ]
+
+        # 7. Mathematics & Quadratic Equations
+        elif "quadratic" in topic_lower or "discriminant" in q_lower or "parabola" in q_lower or "root" in q_lower or "equation" in q_lower:
+            answer = f"In Algebra, quadratic equations express polynomial relationships of degree two in the standard form ax² + bx + c = 0. {context} The discriminant D = b² - 4ac reveals the nature of the roots before calculating values using the quadratic formula x = (-b ± √D) / (2a)."
+            socratic_cue = "If the discriminant D is exactly equal to zero, what does that geometric parabola look like where it meets the x-axis?"
+            follow_ups = [
+                "How does the sign of the leading coefficient 'a' determine if a parabola opens upward or downward?",
+                "Can you solve x² - 7x + 10 = 0 by finding two numbers whose product is 10 and sum is 7?"
+            ]
+
+        # 8. General Curriculum Inquiries
         else:
-            answer = f"Great question about {topic}! {context} In curriculum Grade {grade}, understanding the foundational definitions and real-world mechanisms helps connect theory with problem-solving."
-            socratic_cue = "What is the very first step or definition you would use to approach this concept?"
+            answer = f"Great question regarding {topic}! {context} In Grade {grade} curriculum, connecting fundamental definitions to real-world applications is the key to deep mastery."
+            socratic_cue = "What is the very first principle or definition you would apply to explore this concept?"
             follow_ups = [
-                "Would you like to walk through a concrete example together?",
-                "Can you explain the main idea in your own words?"
+                "Would you like to step through an intuitive real-world example together?",
+                "How would you summarize the core idea in your own words?"
             ]
 
         return {

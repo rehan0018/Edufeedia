@@ -193,9 +193,13 @@ class QuestionCreate(BaseModel):
     correct_answer: str
     explanation: Optional[str] = None
     difficulty: str = "medium"
+    blooms_level: Optional[str] = "Understand"
 
 class QuizCreateRequest(BaseModel):
     title: str
+    subject: Optional[str] = "General"
+    topic: Optional[str] = "General"
+    grade_level: Optional[int] = 10
     content_item_id: Optional[str] = None
     questions: List[QuestionCreate]
 
