@@ -203,8 +203,16 @@ class TestEdufeediaAPI(unittest.TestCase):
         self.assertIn("subject_progress", prog_data)
 
     def test_admin_database_records_and_me_endpoint(self):
-        # 1. Test /admin/records
-        records_res = client.get("/api/v1/admin/records")
+        # 1. Test /admin/records with authenticated admin
+        admin_login = client.post("/api/v1/auth/login", json={
+            "email": "admin@apexschool.edu",
+            "password": "Admin123!"
+        })
+        self.assertEqual(admin_login.status_code, 200)
+        admin_token = admin_login.json()["access_token"]
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+        records_res = client.get("/api/v1/admin/records", headers=admin_headers)
         self.assertEqual(records_res.status_code, 200)
         data = records_res.json()
         self.assertIn("stats", data)

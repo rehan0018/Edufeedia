@@ -75,26 +75,16 @@ def submit_quiz(
         
     accuracy = (correct_count / total_questions) * 100.0
     
-    # Anti-Farming XP Protection:
-    # Check prior attempts BEFORE adding current attempt.
-    # Full XP rewarded only on initial attempt; duplicate retries award 0 XP to preserve leaderboard integrity.
+    # Anti-Farming XP Protection & Concurrency Idempotency:
     prior_attempts_count = db.query(QuizAttempt).filter(
         QuizAttempt.student_user_id == current_user.id,
         QuizAttempt.quiz_id == quiz.id
     ).count()
 
-    # Store attempt
-    attempt = QuizAttempt(
-        student_user_id=current_user.id,
-        quiz_id=quiz.id,
-        score=correct_count,
-        max_score=total_questions,
-        accuracy_percentage=accuracy
-    )
-    db.add(attempt)
+    attempt_number = prior_attempts_count + 1
 
     xp_gained = 0
-    if prior_attempts_count == 0: # First attempt
+    if attempt_number == 1 and prior_attempts_count == 0: # First attempt only
         xp_gained = correct_count * 5 # 5 XP per correct answer
         if accuracy == 100.0:
             xp_gained += 25 # 25 XP bonus for 100% score
@@ -102,6 +92,18 @@ def submit_quiz(
         profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
         if profile:
             profile.xp_score += xp_gained
+
+    # Store attempt
+    attempt = QuizAttempt(
+        student_user_id=current_user.id,
+        quiz_id=quiz.id,
+        attempt_number=attempt_number,
+        score=correct_count,
+        max_score=total_questions,
+        accuracy_percentage=accuracy,
+        xp_awarded=xp_gained
+    )
+    db.add(attempt)
         
     # Spaced Repetition (SM-2) Interval Calculation
     # Scale accuracy to 0-5 response quality grade
@@ -157,13 +159,6 @@ def submit_quiz(
             
     db.commit()
 
-    # Sync live database to owner's read-only Excel workbook
-    try:
-        from app.core.excel_exporter import sync_database_to_excel
-        sync_database_to_excel(db)
-    except Exception as e:
-        print(f"[Excel Sync Warning]: {e}")
-    
     return {
         "score": correct_count,
         "max_score": total_questions,

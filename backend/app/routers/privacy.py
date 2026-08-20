@@ -84,10 +84,42 @@ def request_parent_verification(
 ):
     """
     Step 1 of Verifiable Parental Consent:
-    Enforces server-side parent-student relationship check, generates a 6-digit cryptographic OTP,
-    stores it in Redis with 15-minute TTL, and dispatches via transactional email.
+    Enforces server-side parent-student relationship authorization, eliminates IDOR,
+    generates a 6-digit cryptographic OTP, stores in Redis with 15-minute TTL, and dispatches email.
     """
-    target_student_id = req.student_id or current_user.id
+    # 1. Authorization & Tenant Boundary Resolution
+    if current_user.role == "student":
+        # Student can ONLY request consent for their own account
+        target_student_id = current_user.id
+        parent_email_to_use = req.parent_email.lower().strip()
+    elif current_user.role == "parent":
+        # Parent can ONLY request consent using their own verified email for an authorized child
+        parent_email_to_use = current_user.email.lower().strip()
+        if not req.student_id:
+            if hasattr(current_user, "students_linked") and current_user.students_linked:
+                target_student_id = current_user.students_linked[0].id
+            else:
+                raise HTTPException(status_code=400, detail="Student ID required for guardian verification.")
+        else:
+            target_student_id = req.student_id
+            
+        # Verify parent-student relationship in parent_student_links
+        link_exists = db.query(parent_student_links).filter(
+            parent_student_links.c.parent_user_id == current_user.id,
+            parent_student_links.c.student_user_id == target_student_id
+        ).first()
+        if not link_exists:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to request consent for this student (unlinked guardian)."
+            )
+    elif current_user.role == "school_admin":
+        if not req.student_id:
+            raise HTTPException(status_code=400, detail="Student ID required.")
+        target_student_id = req.student_id
+        parent_email_to_use = req.parent_email.lower().strip()
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized role.")
 
     student = db.query(User).filter(User.id == target_student_id, User.role == "student").first()
     if not student:
@@ -96,8 +128,15 @@ def request_parent_verification(
             detail="Student account not found."
         )
 
+    # Cross-school protection for school admin
+    if current_user.role == "school_admin" and student.school_id != current_user.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cross-school student consent request forbidden."
+        )
+
     # Rate limiting OTP requests via Redis: Max 5 attempts per 15 mins
-    rate_key = f"otp_rate_limit:{req.parent_email.lower()}"
+    rate_key = f"otp_rate_limit:{parent_email_to_use}"
     request_count = redis_client.get(rate_key)
     if request_count and int(request_count) >= 5:
         raise HTTPException(
@@ -107,11 +146,11 @@ def request_parent_verification(
     redis_client.setex(rate_key, 900, str(int(request_count or 0) + 1))
 
     # Check/establish relationship in parent_student_links
-    parent = db.query(User).filter(User.email == req.parent_email.lower(), User.role == "parent").first()
+    parent = db.query(User).filter(User.email == parent_email_to_use, User.role == "parent").first()
     if not parent:
         # Create unverified guardian placeholder
         parent = User(
-            email=req.parent_email.lower(),
+            email=parent_email_to_use,
             password_hash=get_password_hash(secrets.token_urlsafe(32)),
             role="parent",
             first_name="Guardian",
@@ -129,17 +168,30 @@ def request_parent_verification(
             is_verified=False
         ))
         db.commit()
+    else:
+        # Verify link exists or attach for the student
+        existing_link = db.query(parent_student_links).filter(
+            parent_student_links.c.parent_user_id == parent.id,
+            parent_student_links.c.student_user_id == student.id
+        ).first()
+        if not existing_link and current_user.role == "student":
+            db.execute(parent_student_links.insert().values(
+                parent_user_id=parent.id,
+                student_user_id=student.id,
+                is_verified=False
+            ))
+            db.commit()
 
     # Generate 6-digit cryptographic OTP (never hardcoded, no bypasses)
     otp_code = f"{secrets.randbelow(900000) + 100000}"
-    redis_key = f"guardian_otp:{req.parent_email.lower()}:{student.id}"
+    redis_key = f"guardian_otp:{parent_email_to_use}:{student.id}"
     redis_client.setex(redis_key, 900, otp_code)
 
     # Record initial pending audit entry
     log_entry = ParentalConsentLog(
         student_user_id=student.id,
         parent_user_id=parent.id,
-        parent_email=req.parent_email.lower(),
+        parent_email=parent_email_to_use,
         consent_status="pending_verification",
         verification_method="email_otp_challenge",
         consent_scope=["curriculum_access", "ai_socratic_tutor", "analytics_tracking"],
@@ -155,7 +207,7 @@ def request_parent_verification(
 
     # Real transactional email dispatch
     email_res = email_service.send_parent_consent_otp(
-        parent_email=req.parent_email.lower(),
+        parent_email=parent_email_to_use,
         student_name=student_name,
         otp_code=otp_code,
         school_name=school_name
@@ -163,7 +215,7 @@ def request_parent_verification(
 
     return {
         "status": "challenge_issued",
-        "parent_email": req.parent_email.lower(),
+        "parent_email": parent_email_to_use,
         "delivery_status": email_res["status"],
         "message": "Verification challenge sent to parent email address. Valid for 15 minutes."
     }
@@ -176,15 +228,49 @@ def verify_parent_otp(
 ):
     """
     Step 2 of Verifiable Parental Consent:
-    Verifies guardian OTP code against Redis, validates parent-student relationship and tenant boundary,
+    Verifies guardian OTP code against Redis, validates caller authorization and parent-student relationship,
     captures explicit consent scope, and enables student learning access.
     """
-    target_student_id = req.student_id or current_user.id
+    # 1. Caller Authorization Scoping
+    if current_user.role == "student":
+        target_student_id = current_user.id
+        parent_email_to_use = req.parent_email.lower().strip()
+    elif current_user.role == "parent":
+        parent_email_to_use = current_user.email.lower().strip()
+        if not req.student_id:
+            if hasattr(current_user, "students_linked") and current_user.students_linked:
+                target_student_id = current_user.students_linked[0].id
+            else:
+                raise HTTPException(status_code=400, detail="Student ID required for guardian verification.")
+        else:
+            target_student_id = req.student_id
+
+        # Verify parent is authorized for this student
+        link_exists = db.query(parent_student_links).filter(
+            parent_student_links.c.parent_user_id == current_user.id,
+            parent_student_links.c.student_user_id == target_student_id
+        ).first()
+        if not link_exists:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to verify consent for this student (unlinked guardian)."
+            )
+    elif current_user.role == "school_admin":
+        if not req.student_id:
+            raise HTTPException(status_code=400, detail="Student ID required.")
+        target_student_id = req.student_id
+        parent_email_to_use = req.parent_email.lower().strip()
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized role.")
+
     student = db.query(User).filter(User.id == target_student_id, User.role == "student").first()
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student account not found.")
 
-    redis_key = f"guardian_otp:{req.parent_email.lower()}:{student.id}"
+    if current_user.role == "school_admin" and student.school_id != current_user.school_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-school student consent verification forbidden.")
+
+    redis_key = f"guardian_otp:{parent_email_to_use}:{student.id}"
     stored_otp = redis_client.get(redis_key)
 
     if not stored_otp or stored_otp != req.otp_code.strip():
@@ -194,7 +280,7 @@ def verify_parent_otp(
         )
 
     # Verify parent existence and relationship
-    parent = db.query(User).filter(User.email == req.parent_email.lower(), User.role == "parent").first()
+    parent = db.query(User).filter(User.email == parent_email_to_use, User.role == "parent").first()
     if not parent:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Guardian identity record not found.")
 
@@ -202,7 +288,7 @@ def verify_parent_otp(
     log_entry = ParentalConsentLog(
         student_user_id=student.id,
         parent_user_id=parent.id,
-        parent_email=req.parent_email.lower(),
+        parent_email=parent_email_to_use,
         consent_status="granted",
         verification_method="email_otp_verified",
         consent_scope=req.consent_scope or ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"],
@@ -232,7 +318,7 @@ def verify_parent_otp(
     return {
         "status": "verified",
         "consent_log_id": log_entry.id,
-        "parent_email": req.parent_email.lower(),
+        "parent_email": parent_email_to_use,
         "consent_granted": True,
         "verification_method": "email_otp_verified",
         "consent_version": "2026.1-DPDP-COPPA",

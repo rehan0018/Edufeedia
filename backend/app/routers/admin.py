@@ -12,12 +12,21 @@ from app.core.security import get_password_hash, RoleChecker
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 @router.get("/records")
-def get_all_database_records(db: Session = Depends(get_db)):
+def get_all_database_records(
+    current_user: User = Depends(RoleChecker(["school_admin", "admin"])),
+    db: Session = Depends(get_db)
+):
     """
-    Returns full, transparent live database records and table summaries for inspection.
+    Returns live database records scoped strictly to the authenticated administrator's school tenant.
+    Super-admins may inspect cross-school records.
     """
-    # 1. Users
-    users_db = db.query(User).all()
+    school_id = current_user.school_id if current_user.role == "school_admin" else None
+
+    # 1. Users (scoped)
+    user_query = db.query(User)
+    if school_id:
+        user_query = user_query.filter(User.school_id == school_id)
+    users_db = user_query.all()
     users_list = []
     for u in users_db:
         users_list.append({
@@ -26,12 +35,15 @@ def get_all_database_records(db: Session = Depends(get_db)):
             "email": u.email,
             "role": u.role,
             "is_verified": u.is_verified,
-            "school": u.school.name if u.school else "Apex Academy",
+            "school": u.school.name if u.school else "Partner School",
             "created_at": u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "Recent"
         })
 
-    # 2. Student Profiles & XP
-    profiles_db = db.query(StudentProfile).all()
+    # 2. Student Profiles & XP (scoped)
+    profile_query = db.query(StudentProfile)
+    if school_id:
+        profile_query = profile_query.filter(StudentProfile.school_id == school_id)
+    profiles_db = profile_query.all()
     student_records = []
     for sp in profiles_db:
         student_records.append({
@@ -64,8 +76,11 @@ def get_all_database_records(db: Session = Depends(get_db)):
             "likes": c.like_count
         })
 
-    # 4. Quiz Attempts
-    quiz_attempts_db = db.query(QuizAttempt).order_by(QuizAttempt.completed_at.desc()).limit(20).all()
+    # 4. Quiz Attempts (scoped)
+    quiz_query = db.query(QuizAttempt).join(User, QuizAttempt.student_user_id == User.id)
+    if school_id:
+        quiz_query = quiz_query.filter(User.school_id == school_id)
+    quiz_attempts_db = quiz_query.order_by(QuizAttempt.completed_at.desc()).limit(50).all()
     quiz_records = []
     for qa in quiz_attempts_db:
         quiz_records.append({
@@ -76,8 +91,11 @@ def get_all_database_records(db: Session = Depends(get_db)):
             "date": qa.completed_at.strftime("%Y-%m-%d %H:%M") if qa.completed_at else "Recent"
         })
 
-    # 5. User Interactions (Recommendation Feedback)
-    interactions_db = db.query(UserInteraction).order_by(UserInteraction.created_at.desc()).limit(25).all()
+    # 5. User Interactions (Recommendation Feedback, scoped)
+    inter_query = db.query(UserInteraction).join(User, UserInteraction.user_id == User.id)
+    if school_id:
+        inter_query = inter_query.filter(User.school_id == school_id)
+    interactions_db = inter_query.order_by(UserInteraction.created_at.desc()).limit(50).all()
     interaction_records = []
     for inter in interactions_db:
         interaction_records.append({
@@ -206,7 +224,7 @@ def invite_teacher(
 @router.post("/create-school-admin")
 def create_school_admin(
     req: SchoolAdminCreateRequest,
-    current_user: User = Depends(RoleChecker(["admin", "school_admin"])),
+    current_user: User = Depends(RoleChecker(["admin"])),
     db: Session = Depends(get_db)
 ):
     """
@@ -245,9 +263,12 @@ def create_school_admin(
     }
 
 @router.get("/export-excel")
-def export_database_records_to_excel(db: Session = Depends(get_db)):
+def export_database_records_to_excel(
+    current_user: User = Depends(RoleChecker(["school_admin", "admin"])),
+    db: Session = Depends(get_db)
+):
     """
-    Exports all current SQL tables into an updated read-only multi-tab Excel spreadsheet.
+    Authenticated, tenant-scoped administrative on-demand database report.
     """
     file_path = sync_database_to_excel(db)
     return FileResponse(

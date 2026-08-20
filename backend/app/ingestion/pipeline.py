@@ -94,13 +94,6 @@ class ContentIngestionPipeline:
         db.commit()
         db.refresh(new_item)
 
-        # Step 7: Sync to Excel audit sheet
-        try:
-            from app.core.excel_exporter import sync_database_to_excel
-            sync_database_to_excel(db)
-        except Exception as e:
-            print(f"[Excel Sync Ingestion Warning]: {e}")
-
         return {
             "success": True,
             "status": "APPROVED" if is_auto_approved else "PENDING_HUMAN_REVIEW",

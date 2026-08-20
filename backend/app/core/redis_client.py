@@ -21,12 +21,16 @@ class RedisClient:
 
     def __init__(self):
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        is_production = (os.getenv("ENVIRONMENT") == "production")
         try:
             import redis
             self._redis = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=2)
             self._redis.ping()
             logger.info(f"Connected to Redis cluster at {redis_url}")
         except Exception as e:
+            if is_production:
+                logger.critical(f"[CRITICAL: Production Redis Connection Failed]: {e}")
+                raise RuntimeError(f"Critical Infrastructure Failure: Redis cluster is unreachable in production environment ({e}). In-memory fallback is strictly disallowed.")
             logger.warning(f"Redis unavailable ({e}). Initializing in-process fallback store for testing.")
             self._redis = None
 
@@ -36,6 +40,10 @@ class RedisClient:
                 return bool(self._redis.setex(key, seconds, value))
             except Exception as e:
                 logger.error(f"Redis setex failed: {e}")
+                if os.getenv("ENVIRONMENT") == "production":
+                    raise RuntimeError(f"Production Redis cluster operation failed: {e}")
+        elif os.getenv("ENVIRONMENT") == "production":
+            raise RuntimeError("Production Redis cluster unavailable. In-memory OTP storage is disallowed.")
         self._local_store[key] = value
         return True
 
@@ -45,6 +53,10 @@ class RedisClient:
                 return self._redis.get(key)
             except Exception as e:
                 logger.error(f"Redis get failed: {e}")
+                if os.getenv("ENVIRONMENT") == "production":
+                    raise RuntimeError(f"Production Redis cluster operation failed: {e}")
+        elif os.getenv("ENVIRONMENT") == "production":
+            raise RuntimeError("Production Redis cluster unavailable. In-memory OTP storage is disallowed.")
         return self._local_store.get(key)
 
     def delete(self, key: str) -> bool:
@@ -53,6 +65,10 @@ class RedisClient:
                 return bool(self._redis.delete(key))
             except Exception as e:
                 logger.error(f"Redis delete failed: {e}")
+                if os.getenv("ENVIRONMENT") == "production":
+                    raise RuntimeError(f"Production Redis cluster operation failed: {e}")
+        elif os.getenv("ENVIRONMENT") == "production":
+            raise RuntimeError("Production Redis cluster unavailable. In-memory OTP storage is disallowed.")
         if key in self._local_store:
             del self._local_store[key]
             return True

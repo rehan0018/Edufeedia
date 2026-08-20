@@ -10,6 +10,9 @@ from app.ai.llm_client import llm_client
 
 logger = logging.getLogger(__name__)
 
+# Persistent in-memory cache for curriculum embeddings to prevent per-query recomputation
+_CHUNK_EMBEDDING_CACHE: Dict[str, List[float]] = {}
+
 # Comprehensive Curriculum Document Chunks (Structured across CBSE / ICSE Grades 6–12)
 CURRICULUM_DOCUMENT_CORPUS = [
     # Computer Science — Computer Networks & Internet (CBSE Class 10/12)
@@ -301,10 +304,15 @@ class RAGEngine:
             except Exception as e:
                 logger.warning("[RAG Database Chunk Query Warning]: %s", e)
 
-        # --- A. Dense Vector Similarity Scoring ---
+        # --- A. Dense Vector Similarity Scoring with Embedding Cache ---
         dense_scores = []
         for idx, doc in enumerate(active_corpus):
-            doc_vec = embed_content(doc["topic"], doc["text"], doc["subject"], doc["section"])
+            doc_key = f"{doc.get('subject')}:{doc.get('topic')}:{doc.get('section')}:{doc.get('text')[:80]}"
+            if doc_key in _CHUNK_EMBEDDING_CACHE:
+                doc_vec = _CHUNK_EMBEDDING_CACHE[doc_key]
+            else:
+                doc_vec = embed_content(doc["topic"], doc["text"], doc["subject"], doc["section"])
+                _CHUNK_EMBEDDING_CACHE[doc_key] = doc_vec
             sim = cosine_similarity(query_vec, doc_vec)
             dense_scores.append((idx, sim))
         dense_scores.sort(key=lambda x: x[1], reverse=True)

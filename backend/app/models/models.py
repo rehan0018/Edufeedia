@@ -176,11 +176,13 @@ class Question(Base):
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
     id = Column(String, primary_key=True, default=generate_uuid)
-    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    quiz_id = Column(String, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = Column(String, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    attempt_number = Column(Integer, default=1, index=True)
     score = Column(Integer, nullable=False)
     max_score = Column(Integer, nullable=False)
     accuracy_percentage = Column(Numeric(5, 2), nullable=False)
+    xp_awarded = Column(Integer, default=0)
     completed_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     student = relationship("User", back_populates="quiz_attempts")

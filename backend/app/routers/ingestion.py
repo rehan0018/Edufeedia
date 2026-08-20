@@ -113,24 +113,10 @@ def review_staged_content(
             db.add(chunk)
 
         db.commit()
-
-        try:
-            from app.core.excel_exporter import sync_database_to_excel
-            sync_database_to_excel(db)
-        except Exception as e:
-            print(f"[Excel Sync Warning]: {e}")
-
         return {"status": "approved", "content_id": item.id, "message": "Content successfully approved and published to student feed."}
     elif review.action.lower() == "reject":
         db.delete(item)
         db.commit()
-
-        try:
-            from app.core.excel_exporter import sync_database_to_excel
-            sync_database_to_excel(db)
-        except Exception as e:
-            print(f"[Excel Sync Warning]: {e}")
-
         return {"status": "rejected", "content_id": content_id, "message": "Content item rejected and removed from staging."}
     else:
         raise HTTPException(status_code=400, detail="Action must be 'approve' or 'reject'.")
