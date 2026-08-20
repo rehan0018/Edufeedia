@@ -53,6 +53,7 @@ TOPIC_TUTOR_INSIGHTS = {
 
 from app.ai.rag_engine import RAGEngine
 from app.core.access_policy import require_ai_access
+from app.core.age_policy import StudentAgePolicy
 
 @router.post("/ask", response_model=TutorResponse)
 def ask_ai_tutor(
@@ -63,18 +64,9 @@ def ask_ai_tutor(
     """
     Interactive Socratic AI Tutor powered by curriculum RAG retrieval and safety hard gates.
     """
-    # Determine student target age dynamically
-    target_age = 15
-    grade_lvl = 10
-    if current_user.role == "student" and current_user.student_profile:
-        sp = current_user.student_profile
-        if sp.date_of_birth:
-            today = datetime.date.today()
-            dob = sp.date_of_birth
-            target_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-        elif sp.school_class:
-            grade_lvl = sp.school_class.grade_level
-            target_age = grade_lvl + 5
+    # Determine student target age dynamically via centralized Age Policy
+    target_age = StudentAgePolicy.get_student_age(current_user.student_profile if current_user.role == "student" else None)
+    grade_lvl = current_user.student_profile.school_class.grade_level if (current_user.student_profile and current_user.student_profile.school_class) else 10
 
     # 1. Safety Hard Gate check on student's prompt
     safety_audit = SafetyEngine.audit_content(request.question, target_age=target_age)

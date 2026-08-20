@@ -289,7 +289,7 @@ class CurriculumChunk(Base):
     section = Column(String, nullable=False)
     curriculum_code = Column(String, index=True, nullable=True) # e.g. "CBSE-G10-MATH-QUADRA"
     chunk_text = Column(Text, nullable=False)
-    embedding = Column(JSON, nullable=True) # 384-dimensional dense vector
+    embedding = Column(Vector(384) if (HAS_PGVECTOR and Vector is not None) else JSON, nullable=True) # 384-dimensional dense semantic vector
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class IngestedSource(Base):

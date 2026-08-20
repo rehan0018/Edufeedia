@@ -23,7 +23,7 @@ def compute_hybrid_rank_score(
     """
     grade = student_profile.school_class.grade_level if student_profile.school_class else 10
     board = student_profile.board or "CBSE"
-    interests = student_profile.interests or ["Mathematics", "Science", "Coding"]
+    interests = student_profile.interests or []
 
     # 1. Content Semantic Similarity (0.0 to 1.0)
     item_vec = item.embedding
@@ -32,9 +32,13 @@ def compute_hybrid_rank_score(
     content_sim = cosine_similarity(student_vector, item_vec)
 
     # 2. Student Interest Match (0.0 to 1.0)
-    item_subj_topic = f"{item.subject} {item.topic}".lower()
-    interest_hits = sum(1 for i in interests if i.lower() in item_subj_topic)
-    interest_score = min(1.0, 0.4 + (interest_hits * 0.3)) if interest_hits > 0 else 0.3
+    if not interests:
+        # Neutral cold-start score
+        interest_score = 0.5
+    else:
+        item_subj_topic = f"{item.subject} {item.topic}".lower()
+        interest_hits = sum(1 for i in interests if i.lower() in item_subj_topic)
+        interest_score = min(1.0, 0.4 + (interest_hits * 0.3)) if interest_hits > 0 else 0.3
 
     # 3. Grade & Board Fit (0.0 to 1.0)
     grade_score = 1.0 if (item.grade_level == grade and item.board == board) else (0.8 if item.grade_level == grade else 0.5)

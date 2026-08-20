@@ -10,6 +10,8 @@ from app.recommender.content_based import generate_content_based_candidates
 from app.recommender.collaborative import generate_collaborative_candidates
 from app.recommender.ranking import compute_hybrid_rank_score
 
+from app.core.age_policy import StudentAgePolicy
+
 class HybridRecommender:
     """
     End-to-End Multi-Stage Recommendation Engine with Hard Safety Gate.
@@ -28,7 +30,7 @@ class HybridRecommender:
 
         grade = profile.school_class.grade_level if profile.school_class else 10
         board = profile.board or "CBSE"
-        interests = profile.interests or ["Mathematics", "Science", "Coding"]
+        interests = profile.interests or []
 
         # 1. Generate Student Profile Embedding & Behavioral Profile
         student_vec = embed_student(
@@ -95,15 +97,8 @@ class HybridRecommender:
 
         total_evaluated = len(candidate_pool)
 
-        # Determine student target age dynamically
-        target_age = 15
-        if profile:
-            if profile.date_of_birth:
-                today = datetime.date.today()
-                dob = profile.date_of_birth
-                target_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-            elif profile.school_class:
-                target_age = profile.school_class.grade_level + 5
+        # Determine student target age dynamically via centralized Age Policy
+        target_age = StudentAgePolicy.get_student_age(profile)
 
         # 3. Layer 1 Safety Hard Gate Evaluation
         safe_candidates = []

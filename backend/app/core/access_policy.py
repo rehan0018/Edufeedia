@@ -23,11 +23,12 @@ class AccessPolicy:
     @staticmethod
     def can_use_ai_tutor(user: User) -> bool:
         """
-        AI Socratic Tutor requires:
-        1. User is a student, teacher, or parent.
-        2. If student: onboarding must be completed and parental consent must NOT be revoked.
+        AI Socratic Tutor strictly requires:
+        1. Educators & Admins: authorized by default.
+        2. Parents: authorized to inspect and preview learning materials.
+        3. Students: onboarding MUST be COMPLETED and parental consent MUST be GRANTED or EXEMPT_ADULT.
         """
-        if user.role in ["teacher", "admin", "super_admin"]:
+        if user.role in ["teacher", "admin", "super_admin", "school_admin"]:
             return True
         if user.role == "parent":
             return True
@@ -35,7 +36,9 @@ class AccessPolicy:
             sp: Optional[StudentProfile] = user.student_profile
             if not sp:
                 return False
-            if sp.parental_consent_status == "REVOKED":
+            if sp.onboarding_status != "COMPLETED":
+                return False
+            if sp.parental_consent_status not in ["GRANTED", "EXEMPT_ADULT"]:
                 return False
             return True
         return False
@@ -84,14 +87,24 @@ def require_learning_access(current_user: User = Depends(get_current_user)) -> U
 def require_ai_access(current_user: User = Depends(get_current_user)) -> User:
     if not AccessPolicy.can_use_ai_tutor(current_user):
         sp: Optional[StudentProfile] = current_user.student_profile
-        if sp and sp.parental_consent_status == "REVOKED":
+        if not sp:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Student profile not found. Please complete registration."
+            )
+        if sp.onboarding_status != "COMPLETED":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="AI Tutor access restricted: Please complete student profile onboarding first."
+            )
+        if sp.parental_consent_status == "REVOKED":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="AI Tutor access restricted: Guardian has revoked interactive learning consent."
             )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="AI Tutor access requires active onboarding and verified consent."
+            detail="AI Tutor access restricted: Parental consent verification is pending."
         )
     return current_user
 

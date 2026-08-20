@@ -14,7 +14,7 @@ def generate_content_based_candidates(
     """
     grade = student_profile.school_class.grade_level if student_profile.school_class else 10
     board = student_profile.board or "CBSE"
-    interests = student_profile.interests or ["Mathematics", "Science", "Coding"]
+    interests = student_profile.interests or []
 
     # Retrieve completed item IDs to avoid re-recommending finished items in primary feed
     completed_logs = db.query(StudentProgress.content_item_id).filter(

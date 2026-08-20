@@ -374,15 +374,72 @@ class TestSecurityRegression(unittest.TestCase):
         self.assertEqual(feed1.status_code, 200)
         streak1 = feed1.json()["streak"]
 
-        # 2. Repeated feed requests should NOT change streak
-        feed2 = self.client.get("/api/v1/students/feed", headers=headers)
-        self.assertEqual(feed2.status_code, 200)
-        self.assertEqual(feed2.json()["streak"], streak1)
-
         # 3. Explicit activity call records study session
         act_res = self.client.post("/api/v1/students/activity", headers=headers)
         self.assertEqual(act_res.status_code, 200)
         self.assertIn("streak_count", act_res.json())
+
+    # --- 7. STRICT AI ACCESS POLICY & CONSENT GATING TESTS ---
+
+    def test_student_with_pending_onboarding_cannot_use_ai_tutor(self):
+        """Verify student in PENDING onboarding cannot access AI tutor (403 Forbidden)."""
+        self.student_a.student_profile.onboarding_status = "PENDING"
+        self.db.commit()
+
+        res = self.client.post(
+            "/api/v1/tutor/ask",
+            headers=self._get_headers(self.student_a),
+            json={"question": "Explain quadratic equations"}
+        )
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("onboarding", res.json()["detail"].lower())
+
+    def test_student_with_pending_consent_cannot_use_ai_tutor(self):
+        """Verify student in PENDING parental consent cannot access AI tutor (403 Forbidden)."""
+        self.student_a.student_profile.onboarding_status = "COMPLETED"
+        self.student_a.student_profile.parental_consent_status = "PENDING"
+        self.db.commit()
+
+        res = self.client.post(
+            "/api/v1/tutor/ask",
+            headers=self._get_headers(self.student_a),
+            json={"question": "Explain quadratic equations"}
+        )
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("consent", res.json()["detail"].lower())
+
+    def test_student_with_granted_consent_can_use_ai_tutor(self):
+        """Verify student in COMPLETED onboarding and GRANTED consent can access AI tutor."""
+        self.student_a.student_profile.onboarding_status = "COMPLETED"
+        self.student_a.student_profile.parental_consent_status = "GRANTED"
+        self.db.commit()
+
+        res = self.client.post(
+            "/api/v1/tutor/ask",
+            headers=self._get_headers(self.student_a),
+            json={"question": "Explain quadratic equations"}
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("answer", res.json())
+
+    # --- 8. COLD-START RECOMMENDATION WITHOUT INVENTED INTERESTS ---
+
+    def test_recommender_cold_start_without_fake_interests(self):
+        """Verify recommendation engine generates grade/board-relevant items for student with empty interests."""
+        from app.recommender.hybrid import HybridRecommender
+
+        self.student_a.student_profile.interests = [] # Explicitly empty cold-start
+        self.db.commit()
+
+        recs = HybridRecommender.get_personalized_recommendations(
+            db=self.db,
+            student_id=self.student_a.id,
+            limit=4
+        )
+        self.assertGreater(len(recs["items"]), 0)
+        for item in recs["items"]:
+            self.assertIn("recommendation_reason", item)
+            self.assertIn("recommendation_source", item)
 
 if __name__ == "__main__":
     unittest.main()

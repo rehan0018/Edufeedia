@@ -227,6 +227,10 @@ class TestE2EProductionLifecycle(unittest.TestCase):
             consent_scope=["curriculum_access", "ai_socratic_tutor", "analytics_tracking"]
         )
         self.db.add(consent_log)
+        sp = self.db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
+        if sp:
+            sp.parental_consent_status = "GRANTED"
+            sp.onboarding_status = "COMPLETED"
         self.db.commit()
 
         # 3. Login as Student
