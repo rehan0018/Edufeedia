@@ -52,11 +52,12 @@ TOPIC_TUTOR_INSIGHTS = {
 }
 
 from app.ai.rag_engine import RAGEngine
+from app.core.access_policy import require_ai_access
 
 @router.post("/ask", response_model=TutorResponse)
 def ask_ai_tutor(
     request: TutorAskRequest,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "parent"])),
+    current_user: User = Depends(require_ai_access),
     db: Session = Depends(get_db)
 ):
     """

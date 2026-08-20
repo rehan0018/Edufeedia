@@ -23,8 +23,16 @@
 - [14. Docker & CI/CD Deployment Architecture](#14-docker--cicd-deployment-architecture)
 - [15. Observability & SRE Telemetry](#15-observability--sre-telemetry)
 - [16. Product Roadmap](#16-product-roadmap)
+- [17. Deep-Dive System Documentation](#17-deep-dive-system-documentation)
 
 ---
+
+## 📚 Deep-Dive System Documentation
+
+Detailed technical design specifications are maintained in the [`docs/`](docs/) directory:
+- 🏛️ [**Architecture & System Design**](docs/ARCHITECTURE.md): Component topology, data flow, and database integrity constraints.
+- 🛡️ [**Threat Model & Defense Matrix**](docs/THREAT_MODEL.md): Adversarial prompt injection mitigations, IDOR prevention, and fail-closed safety proofs.
+- 🔒 [**Child Privacy & Consent Architecture**](docs/PRIVACY.md): DPDP Act 2023 & COPPA verifiable parental consent state machines.
 
 ## 1. Executive Product Overview
 
@@ -128,15 +136,15 @@ Unlike naive RAG systems that query only based on the open lesson, Edufeedia's `
 
 ### Automated RAG Benchmark Results
 
-Tested on our golden CBSE/ICSE curriculum evaluation dataset (`backend/app/ai/evaluator.py`):
+Evaluated on our internal golden CBSE/ICSE curriculum evaluation dataset (`backend/app/ai/evaluator.py`):
 
-| Evaluation Metric | Target Benchmark | Edufeedia Measured Result | Status |
+| Evaluation Metric | Target Benchmark | Edufeedia Measured Result | Evaluation Scope |
 | :--- | :--- | :--- | :--- |
 | **MRR@3 (Mean Reciprocal Rank)** | $\ge 0.75$ | **0.88** | 🟢 Exceeds Benchmark |
 | **Precision@3** | $\ge 0.30$ | **0.33** | 🟢 Exceeds Benchmark |
-| **Recall@3** | $\ge 0.75$ | **1.00** | 🟢 100% Corpus Coverage |
-| **Safety Classification Accuracy** | $\ge 0.95$ | **1.00** | 🟢 100% Accurate |
-| **Adversarial Injection Defense** | $\ge 0.95$ | **1.00** | 🟢 100% Blocked |
+| **Recall@3** | $\ge 0.75$ | **1.00** | 🟢 Full coverage on test queries |
+| **Safety Classification Accuracy** | $\ge 0.95$ | **1.00** | 🟢 1.00 on current evaluation dataset |
+| **Adversarial Injection Defense** | $\ge 0.95$ | **1.00** | 🟢 1.00 on current test suite |
 | **Groundedness Score** | $\ge 0.90$ | **0.94** | 🟢 Minimal Hallucination |
 
 ---
@@ -157,7 +165,7 @@ Because Edufeedia is designed for users under 18, safety is treated as a core ar
 
 ## 7. DPDP & COPPA Verifiable Parental Consent
 
-Edufeedia implements a legally compliant 2-step verifiable parental consent protocol:
+Edufeedia implements a 2-step verifiable parental consent protocol designed with Indian DPDP Act 2023 principles and US COPPA child-privacy requirements in mind:
 
 ```
 [Student Under 16 Registers] ──► [Account Inactive / Unverified]
@@ -171,11 +179,11 @@ Edufeedia implements a legally compliant 2-step verifiable parental consent prot
 [Delivered via Live SMTP / SES Transactional Email]
          │
          ▼
-[Parent Verifies OTP & Authorizes Scope] ──► [Immutable Audit Log Recorded] ──► [Account Activated]
+[Parent Verifies OTP & Authorizes Scope] ──► [Append-Oriented Audit Log] ──► [Consent Activated]
 ```
 
 - **IDOR Immunity**: Identity bindings prevent student accounts from verifying or claiming unlinked students.
-- **Immutable Audit Logging**: Every consent grant and revocation is immutably logged with timestamp, consent scope, version (`2026.1-DPDP-COPPA`), and IP fingerprint.
+- **Append-Oriented Audit Logging**: Every consent grant and revocation is recorded with timestamp, consent scope, version (`2026.1-DPDP-COPPA`), and IP fingerprint.
 
 ---
 

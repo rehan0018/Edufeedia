@@ -138,6 +138,18 @@ class HybridRecommender:
                 score_data["total_relevance_score"] += 0.15
                 score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 15)
 
+            # Generate pedagogical explainability reason
+            if source == "spaced_repetition":
+                reason = f"Due for active recall review in {item.topic} to solidify memory retention"
+            elif source == "interest_matching":
+                reason = f"Recommended based on your focus area in {item.subject}"
+            elif source == "collaborative":
+                reason = f"High mastery lesson among Grade {item.grade_level} peers"
+            elif source == "semantic_search":
+                reason = f"Conceptually builds upon your recent study of {item.topic}"
+            else:
+                reason = f"Curriculum-essential lesson for Grade {item.grade_level} {item.subject}"
+
             ranked_results.append({
                 "id": item.id,
                 "title": item.title,
@@ -155,6 +167,8 @@ class HybridRecommender:
                 "safety_score": item.safety_score or 100,
                 "edu_score": item.edu_score or 95,
                 "relevance_percentage": score_data["relevance_percentage"],
+                "recommendation_reason": reason,
+                "recommendation_source": source,
                 "explanation": score_data
             })
 

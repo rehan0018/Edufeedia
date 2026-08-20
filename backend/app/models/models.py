@@ -1,8 +1,15 @@
 import datetime
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON, ForeignKey, Table, Text
+from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON, ForeignKey, Table, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
+
+try:
+    from pgvector.sqlalchemy import Vector
+    HAS_PGVECTOR = True
+except ImportError:
+    HAS_PGVECTOR = False
+    Vector = None
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -38,6 +45,9 @@ class School(Base):
 
 class SchoolClass(Base):
     __tablename__ = "school_classes"
+    __table_args__ = (
+        UniqueConstraint("school_id", "grade_level", "section_name", "academic_year", name="uq_school_class"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     school_id = Column(String, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False)
     grade_level = Column(Integer, nullable=False) # e.g. 10
@@ -58,6 +68,8 @@ class User(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     is_verified = Column(Boolean, default=False)
+    identity_verified = Column(Boolean, default=False) # Separated from consent
+    account_status = Column(String, default="ACTIVE") # ACTIVE, SUSPENDED, DEACTIVATED
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
@@ -86,6 +98,7 @@ class StudentProfile(Base):
     date_of_birth = Column(Date, nullable=True) # Nullable for incomplete onboarding (e.g. Google sign-in)
     onboarding_status = Column(String, default="PENDING") # 'PENDING', 'COMPLETED'
     parental_consent_status = Column(String, default="PENDING") # 'PENDING', 'GRANTED', 'REVOKED', 'EXEMPT_ADULT'
+    learning_access_status = Column(String, default="ACTIVE") # 'ACTIVE', 'RESTRICTED'
     xp_score = Column(Integer, default=0)
     streak_count = Column(Integer, default=0)
     last_active_date = Column(Date, nullable=True)
@@ -114,7 +127,7 @@ class ContentItem(Base):
     safety_score = Column(Integer, default=100)
     edu_score = Column(Integer, default=100)
     safety_labels = Column(JSON, default=dict) # e.g. {"toxicity": 0.0, "verdict": "ALLOW"}
-    embedding = Column(JSON, nullable=True) # Semantic dense vector embedding
+    embedding = Column(Vector(384) if (HAS_PGVECTOR and Vector is not None) else JSON, nullable=True) # Semantic dense vector embedding
     tags = Column(JSON, default=list) # e.g. ["python", "loops", "coding"]
     view_count = Column(Integer, default=0)
     like_count = Column(Integer, default=0)
@@ -140,6 +153,9 @@ class UserInteraction(Base):
 
 class StudentProgress(Base):
     __tablename__ = "student_progress"
+    __table_args__ = (
+        UniqueConstraint("student_user_id", "content_item_id", name="uq_student_content_progress"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
@@ -177,6 +193,9 @@ class Question(Base):
 
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
+    __table_args__ = (
+        UniqueConstraint("student_user_id", "quiz_id", "attempt_number", name="uq_student_quiz_attempt"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     quiz_id = Column(String, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -228,6 +247,9 @@ class Badge(Base):
 
 class UserBadge(Base):
     __tablename__ = "user_badges"
+    __table_args__ = (
+        UniqueConstraint("user_id", "badge_id", name="uq_user_badge"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     badge_id = Column(String, ForeignKey("badges.id", ondelete="CASCADE"), nullable=False)

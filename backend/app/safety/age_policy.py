@@ -41,4 +41,14 @@ class AgePolicy:
         """Ensures curriculum content is within 2 grade levels of student's current enrollment."""
         return abs(content_grade - student_grade) <= 2
 
+    @classmethod
+    def get_age_band(cls, age: int) -> str:
+        """Returns the educational age band for content personalization."""
+        if age <= 12:
+            return "BAND_10_12"
+        elif age <= 15:
+            return "BAND_13_15"
+        else:
+            return "BAND_16_18"
+
 age_policy = AgePolicy()
