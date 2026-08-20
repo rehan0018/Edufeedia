@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.models import User, StudentProfile, parent_student_links
 from app.schemas.schemas import UserRegister, UserLogin, Token, UserOut
-from app.core.security import get_password_hash, verify_password, create_access_token
+from app.core.security import (
+    get_password_hash, verify_password, create_access_token,
+    validate_password_complexity, revoke_token, oauth2_scheme
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -26,6 +29,9 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     Public Registration Endpoint: Strictly restricted to Student accounts only.
     Teachers and School Administrators must be invited by authorized school administrators.
     """
+    # Validate password complexity
+    validate_password_complexity(user_in.password)
+
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == user_in.email).first()
     if existing_user:
@@ -118,8 +124,7 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User account not found.")
 
-    if len(req.password) < 8:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 8 characters.")
+    validate_password_complexity(req.password)
 
     user.password_hash = get_password_hash(req.password)
     if req.first_name:
@@ -168,6 +173,18 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "role": user.role,
         "user_id": user.id,
         "user": user
+    }
+
+@router.post("/logout")
+def logout(token: str = Depends(oauth2_scheme)):
+    """
+    Session Termination Endpoint:
+    Revokes the provided JWT access token immediately via Redis session blacklist.
+    """
+    revoke_token(token, ttl_seconds=3600)
+    return {
+        "status": "logged_out",
+        "message": "Token has been revoked and session terminated successfully."
     }
 
 from app.core.security import RoleChecker

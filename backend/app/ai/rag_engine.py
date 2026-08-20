@@ -366,3 +366,17 @@ class RAGEngine:
             results.append((active_corpus[doc_idx], round(score, 4)))
 
         return results
+
+    @classmethod
+    def retrieve_curriculum_context(
+        cls,
+        query: str,
+        grade: int = 10,
+        subject: Optional[str] = None,
+        top_k: int = 3
+    ) -> List[Dict[str, Any]]:
+        """Public helper to retrieve curriculum context chunks for evaluation and search."""
+        scored_chunks = cls._hybrid_retrieve_chunks(query, db=None, top_k=top_k)
+        return [chunk for chunk, score in scored_chunks]
+
+rag_engine = RAGEngine()

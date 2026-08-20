@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app.models.models import User
 from app.schemas.schemas import TokenData
+from app.core.redis_client import redis_client
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -33,12 +34,47 @@ def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] 
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
+import hashlib
+import re
+
+def validate_password_complexity(password: str) -> None:
+    """Enforces minimum 8 characters and character variety."""
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long."
+        )
+    if not re.search(r"[a-zA-Z]", password) or not re.search(r"[0-9!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must contain at least one letter and at least one number or special character."
+        )
+
+def revoke_token(token: str, ttl_seconds: int = 3600) -> bool:
+    """Revokes a JWT by storing its SHA-256 fingerprint in the Redis blacklist."""
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    return redis_client.setex(f"revoked_token:{token_hash}", ttl_seconds, "revoked")
+
+def is_token_revoked(token: str) -> bool:
+    """Checks if a JWT is present in the Redis revocation store."""
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    return bool(redis_client.get(f"revoked_token:{token_hash}"))
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # Verify token is not revoked
+    if is_token_revoked(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been terminated. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")

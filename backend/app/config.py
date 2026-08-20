@@ -12,19 +12,28 @@ else:
 
 class Settings:
     PROJECT_NAME: str = os.getenv("PROJECT_NAME", "Edufeedia API")
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "edufeedia-super-secret-secure-key-change-in-production")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development").lower()
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-    ALLOWED_ORIGINS_RAW: str = os.getenv("ALLOWED_ORIGINS", "*")
+    
+    # Explicit development vs production origins
+    DEFAULT_DEV_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+    ALLOWED_ORIGINS_RAW: str = os.getenv("ALLOWED_ORIGINS", DEFAULT_DEV_ORIGINS)
+
+    # Restricted CORS methods and headers
+    CORS_ALLOW_METHODS: list = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    CORS_ALLOW_HEADERS: list = ["Authorization", "Content-Type", "X-Requested-With", "X-Request-ID", "Accept", "Origin"]
 
     def __init__(self):
-        # Strict security validation for production deployments
+        # Resolve SECRET_KEY safely without hardcoded production fallbacks
+        env_secret = os.getenv("SECRET_KEY")
         if self.ENVIRONMENT == "production":
-            if not os.getenv("SECRET_KEY") or "change-in-production" in self.SECRET_KEY or len(self.SECRET_KEY) < 32:
-                raise ValueError("CRITICAL SECURITY ERROR: Production environment requires an explicitly set, random 32+ char SECRET_KEY.")
+            if not env_secret or len(env_secret) < 32 or "change-in-production" in env_secret:
+                raise ValueError("CRITICAL CONFIG ERROR: Production environment requires a strong, random 32+ char SECRET_KEY set via environment variable.")
+            self.SECRET_KEY = env_secret
+            
             if self.ALLOWED_ORIGINS_RAW == "*":
-                raise ValueError("CRITICAL SECURITY ERROR: Production environment cannot use wildcard '*' ALLOWED_ORIGINS.")
+                raise ValueError("CRITICAL CONFIG ERROR: Production environment cannot use wildcard '*' ALLOWED_ORIGINS.")
             
             # Database check: Production must run PostgreSQL
             db_url = os.getenv("DATABASE_URL", "")
@@ -42,11 +51,14 @@ class Settings:
             smtp_pass = os.getenv("SMTP_PASSWORD", "")
             if not (smtp_host and smtp_user and smtp_pass):
                 raise ValueError("CRITICAL CONFIG ERROR: Production environment requires valid SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASSWORD) for legal guardian consent dispatch.")
+        else:
+            # Development/Testing environment fallback
+            self.SECRET_KEY = env_secret or "edufeedia-dev-only-insecure-test-signing-key-32chars"
 
     @property
     def ALLOWED_ORIGINS(self) -> list:
         if self.ENVIRONMENT == "production" and self.ALLOWED_ORIGINS_RAW == "*":
-            return ["https://edufeedia.com"]
+            return ["https://app.edufeedia.com", "https://edufeedia.com"]
         if self.ALLOWED_ORIGINS_RAW == "*":
             return ["*"]
         return [origin.strip() for origin in self.ALLOWED_ORIGINS_RAW.split(",") if origin.strip()]
