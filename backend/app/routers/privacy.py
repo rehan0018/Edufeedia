@@ -297,8 +297,10 @@ def verify_parent_otp(
     )
     db.add(log_entry)
 
-    # Activate student account
+    # Activate student consent status
     student.is_verified = True
+    if student.student_profile:
+        student.student_profile.parental_consent_status = "GRANTED"
     parent.is_verified = True
 
     # Update parent_student_links status to verified
@@ -321,7 +323,7 @@ def verify_parent_otp(
         "parent_email": parent_email_to_use,
         "consent_granted": True,
         "verification_method": "email_otp_verified",
-        "consent_version": "2026.1-DPDP-COPPA",
+        "consent_version": "2026.1-Privacy-Guard",
         "timestamp": datetime.datetime.utcnow().isoformat(),
         "message": "Verifiable guardian consent confirmed and recorded in immutable audit log."
     }
@@ -334,17 +336,36 @@ def revoke_parental_consent(
 ):
     """
     Guardian / School Admin endpoint to revoke parental consent.
-    Deactivates student interactive access and records the revocation in the compliance audit log.
+    Restricts student interactive privileges and records the revocation in the compliance audit log.
+    Strictly isolated across tenant schools and verified parent-child links.
     """
     target_student_id = req.student_id
+
     if current_user.role == "parent":
-        if hasattr(current_user, "students_linked") and current_user.students_linked:
-            target_student_id = current_user.students_linked[0].id
+        linked_student_ids = [s.id for s in current_user.students_linked] if hasattr(current_user, "students_linked") else []
+        if req.student_id:
+            if req.student_id not in linked_student_ids:
+                raise HTTPException(status_code=403, detail="Unlinked guardian cannot revoke consent for this student.")
+            target_student_id = req.student_id
+        elif linked_student_ids:
+            target_student_id = linked_student_ids[0]
         else:
-            raise HTTPException(status_code=400, detail="No student linked to this guardian account.")
+            raise HTTPException(status_code=403, detail="No active linked student found for this guardian account.")
+    elif current_user.role == "school_admin":
+        if not target_student_id:
+            raise HTTPException(status_code=400, detail="student_id is required for school administrator actions.")
+        student_check = db.query(User).filter(User.id == target_student_id, User.role == "student").first()
+        if not student_check:
+            raise HTTPException(status_code=404, detail="Student not found.")
+        if student_check.school_id != current_user.school_id:
+            raise HTTPException(status_code=403, detail="Cross-school operation forbidden.")
+
+    student = db.query(User).filter(User.id == target_student_id, User.role == "student").first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found.")
 
     log_entry = ParentalConsentLog(
-        student_user_id=target_student_id,
+        student_user_id=student.id,
         parent_user_id=current_user.id if current_user.role == "parent" else None,
         parent_email=req.parent_email.lower(),
         consent_status="revoked",
@@ -355,10 +376,9 @@ def revoke_parental_consent(
     )
     db.add(log_entry)
 
-    # Deactivate student active verification flag
-    student = db.query(User).filter(User.id == target_student_id).first()
-    if student:
-        student.is_verified = False
+    # Decouple identity verification from consent: update parental consent status on profile
+    if student.student_profile:
+        student.student_profile.parental_consent_status = "REVOKED"
 
     db.commit()
     db.refresh(log_entry)
@@ -369,7 +389,7 @@ def revoke_parental_consent(
         "parent_email": req.parent_email.lower(),
         "consent_granted": False,
         "timestamp": datetime.datetime.utcnow().isoformat(),
-        "message": "Parental consent revoked. Student access restricted to read-only educational catalog."
+        "message": "Parental consent revoked. Student interactive access restricted."
     }
 
 @router.get("/export-my-data")

@@ -83,7 +83,9 @@ class StudentProfile(Base):
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     class_id = Column(String, ForeignKey("school_classes.id", ondelete="SET NULL"), nullable=True)
     board = Column(String, default="CBSE") # 'CBSE', 'ICSE', 'State_Board', 'IB', 'IGCSE'
-    date_of_birth = Column(Date, nullable=False)
+    date_of_birth = Column(Date, nullable=True) # Nullable for incomplete onboarding (e.g. Google sign-in)
+    onboarding_status = Column(String, default="PENDING") # 'PENDING', 'COMPLETED'
+    parental_consent_status = Column(String, default="PENDING") # 'PENDING', 'GRANTED', 'REVOKED', 'EXEMPT_ADULT'
     xp_score = Column(Integer, default=0)
     streak_count = Column(Integer, default=0)
     last_active_date = Column(Date, nullable=True)

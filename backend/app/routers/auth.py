@@ -7,7 +7,7 @@ from app.models.models import User, StudentProfile, parent_student_links
 from app.schemas.schemas import UserRegister, UserLogin, Token, UserOut
 from app.core.security import (
     get_password_hash, verify_password, create_access_token,
-    validate_password_complexity, revoke_token, oauth2_scheme
+    validate_password_complexity, revoke_token, oauth2_scheme, get_current_user
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -70,8 +70,10 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         class_id=user_in.class_id,
         board=user_in.board or "CBSE",
         date_of_birth=user_in.date_of_birth,
-        interests=["Coding", "Science", "Space"],
-        learning_preference=["video", "reading"]
+        onboarding_status="COMPLETED",
+        parental_consent_status="PENDING",
+        interests=[],
+        learning_preference=[]
     )
     db.add(profile)
     
@@ -139,19 +141,15 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     # Invalidate token
     redis_client.delete(f"invite_token:{req.token}")
 
+    # Issue JWT token
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role, "user_id": user.id},
-        expires_delta=timedelta(minutes=60)
+        data={"sub": user.email, "role": user.role}
     )
-
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "role": user.role,
-        "user_id": user.id,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "is_verified": user.is_verified
+        "user_id": user.id
     }
 
 @router.post("/login", response_model=Token)
@@ -176,26 +174,26 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     }
 
 @router.post("/logout")
-def logout(token: str = Depends(oauth2_scheme)):
+def logout_user(
+    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme)
+):
     """
-    Session Termination Endpoint:
-    Revokes the provided JWT access token immediately via Redis session blacklist.
+    Terminates active session and blacklists the current JWT token in Redis.
     """
-    revoke_token(token, ttl_seconds=3600)
+    revoke_token(token, ttl_seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
     return {
-        "status": "logged_out",
-        "message": "Token has been revoked and session terminated successfully."
+        "status": "success",
+        "message": f"Session for {current_user.email} successfully terminated and token revoked."
     }
 
-from app.core.security import RoleChecker
-
-@router.get("/me")
-def get_current_user_record(
-    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+@router.get("/me", response_model=Dict[str, Any])
+def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Returns the complete profile record of the currently logged-in user.
+    Returns authenticated user profile details.
     """
     prof = None
     if current_user.student_profile:
@@ -204,7 +202,10 @@ def get_current_user_record(
             "board": sp.board,
             "grade_level": sp.school_class.grade_level if sp.school_class else 10,
             "section": sp.school_class.section_name if sp.school_class else "A",
-            "interests": sp.interests,
+            "interests": sp.interests or [],
+            "learning_preference": sp.learning_preference or [],
+            "onboarding_status": sp.onboarding_status or "PENDING",
+            "parental_consent_status": sp.parental_consent_status or "PENDING",
             "xp_score": sp.xp_score,
             "streak_count": sp.streak_count,
             "date_of_birth": str(sp.date_of_birth) if sp.date_of_birth else None
@@ -217,7 +218,7 @@ def get_current_user_record(
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "is_verified": current_user.is_verified,
-        "school": current_user.school.name if current_user.school else "Apex International Academy",
+        "school": current_user.school.name if current_user.school else None,
         "created_at": current_user.created_at,
         "student_profile": prof
     }
@@ -271,7 +272,7 @@ def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)
         db.add(user)
         db.flush()
         
-        # Initialize Student Profile
+        # Initialize Student Profile in PENDING onboarding state
         class_id = None
         if school:
             default_class = db.query(SchoolClass).filter(SchoolClass.school_id == school.id).first()
@@ -283,9 +284,11 @@ def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)
             school_id=school.id if school else None,
             class_id=class_id,
             board="CBSE",
-            date_of_birth=None, # Never invent false DOB; collected upon onboarding
-            interests=["Coding", "Science", "Space"],
-            learning_preference=["video", "reading"]
+            date_of_birth=None, # Nullable for incomplete onboarding
+            onboarding_status="PENDING",
+            parental_consent_status="PENDING",
+            interests=[],
+            learning_preference=[]
         )
         db.add(profile)
         db.commit()

@@ -35,7 +35,7 @@ Traditional open internet search exposing K-12 students to toxic content, clickb
 2. **Pedagogical AI Tutoring**: Socratic dialogue guides students step-by-step to arrive at conceptual solutions rather than spoon-feeding raw answers.
 3. **Multi-Category Safety Shield**: Real-time content filtering rejects toxic material, dangerous activities, hate speech, and adversarial prompt injections.
 4. **Adaptive Personalization**: Pointwise GBDT ranking and collaborative filtering adjust daily feeds based on dwell time, quiz accuracy, and subject mastery.
-5. **Verifiable Parental Consent**: Cryptographic OTP guardian verification meeting the Indian Digital Personal Data Protection (DPDP) Act 2023 and US COPPA standards.
+5. **Verifiable Parental Consent**: Cryptographic OTP guardian verification designed with the Indian Digital Personal Data Protection (DPDP) Act 2023 principles and US COPPA parental consent requirements in mind.
 
 ---
 
@@ -391,6 +391,6 @@ Edufeedia includes built-in telemetry endpoints for Kubernetes and CloudWatch:
 
 ---
 
-## 📄 License & Compliance
+## 📄 License & Student Privacy Notice
 
-Licensed under the **MIT License**. Compliant with India DPDP Act 2023 and US COPPA student data privacy standards.
+Licensed under the **MIT License**. Engineered and designed with student data privacy, Indian DPDP Act principles, and US COPPA parental consent safeguards in mind.

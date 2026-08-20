@@ -50,6 +50,19 @@ class TestSecurityRegression(unittest.TestCase):
             self.db.add(self.student_a)
             self.db.flush()
 
+        if not self.student_a.student_profile:
+            self.profile_a = StudentProfile(
+                user_id=self.student_a.id,
+                school_id=self.school_a.id,
+                board="CBSE",
+                onboarding_status="COMPLETED",
+                parental_consent_status="GRANTED",
+                xp_score=150,
+                streak_count=3
+            )
+            self.db.add(self.profile_a)
+            self.db.flush()
+
         self.student_b = self.db.query(User).filter(User.email == "student_b_sec@horizon.edu").first()
         if not self.student_b:
             self.student_b = User(
@@ -62,6 +75,19 @@ class TestSecurityRegression(unittest.TestCase):
                 school_id=self.school_b.id
             )
             self.db.add(self.student_b)
+            self.db.flush()
+
+        if not self.student_b.student_profile:
+            self.profile_b = StudentProfile(
+                user_id=self.student_b.id,
+                school_id=self.school_b.id,
+                board="CBSE",
+                onboarding_status="COMPLETED",
+                parental_consent_status="GRANTED",
+                xp_score=200,
+                streak_count=5
+            )
+            self.db.add(self.profile_b)
             self.db.flush()
 
         # Seed Parents
@@ -267,6 +293,96 @@ class TestSecurityRegression(unittest.TestCase):
         with patch.dict(os.environ, {"ENVIRONMENT": "production", "REDIS_URL": "redis://invalid-host:6379/0"}):
             with self.assertRaises(RuntimeError):
                 RedisClient()
+
+    # --- 5. PARENTAL CONSENT REVOCATION TENANT ISOLATION ---
+
+    def test_consent_revocation_cross_school_forbidden(self):
+        """Verify School Admin A cannot revoke consent for Student B belonging to School B."""
+        res = self.client.post(
+            "/api/v1/privacy/revoke-consent",
+            headers=self._get_headers(self.admin_a),
+            json={
+                "parent_email": "parent_b@horizon.edu",
+                "student_id": self.student_b.id,
+                "reason": "Administrative revocation"
+            }
+        )
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("Cross-school", res.json()["detail"])
+
+    def test_consent_revocation_unlinked_parent_forbidden(self):
+        """Verify Parent A cannot revoke consent for unlinked Student B."""
+        res = self.client.post(
+            "/api/v1/privacy/revoke-consent",
+            headers=self._get_headers(self.parent_a),
+            json={
+                "parent_email": self.parent_a.email,
+                "student_id": self.student_b.id,
+                "reason": "Guardian revocation"
+            }
+        )
+        self.assertEqual(res.status_code, 403)
+
+    # --- 6. GOOGLE ONBOARDING AND READ-ONLY FEED TESTS ---
+
+    def test_google_login_and_student_onboarding_flow(self):
+        """Verify Google login creates student in PENDING onboarding state, which is completed via /onboarding."""
+        from app.core.security import verify_google_id_token
+
+        with patch("app.routers.auth.verify_google_id_token") as mock_verify:
+            mock_verify.return_value = {
+                "email": "new_google_student@example.com",
+                "sub": "google_uid_999888",
+                "given_name": "Sam",
+                "family_name": "Google"
+            }
+
+            res = self.client.post("/api/v1/auth/google", json={"id_token": "valid_token_test"})
+            self.assertEqual(res.status_code, 200)
+            token = res.json()["access_token"]
+
+            # Inspect profile before onboarding
+            me_res = self.client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+            self.assertEqual(me_res.status_code, 200)
+            me_data = me_res.json()
+            self.assertIsNone(me_data["school"])
+            self.assertEqual(me_data["student_profile"]["onboarding_status"], "PENDING")
+            self.assertIsNone(me_data["student_profile"]["date_of_birth"])
+
+            # Complete onboarding
+            onboard_res = self.client.post(
+                "/api/v1/students/onboarding",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "date_of_birth": "2010-05-15",
+                    "grade_level": 10,
+                    "board": "CBSE",
+                    "interests": ["Robotics", "Physics"],
+                    "learning_preference": ["video", "interactive"]
+                }
+            )
+            self.assertEqual(onboard_res.status_code, 200)
+            self.assertEqual(onboard_res.json()["onboarding_status"], "COMPLETED")
+            self.assertEqual(onboard_res.json()["date_of_birth"], "2010-05-15")
+
+    def test_feed_is_read_only_and_activity_advances_streak(self):
+        """Verify GET /feed does not mutate streaks, while POST /activity advances streak explicitly."""
+        headers = self._get_headers(self.student_a)
+
+        # 1. Initial feed request
+        feed1 = self.client.get("/api/v1/students/feed", headers=headers)
+        self.assertEqual(feed1.status_code, 200)
+        streak1 = feed1.json()["streak"]
+
+        # 2. Repeated feed requests should NOT change streak
+        feed2 = self.client.get("/api/v1/students/feed", headers=headers)
+        self.assertEqual(feed2.status_code, 200)
+        self.assertEqual(feed2.json()["streak"], streak1)
+
+        # 3. Explicit activity call records study session
+        act_res = self.client.post("/api/v1/students/activity", headers=headers)
+        self.assertEqual(act_res.status_code, 200)
+        self.assertIn("streak_count", act_res.json())
 
 if __name__ == "__main__":
     unittest.main()

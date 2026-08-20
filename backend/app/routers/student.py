@@ -43,29 +43,92 @@ def update_profile(
 
     return profile
 
+from app.schemas.schemas import StudentOnboardingRequest
+
+@router.post("/onboarding", response_model=StudentProfileOut)
+def complete_student_onboarding(
+    req: StudentOnboardingRequest,
+    current_user: User = Depends(RoleChecker(["student"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Onboarding Completion Endpoint:
+    Allows newly registered or OAuth Google students to supply their verified date of birth,
+    academic grade, school/board alignment, and real subject interests.
+    """
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = StudentProfile(user_id=current_user.id)
+        db.add(profile)
+
+    profile.date_of_birth = req.date_of_birth
+    profile.board = req.board or profile.board or "CBSE"
+    if req.interests:
+        profile.interests = req.interests
+    if req.learning_preference:
+        profile.learning_preference = req.learning_preference
+    if req.school_id:
+        profile.school_id = req.school_id
+        current_user.school_id = req.school_id
+
+    profile.onboarding_status = "COMPLETED"
+
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+@router.post("/activity", response_model=Dict[str, Any])
+def record_student_activity(
+    current_user: User = Depends(RoleChecker(["student"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Explicit Activity Tracking Endpoint:
+    Registers a study session and advances the student's daily streak count idempotently.
+    """
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    today = datetime.date.today()
+    streak_advanced = False
+
+    if profile.last_active_date:
+        delta = today - profile.last_active_date
+        if delta.days == 1:
+            profile.streak_count += 1
+            streak_advanced = True
+        elif delta.days > 1:
+            profile.streak_count = 1
+            streak_advanced = True
+    else:
+        profile.streak_count = 1
+        streak_advanced = True
+
+    profile.last_active_date = today
+    db.commit()
+    db.refresh(profile)
+
+    return {
+        "status": "success",
+        "streak_count": profile.streak_count,
+        "last_active_date": str(profile.last_active_date),
+        "streak_advanced": streak_advanced
+    }
+
 @router.get("/feed", response_model=Dict[str, Any])
 def get_daily_learning_feed(
     current_user: User = Depends(RoleChecker(["student"])),
     db: Session = Depends(get_db)
 ):
+    """
+    Read-Only Daily Learning Feed:
+    Retrieves personalized curriculum recommendations without mutating user streak or profile state.
+    """
     profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
         
-    # Check streak logic: if logged in on consecutive days, increment streak.
-    today = datetime.date.today()
-    if profile.last_active_date:
-        delta = today - profile.last_active_date
-        if delta.days == 1:
-            profile.streak_count += 1
-        elif delta.days > 1:
-            profile.streak_count = 1  # Reset streak if missed a day
-    else:
-        profile.streak_count = 1
-        
-    profile.last_active_date = today
-    db.commit()
-    
     from app.recommender.hybrid import recommender_instance
     rec_result = recommender_instance.get_personalized_recommendations(db, current_user.id, limit=4)
     feed_items = rec_result.get("items", [])
@@ -119,25 +182,43 @@ def get_student_dashboard(
     # Categorize completed videos count by subject
     subject_mastery = {}
     for log in completed_logs:
-        sub = log.content_item.subject
-        subject_mastery[sub] = subject_mastery.get(sub, 0) + 1
-        
-    # Calculate streak progress
+        if log.content_item:
+            subj = log.content_item.subject
+            subject_mastery[subj] = subject_mastery.get(subj, 0) + 1
+            
+    # Recent activity
+    recent_activity = []
+    recent_logs = db.query(StudentProgress).filter(
+        StudentProgress.student_user_id == current_user.id
+    ).order_by(StudentProgress.updated_at.desc()).limit(5).all()
+    
+    for r in recent_logs:
+        if r.content_item:
+            recent_activity.append({
+                "title": r.content_item.title,
+                "type": r.content_item.type,
+                "progress": r.progress_percentage,
+                "last_accessed": r.updated_at.isoformat() if r.updated_at else None
+            })
+            
     return {
         "xp": profile.xp_score,
         "streak": profile.streak_count,
         "total_lessons_completed": len(completed_logs),
-        "average_quiz_accuracy": avg_accuracy,
-        "subject_mastery": [
-            {"subject": sub, "completed_lessons": count} for sub, count in subject_mastery.items()
-        ]
+        "average_quiz_accuracy": round(avg_accuracy, 1),
+        "subject_mastery": subject_mastery,
+        "recent_activity": recent_activity
     }
 
-@router.get("/leaderboard")
+@router.get("/leaderboard", response_model=List[Dict[str, Any]])
 def get_leaderboard(
     current_user: User = Depends(RoleChecker(["student", "teacher", "parent"])),
     db: Session = Depends(get_db)
 ):
+    """
+    Privacy-preserving leaderboard:
+    Displays student rank, masked anonymous identifiers, XP, and level without exposing minor PII or raw UUIDs.
+    """
     profiles = db.query(StudentProfile).order_by(StudentProfile.xp_score.desc()).all()
     
     leaderboard = []
@@ -159,14 +240,19 @@ def get_leaderboard(
         else:
             level = 1
 
+        is_current = (u.id == current_user.id)
+        # Protect peer UUIDs and PII from unauthorized scraping
+        safe_user_id = u.id if is_current else f"learner_{rank:03d}"
+        display_name = f"{u.first_name} {u.last_name[0] if u.last_name else ''}." if is_current else f"{u.first_name[0]}*** {u.last_name[0] if u.last_name else ''}."
+
         leaderboard.append({
             "rank": rank,
-            "user_id": u.id,
-            "name": f"{u.first_name} {u.last_name[0] if u.last_name else ''}.",
+            "user_id": safe_user_id,
+            "name": display_name,
             "xp": p.xp_score,
             "streak": p.streak_count,
             "level": level,
-            "is_current_user": (u.id == current_user.id)
+            "is_current_user": is_current
         })
 
     return leaderboard

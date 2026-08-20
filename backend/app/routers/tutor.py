@@ -1,3 +1,4 @@
+import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List
@@ -61,8 +62,21 @@ def ask_ai_tutor(
     """
     Interactive Socratic AI Tutor powered by curriculum RAG retrieval and safety hard gates.
     """
+    # Determine student target age dynamically
+    target_age = 15
+    grade_lvl = 10
+    if current_user.role == "student" and current_user.student_profile:
+        sp = current_user.student_profile
+        if sp.date_of_birth:
+            today = datetime.date.today()
+            dob = sp.date_of_birth
+            target_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        elif sp.school_class:
+            grade_lvl = sp.school_class.grade_level
+            target_age = grade_lvl + 5
+
     # 1. Safety Hard Gate check on student's prompt
-    safety_audit = SafetyEngine.audit_content(request.question, target_age=16)
+    safety_audit = SafetyEngine.audit_content(request.question, target_age=target_age)
     if not safety_audit["is_safe"]:
         return TutorResponse(
             answer="I am your Edufeedia Socratic study guide! I am designed to assist you with curriculum subjects, math, science, and coding concepts. Let's redirect our focus back to the lesson topic.",
@@ -72,10 +86,6 @@ def ask_ai_tutor(
         )
 
     # 2. Query RAG Engine with Lesson Context & Semantic Retrieval
-    grade_lvl = 10
-    if current_user.role == "student" and current_user.student_profile and current_user.student_profile.school_class:
-        grade_lvl = current_user.student_profile.school_class.grade_level
-
     rag_result = RAGEngine.query_rag_tutor(
         db=db,
         question=request.question,
@@ -84,7 +94,7 @@ def ask_ai_tutor(
     )
 
     # 3. Output Safety Gate — Validate synthesized LLM response before returning to minor
-    output_audit = SafetyEngine.audit_content(rag_result["answer"], target_age=16)
+    output_audit = SafetyEngine.audit_content(rag_result["answer"], target_age=target_age)
     if not output_audit["is_safe"]:
         return TutorResponse(
             answer="Let's focus on the foundational principles of this lesson. What core definition would you like to review together?",

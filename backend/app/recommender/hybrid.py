@@ -95,6 +95,16 @@ class HybridRecommender:
 
         total_evaluated = len(candidate_pool)
 
+        # Determine student target age dynamically
+        target_age = 15
+        if profile:
+            if profile.date_of_birth:
+                today = datetime.date.today()
+                dob = profile.date_of_birth
+                target_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            elif profile.school_class:
+                target_age = profile.school_class.grade_level + 5
+
         # 3. Layer 1 Safety Hard Gate Evaluation
         safe_candidates = []
         for cid, data in candidate_pool.items():
@@ -104,7 +114,7 @@ class HybridRecommender:
                 title=item.title,
                 description=item.description or "",
                 tags=item.tags,
-                target_age=16
+                target_age=target_age
             )
             if is_safe and (item.safety_score is None or item.safety_score >= 80):
                 safe_candidates.append(data)

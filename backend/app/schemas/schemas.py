@@ -51,12 +51,22 @@ class StudentProfileUpdate(BaseModel):
     interests: Optional[List[str]] = None
     learning_preference: Optional[List[str]] = None
 
+class StudentOnboardingRequest(BaseModel):
+    date_of_birth: datetime.date
+    grade_level: Optional[int] = 10
+    board: Optional[str] = "CBSE"
+    school_id: Optional[str] = None
+    interests: Optional[List[str]] = Field(default_factory=list)
+    learning_preference: Optional[List[str]] = Field(default_factory=list)
+
 class StudentProfileOut(BaseModel):
     user_id: str
     school_id: Optional[str] = None
     class_id: Optional[str] = None
     board: str
-    date_of_birth: datetime.date
+    date_of_birth: Optional[datetime.date] = None
+    onboarding_status: str = "PENDING"
+    parental_consent_status: str = "PENDING"
     xp_score: int
     streak_count: int
     interests: List[str]

@@ -130,15 +130,21 @@ class ContentIntelligencePipeline:
         cls,
         db: Session,
         source_id: str,
-        reviewer_id: str
+        reviewer: Any = None,
+        reviewer_id: Optional[str] = None
     ) -> Dict[str, Any]:
+        actual_reviewer = reviewer if reviewer is not None else (reviewer_id or "system_admin")
+        actual_reviewer_id = actual_reviewer.id if hasattr(actual_reviewer, "id") else str(actual_reviewer)
+        if hasattr(actual_reviewer, "role") and actual_reviewer.role not in ["teacher", "school_admin", "admin", "super_admin"]:
+            raise PermissionError("Unauthorized content approval attempt: caller lacks educational moderator credentials.")
+
         source = db.query(IngestedSource).filter(IngestedSource.id == source_id).first()
         if not source:
             return {"success": False, "message": "Ingested source not found."}
 
         # 1. Update IngestedSource Status
         source.status = "approved"
-        source.reviewed_by = reviewer_id
+        source.reviewed_by = actual_reviewer_id
         source.reviewed_at = datetime.datetime.utcnow()
 
         # 2. Generate 384-d Embedding
