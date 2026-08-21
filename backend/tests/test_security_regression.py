@@ -327,12 +327,13 @@ class TestSecurityRegression(unittest.TestCase):
 
     def test_google_login_and_student_onboarding_flow(self):
         """Verify Google login creates student in PENDING onboarding state, which is completed via /onboarding."""
-        from app.core.security import verify_google_id_token
+        import uuid
+        unique_email = f"new_google_student_{uuid.uuid4().hex[:8]}@example.com"
 
         with patch("app.routers.auth.verify_google_id_token") as mock_verify:
             mock_verify.return_value = {
-                "email": "new_google_student@example.com",
-                "sub": "google_uid_999888",
+                "email": unique_email,
+                "sub": f"google_uid_{uuid.uuid4().hex[:8]}",
                 "given_name": "Sam",
                 "family_name": "Google"
             }

@@ -89,11 +89,16 @@ class HybridRecommender:
                 ContentItem.grade_level == grade,
                 ~ContentItem.id.in_(list(candidate_pool.keys())) if candidate_pool else True
             ).limit(limit - len(candidate_pool)).all()
+            if not padding and len(candidate_pool) == 0:
+                padding = db.query(ContentItem).filter(
+                    ContentItem.is_approved == True
+                ).limit(limit).all()
             for p in padding:
-                candidate_pool[p.id] = {
-                    "item": p,
-                    "source": "trending"
-                }
+                if p.id not in candidate_pool:
+                    candidate_pool[p.id] = {
+                        "item": p,
+                        "source": "trending"
+                    }
 
         total_evaluated = len(candidate_pool)
 

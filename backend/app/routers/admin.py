@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from app.database import get_db
 from app.models.models import (
     User, StudentProfile, ContentItem, QuizAttempt, Quiz,
-    UserInteraction, Flashcard, Badge, ClassAssignment, School
+    UserInteraction, Flashcard, Badge, ClassAssignment, School, SchoolClass
 )
 from app.core.security import get_password_hash, RoleChecker
 
@@ -170,10 +170,20 @@ def invite_teacher(
     if existing:
         raise HTTPException(status_code=400, detail="User with this email already exists.")
 
-    school_id = current_user.school_id
-    if not school_id:
-        school = db.query(School).first()
-        school_id = school.id if school else None
+    if current_user.role == "school_admin":
+        school_id = current_user.school_id
+        if not school_id:
+            raise HTTPException(status_code=403, detail="School admin account is not assigned to a school tenant.")
+        if req.class_ids:
+            for cid in req.class_ids:
+                sc = db.query(SchoolClass).filter(SchoolClass.id == cid).first()
+                if not sc or sc.school_id != school_id:
+                    raise HTTPException(status_code=403, detail=f"Access denied: Class {cid} does not belong to your school tenant.")
+    else:
+        school_id = current_user.school_id
+        if not school_id:
+            school = db.query(School).first()
+            school_id = school.id if school else None
 
     # Create unverified teacher account with random temporary unusable hash
     teacher_user = User(

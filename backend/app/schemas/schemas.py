@@ -280,7 +280,7 @@ class SafetyCategoryScore(BaseModel):
 
 class SafetyReportOut(BaseModel):
     verdict: str # ALLOW, REVIEW, BLOCK
-    safety_score: int # 0 to 100
+    safety_score: float # 0 to 100
     is_safe: bool
     categories: List[SafetyCategoryScore]
     matched_rules: List[str] = []
@@ -330,8 +330,8 @@ class RecommendedContentItemOut(BaseModel):
     topic: str
     difficulty: str
     duration_minutes: int
-    safety_score: int
-    edu_score: int
+    safety_score: float
+    edu_score: float
     relevance_percentage: int
     explanation: ScoreExplanationOut
 

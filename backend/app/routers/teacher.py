@@ -42,6 +42,8 @@ def get_teacher_classes(
             
     return results
 
+from app.core.access_policy import AccessPolicy
+
 @router.get("/classes/{class_id}/analytics", response_model=ClassAnalyticsOut)
 def get_class_analytics(
     class_id: str,
@@ -52,17 +54,12 @@ def get_class_analytics(
     if not school_class:
         raise HTTPException(status_code=404, detail="School class not found")
 
-    # Tenant Isolation: Ensure teacher is assigned to this specific class
-    if current_user.role == "teacher":
-        is_assigned = db.query(teacher_classes).filter(
-            teacher_classes.c.teacher_user_id == current_user.id,
-            teacher_classes.c.class_id == class_id
-        ).first()
-        if not is_assigned:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: You are not assigned to this school class or tenant."
-            )
+    # Tenant & Class Isolation: Ensure teacher/admin is authorized for this specific class
+    if not AccessPolicy.can_manage_class(current_user, class_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You are not authorized to access analytics for this class or school tenant."
+        )
 
     profiles = db.query(StudentProfile).filter(StudentProfile.class_id == class_id).all()
     
@@ -152,6 +149,13 @@ def create_assignment(
     current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
     db: Session = Depends(get_db)
 ):
+    # Verify the teacher is authorized to post to this class
+    if not AccessPolicy.can_manage_class(current_user, assignment_in.class_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You are not authorized to create assignments for this class."
+        )
+
     assignment = ClassAssignment(
         teacher_user_id=current_user.id,
         class_id=assignment_in.class_id,
@@ -172,4 +176,18 @@ def get_class_assignments(
     current_user: User = Depends(RoleChecker(["teacher", "student", "school_admin"])),
     db: Session = Depends(get_db)
 ):
+    # If student, verify enrollment in class
+    if current_user.role == "student":
+        sp = current_user.student_profile
+        if not sp or sp.class_id != class_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You are not enrolled in this class."
+            )
+    elif not AccessPolicy.can_manage_class(current_user, class_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You are not authorized to view assignments for this class."
+        )
+
     return db.query(ClassAssignment).filter(ClassAssignment.class_id == class_id).order_by(ClassAssignment.created_at.desc()).all()

@@ -366,7 +366,8 @@ class TestAIModelGateway(unittest.TestCase):
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # 1. School Admin invites teacher
-        new_teacher_email = "new_math_faculty@apexschool.edu"
+        import uuid
+        new_teacher_email = f"new_math_faculty_{uuid.uuid4().hex[:6]}@apexschool.edu"
         invite_res = client.post(
             "/api/v1/admin/invite-teacher",
             headers=admin_headers,
