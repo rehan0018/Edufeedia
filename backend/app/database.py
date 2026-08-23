@@ -6,13 +6,19 @@ from app.config import settings
 DATABASE_URL = settings.DATABASE_URL
 
 if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    from sqlalchemy.pool import NullPool
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False, "timeout": 30},
+        poolclass=NullPool
+    )
 else:
     # Production PostgreSQL connection pool configuration
     engine = create_engine(
         DATABASE_URL,
-        pool_size=10,
-        max_overflow=20,
+        pool_size=20,
+        max_overflow=40,
+        pool_timeout=30,
         pool_pre_ping=True,
         pool_recycle=300
     )

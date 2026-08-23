@@ -88,6 +88,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.email == token_data.email).first()
     if user is None:
         raise credentials_exception
+    if user.account_status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is not active."
+        )
     return user
 
 class RoleChecker:

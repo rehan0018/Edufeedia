@@ -1,7 +1,11 @@
 import secrets
 from datetime import timedelta, date
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.config import settings
 from app.database import get_db
 from app.models.models import User, StudentProfile, parent_student_links
 from app.schemas.schemas import UserRegister, UserLogin, Token, UserOut
@@ -9,13 +13,10 @@ from app.core.security import (
     get_password_hash, verify_password, create_access_token,
     validate_password_complexity, revoke_token, oauth2_scheme, get_current_user
 )
-
-router = APIRouter(prefix="/auth", tags=["auth"])
-
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel
 from app.core.redis_client import redis_client
 from app.core.email_service import email_service
+
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 class InviteActivationRequest(BaseModel):
     token: str
@@ -28,6 +29,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     """
     Public Registration Endpoint: Strictly restricted to Student accounts only.
     Teachers and School Administrators must be invited by authorized school administrators.
+    School affiliation is not trusted from public payload and starts unassigned until verified.
     """
     # Validate password complexity
     validate_password_complexity(user_in.password)
@@ -51,6 +53,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     
     password_hash = get_password_hash(user_in.password)
     
+    # Public registrations start with no trusted school binding until verified
     user = User(
         email=user_in.email,
         password_hash=password_hash,
@@ -58,7 +61,8 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         first_name=user_in.first_name,
         last_name=user_in.last_name,
         is_verified=False, # Must be activated via parental consent / school enrollment
-        school_id=user_in.school_id
+        school_id=None,
+        account_status="ACTIVE"
     )
     
     db.add(user)
@@ -66,8 +70,8 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     
     profile = StudentProfile(
         user_id=user.id,
-        school_id=user_in.school_id,
-        class_id=user_in.class_id,
+        school_id=None,
+        class_id=None,
         board=user_in.board or "CBSE",
         date_of_birth=user_in.date_of_birth,
         onboarding_status="COMPLETED",
@@ -155,11 +159,31 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == credentials.email).first()
-    if not user or not verify_password(credentials.password, user.password_hash):
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Please use Google sign-in for this account.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not verify_password(credentials.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if user.account_status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is not active."
         )
         
     access_token = create_access_token(
@@ -239,24 +263,25 @@ def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid Google ID Token"
         )
+
+    # 2. Check verified email claim
+    email_verified = token_info.get("email_verified")
+    if email_verified is not None and str(email_verified).lower() not in ["true", "1"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account email is not verified."
+        )
         
     email = token_info.get("email")
     google_id = token_info.get("sub")
     first_name = token_info.get("given_name", "Google")
     last_name = token_info.get("family_name", "User")
     
-    # 2. Check if user already exists
+    # 3. Check if user already exists
     user = db.query(User).filter((User.google_id == google_id) | (User.email == email)).first()
     
     if not user:
-        # Create new user
-        # Determine role from domain, or default to student
-        domain = email.split("@")[-1]
-        school = db.query(School).filter(School.domain == domain).first()
-        
-        # Determine role
-        # If domain matches school, it's a student at that school.
-        # Otherwise, default to student role for new Google signups.
+        # Create new user - start with unverified school binding
         role = "student"
         
         user = User(
@@ -266,23 +291,18 @@ def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)
             role=role,
             first_name=first_name,
             last_name=last_name,
-            is_verified=(school is not None),
-            school_id=school.id if school else None
+            is_verified=False,
+            school_id=None,
+            account_status="ACTIVE"
         )
         db.add(user)
         db.flush()
         
         # Initialize Student Profile in PENDING onboarding state
-        class_id = None
-        if school:
-            default_class = db.query(SchoolClass).filter(SchoolClass.school_id == school.id).first()
-            if default_class:
-                class_id = default_class.id
-                
         profile = StudentProfile(
             user_id=user.id,
-            school_id=school.id if school else None,
-            class_id=class_id,
+            school_id=None,
+            class_id=None,
             board="CBSE",
             date_of_birth=None, # Nullable for incomplete onboarding
             onboarding_status="PENDING",
@@ -293,6 +313,11 @@ def login_with_google(request: GoogleLoginRequest, db: Session = Depends(get_db)
         db.add(profile)
         db.commit()
     else:
+        if user.account_status != "ACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is not active."
+            )
         # User exists, update Google ID link if empty
         if not user.google_id:
             user.google_id = google_id

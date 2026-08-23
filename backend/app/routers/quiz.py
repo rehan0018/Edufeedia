@@ -1,42 +1,43 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 import datetime
 
 from app.database import get_db
 from app.models.models import User, Quiz, Question, QuizAttempt, StudentProfile, SpacedRepetitionSchedule, ContentItem
-from app.schemas.schemas import QuizOut, QuizSubmit, QuizAttemptOut
+from app.schemas.schemas import QuizOut, QuizTeacherOut, QuizSubmit, QuizAttemptOut
 from app.core.security import get_current_user, RoleChecker
+from app.core.access_policy import require_learning_access
 from app.core.algorithms import calculate_sm2
 
 router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 
-@router.get("/content/{content_item_id}", response_model=QuizOut)
+@router.get("/content/{content_item_id}")
 def get_quiz_by_content_item(
     content_item_id: str,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "school_admin"])),
+    current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
     quiz = db.query(Quiz).filter(Quiz.content_item_id == content_item_id).first()
     if not quiz:
-        # Match by topic if available
-        item = db.query(ContentItem).filter(ContentItem.id == content_item_id).first()
-        if item:
-            quiz = db.query(Quiz).join(ContentItem, Quiz.content_item_id == ContentItem.id).filter(ContentItem.topic == item.topic).first()
-    if not quiz:
         raise HTTPException(status_code=404, detail="No assessment quiz found for this lesson")
-    return quiz
+    if current_user.role in ["teacher", "school_admin", "admin", "super_admin"]:
+        return QuizTeacherOut.model_validate(quiz)
+    return QuizOut.model_validate(quiz)
 
-@router.get("/{quiz_id}", response_model=QuizOut)
+@router.get("/{quiz_id}")
 def get_quiz(
     quiz_id: str,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "school_admin"])),
+    current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
-    return quiz
+    if current_user.role in ["teacher", "school_admin", "admin", "super_admin"]:
+        return QuizTeacherOut.model_validate(quiz)
+    return QuizOut.model_validate(quiz)
 
 @router.post("/submit", response_model=Dict[str, Any])
 def submit_quiz(
@@ -155,9 +156,26 @@ def submit_quiz(
             schedule.interval_days = interval
             schedule.repetition_number = repetition
             schedule.easiness_factor = ef
-            schedule.next_review_date = next_date
-            
-    db.commit()
+    for _ in range(5):
+        try:
+            db.commit()
+            break
+        except Exception:
+            db.rollback()
+            max_att = db.query(func.max(QuizAttempt.attempt_number)).filter(
+                QuizAttempt.student_user_id == current_user.id,
+                QuizAttempt.quiz_id == quiz.id
+            ).scalar() or 0
+            attempt = QuizAttempt(
+                student_user_id=current_user.id,
+                quiz_id=quiz.id,
+                attempt_number=max_att + 1,
+                score=correct_count,
+                max_score=total_questions,
+                accuracy_percentage=accuracy,
+                xp_awarded=0
+            )
+            db.add(attempt)
 
     return {
         "score": correct_count,
@@ -196,7 +214,7 @@ def generate_ai_quiz_draft(
         ) for q in raw_questions
     ]
 
-@router.post("/custom", response_model=QuizOut, status_code=status.HTTP_201_CREATED)
+@router.post("/custom", response_model=QuizTeacherOut, status_code=status.HTTP_201_CREATED)
 def create_custom_quiz(
     request: QuizCreateRequest,
     current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
@@ -207,6 +225,13 @@ def create_custom_quiz(
     """
     if not request.questions or len(request.questions) == 0:
         raise HTTPException(status_code=400, detail="An assessment must contain at least one question")
+
+    if request.content_item_id:
+        content_item = db.query(ContentItem).filter(ContentItem.id == request.content_item_id).first()
+        if not content_item:
+            raise HTTPException(status_code=404, detail="Referenced curriculum item not found")
+        if content_item.school_id and current_user.school_id and content_item.school_id != current_user.school_id:
+            raise HTTPException(status_code=403, detail="Cannot author quizzes for foreign school curriculum")
 
     new_quiz = Quiz(
         content_item_id=request.content_item_id,
@@ -241,6 +266,13 @@ def generate_ai_quiz(
     Auto-generates an assessment quiz set with Bloom's taxonomy difficulty, distractor explanations,
     and saves it to the database for instant interactive practice.
     """
+    if request.content_item_id:
+        content_item = db.query(ContentItem).filter(ContentItem.id == request.content_item_id).first()
+        if not content_item:
+            raise HTTPException(status_code=404, detail="Referenced curriculum item not found")
+        if content_item.school_id and current_user.school_id and content_item.school_id != current_user.school_id:
+            raise HTTPException(status_code=403, detail="Cannot generate quizzes for foreign school curriculum")
+
     raw_questions = AIQuestionGenerator.generate_quiz_for_topic(
         subject=request.subject,
         topic=request.topic,

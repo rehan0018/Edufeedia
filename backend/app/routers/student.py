@@ -67,9 +67,6 @@ def complete_student_onboarding(
         profile.interests = req.interests
     if req.learning_preference:
         profile.learning_preference = req.learning_preference
-    if req.school_id:
-        profile.school_id = req.school_id
-        current_user.school_id = req.school_id
 
     profile.onboarding_status = "COMPLETED"
 
@@ -217,9 +214,14 @@ def get_leaderboard(
 ):
     """
     Privacy-preserving leaderboard:
-    Displays student rank, masked anonymous identifiers, XP, and level without exposing minor PII or raw UUIDs.
+    Displays student rank, masked anonymous identifiers, XP, and level within the user's school tenant.
     """
-    profiles = db.query(StudentProfile).order_by(StudentProfile.xp_score.desc()).all()
+    if current_user.school_id:
+        profiles = db.query(StudentProfile).join(User, StudentProfile.user_id == User.id).filter(
+            User.school_id == current_user.school_id
+        ).order_by(StudentProfile.xp_score.desc()).all()
+    else:
+        profiles = db.query(StudentProfile).order_by(StudentProfile.xp_score.desc()).all()
     
     leaderboard = []
     for rank, p in enumerate(profiles, start=1):
@@ -307,6 +309,7 @@ def get_student_badges(
     ).first() is not None
 
     badges_out = []
+    new_user_badges = []
     unlocked_count = 0
 
     for b in all_badges:
@@ -329,10 +332,9 @@ def get_student_badges(
 
             if should_unlock:
                 new_ub = UserBadge(user_id=current_user.id, badge_id=b.id)
-                db.add(new_ub)
-                db.commit()
+                new_user_badges.append(new_ub)
                 is_unlocked = True
-                unlocked_at = new_ub.unlocked_at
+                unlocked_at = datetime.datetime.utcnow()
 
         if is_unlocked:
             unlocked_count += 1
@@ -348,6 +350,10 @@ def get_student_badges(
             "unlocked": is_unlocked,
             "unlocked_at": unlocked_at.isoformat() if unlocked_at else None
         })
+
+    if new_user_badges:
+        db.add_all(new_user_badges)
+        db.commit()
 
     return {
         "total_badges": len(all_badges),

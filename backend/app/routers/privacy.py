@@ -29,6 +29,8 @@ class ParentOtpVerifyRequest(BaseModel):
     student_id: Optional[str] = None
     consent_scope: Optional[List[str]] = ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"]
 
+from app.core.age_policy import StudentAgePolicy
+
 class ConsentRevocationRequest(BaseModel):
     parent_email: EmailStr
     student_id: Optional[str] = None
@@ -36,6 +38,7 @@ class ConsentRevocationRequest(BaseModel):
 
 @router.get("/consent-status")
 def get_privacy_and_consent_status(
+    student_id: Optional[str] = None,
     current_user: User = Depends(RoleChecker(["student", "parent", "teacher", "school_admin", "admin"])),
     db: Session = Depends(get_db)
 ):
@@ -44,10 +47,24 @@ def get_privacy_and_consent_status(
     Calculates accurate age-band and compliance properties dynamically based on authenticated identity.
     """
     target_student_id = current_user.id
-    if current_user.role == "parent" and hasattr(current_user, "students_linked") and current_user.students_linked:
-        target_student_id = current_user.students_linked[0].id
+    if current_user.role == "parent":
+        if student_id:
+            link = db.query(parent_student_links).filter(
+                parent_student_links.c.parent_user_id == current_user.id,
+                parent_student_links.c.student_user_id == student_id,
+                parent_student_links.c.is_verified == True
+            ).first()
+            if not link:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unverified or unauthorized student.")
+            target_student_id = student_id
+        elif hasattr(current_user, "students_linked") and current_user.students_linked:
+            target_student_id = current_user.students_linked[0].id
 
-    is_minor = (current_user.role == "student")
+    target_user = db.query(User).filter(User.id == target_student_id).first()
+    is_minor = False
+    if target_user and target_user.role == "student" and target_user.student_profile:
+        age = StudentAgePolicy.get_student_age(target_user.student_profile)
+        is_minor = (age < 18)
 
     latest_consent = db.query(ParentalConsentLog).filter(
         ParentalConsentLog.student_user_id == target_student_id
@@ -69,6 +86,7 @@ def get_privacy_and_consent_status(
         "verification_method": latest_consent.verification_method if latest_consent else None,
         "consent_scope": latest_consent.consent_scope if latest_consent else [],
         "privacy_policy_version": "2026.1-DPDP-COPPA",
+        "designed_standards": ["DPDP", "COPPA"],
         "data_minimization_enforced": True,
         "parental_consent_verified": (consent_state == "verified"),
         "targeted_advertising_blocked": True,

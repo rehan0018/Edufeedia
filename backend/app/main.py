@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import text
 from app.database import engine, Base
 from app.config import settings
 from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin, ingestion, privacy, challenges
@@ -10,6 +11,15 @@ from app.routers import auth, student, content, quiz, parent, teacher, flashcard
 # Conditional table automigration on boot (development & test only)
 if settings.ENVIRONMENT != "production":
     Base.metadata.create_all(bind=engine)
+    try:
+        with engine.connect() as conn:
+            res = conn.execute(text("PRAGMA table_info(content_items)"))
+            cols = [r[1] for r in res.fetchall()]
+            if cols and "school_id" not in cols:
+                conn.execute(text("ALTER TABLE content_items ADD COLUMN school_id VARCHAR"))
+                conn.commit()
+    except Exception:
+        pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

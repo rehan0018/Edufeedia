@@ -79,10 +79,16 @@ def ask_ai_tutor(
         )
 
     # 2. Query RAG Engine with Lesson Context & Semantic Retrieval
+    valid_content_id = request.content_item_id
+    if valid_content_id:
+        ci = db.query(ContentItem).filter(ContentItem.id == valid_content_id, ContentItem.is_approved == True).first()
+        if not ci:
+            valid_content_id = None
+
     rag_result = RAGEngine.query_rag_tutor(
         db=db,
         question=request.question,
-        content_item_id=request.content_item_id,
+        content_item_id=valid_content_id,
         student_grade=grade_lvl
     )
 
@@ -100,5 +106,9 @@ def ask_ai_tutor(
         answer=rag_result["answer"],
         socratic_cue=rag_result["socratic_cue"],
         follow_up_questions=rag_result["follow_up_questions"],
-        is_safe=True
+        is_safe=True,
+        grounding_source=rag_result.get("grounding_source"),
+        subject=rag_result.get("subject"),
+        topic=rag_result.get("topic"),
+        curriculum_citations=rag_result.get("retrieved_chunks", [])
     )

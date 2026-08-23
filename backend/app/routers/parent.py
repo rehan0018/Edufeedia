@@ -13,9 +13,10 @@ def get_linked_students(
     current_user: User = Depends(RoleChecker(["parent"])),
     db: Session = Depends(get_db)
 ):
-    # Fetch linked students
+    # Fetch verified linked students
     links = db.query(parent_student_links).filter(
-        parent_student_links.c.parent_user_id == current_user.id
+        parent_student_links.c.parent_user_id == current_user.id,
+        parent_student_links.c.is_verified == True
     ).all()
     
     student_ids = [link.student_user_id for link in links]
@@ -49,10 +50,11 @@ def get_student_progress_summary(
     current_user: User = Depends(RoleChecker(["parent"])),
     db: Session = Depends(get_db)
 ):
-    # Check parent-student linkage
+    # Check verified parent-student linkage
     link = db.query(parent_student_links).filter(
         parent_student_links.c.parent_user_id == current_user.id,
-        parent_student_links.c.student_user_id == student_id
+        parent_student_links.c.student_user_id == student_id,
+        parent_student_links.c.is_verified == True
     ).first()
     
     if not link:
@@ -87,7 +89,7 @@ def get_student_progress_summary(
         sub = log.content_item.subject
         subject_completion[sub] = subject_completion.get(sub, 0) + 1
         
-    # Identify strengths and weaknesses
+    # Identify strengths and weaknesses strictly from real student data
     subject_accuracies = {}
     subject_counts = {}
     
@@ -105,11 +107,6 @@ def get_student_progress_summary(
             strengths.append({"subject": sub, "accuracy": avg_sub_acc})
         elif avg_sub_acc < 70:
             weaknesses.append({"subject": sub, "accuracy": avg_sub_acc})
-            
-    if not strengths:
-        strengths = [{"subject": "General Subjects", "accuracy": 85.0}]
-    if not weaknesses and len(attempts) > 0:
-        weaknesses = [{"subject": "Focus Areas", "accuracy": 65.0}]
 
     consent = db.query(ParentalConsentLog).filter(
         ParentalConsentLog.parent_user_id == current_user.id,
@@ -130,6 +127,7 @@ def get_student_progress_summary(
         "academic_insights": {
             "strengths": strengths,
             "weaknesses": weaknesses,
+            "insufficient_data": (len(attempts) == 0),
             "revision_urgency": "Medium" if weaknesses else "Low"
         },
         "consent": {

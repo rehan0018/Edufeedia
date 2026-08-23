@@ -6,6 +6,9 @@ from app.database import get_db
 from app.models.models import User, ContentItem, StudentProgress, StudentProfile, SpacedRepetitionSchedule
 from app.schemas.schemas import ContentItemOut, ProgressUpdate, ProgressResponse
 from app.core.security import get_current_user, RoleChecker
+from app.core.access_policy import require_learning_access
+from app.core.age_policy import StudentAgePolicy
+from app.safety.engine import SafetyEngine
 from app.embeddings.embedder import embed_query, embed_content, cosine_similarity
 
 router = APIRouter(prefix="/content", tags=["content"])
@@ -20,7 +23,7 @@ def explore_content(
     difficulty: str = None,
     limit: int = 50,
     offset: int = 0,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
     q = db.query(ContentItem).filter(ContentItem.is_approved == True)
@@ -46,9 +49,11 @@ def explore_content(
 
     items = q.order_by(ContentItem.created_at.desc()).offset(max(0, offset)).limit(min(100, max(1, limit))).all()
 
-    # Get student progress if student
+    # Get student progress and apply age safety filtering if student
     completed_ids = set()
+    target_age = 15
     if current_user.role == "student":
+        target_age = StudentAgePolicy.get_student_age(current_user.student_profile)
         completed_logs = db.query(StudentProgress.content_item_id).filter(
             StudentProgress.student_user_id == current_user.id,
             StudentProgress.progress_percentage == 100
@@ -57,6 +62,16 @@ def explore_content(
 
     results = []
     for item in items:
+        if current_user.role == "student":
+            is_safe = SafetyEngine.is_safe_for_students(
+                title=item.title,
+                description=item.description or "",
+                tags=item.tags,
+                target_age=target_age
+            )
+            if not is_safe or (item.safety_score is not None and item.safety_score < 80):
+                continue
+
         results.append({
             "id": item.id,
             "title": item.title,
@@ -82,7 +97,7 @@ def explore_content(
 def semantic_search_catalog(
     q: str,
     limit: int = 10,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
     """
@@ -92,11 +107,25 @@ def semantic_search_catalog(
     if not q or not q.strip():
         return {"query": q, "total_results": 0, "results": []}
 
+    target_age = 15
+    if current_user.role == "student":
+        target_age = StudentAgePolicy.get_student_age(current_user.student_profile)
+
     query_vec = embed_query(q.strip())
     approved_items = db.query(ContentItem).filter(ContentItem.is_approved == True).all()
 
     scored_items = []
     for item in approved_items:
+        if current_user.role == "student":
+            is_safe = SafetyEngine.is_safe_for_students(
+                title=item.title,
+                description=item.description or "",
+                tags=item.tags,
+                target_age=target_age
+            )
+            if not is_safe or (item.safety_score is not None and item.safety_score < 80):
+                continue
+
         item_vec = item.embedding
         if not item_vec or len(item_vec) != len(query_vec):
             item_vec = embed_content(item.title, item.description or "", item.subject, item.topic, item.tags)
@@ -139,7 +168,7 @@ def semantic_search_catalog(
 @router.get("/{content_id}", response_model=ContentItemOut)
 def get_content_item(
     content_id: str,
-    current_user: User = Depends(RoleChecker(["student", "teacher", "parent", "school_admin"])),
+    current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
     item = db.query(ContentItem).filter(ContentItem.id == content_id).first()
@@ -152,9 +181,11 @@ def get_content_item(
 @router.post("/progress", response_model=ProgressResponse)
 def update_progress(
     progress_data: ProgressUpdate,
-    current_user: User = Depends(RoleChecker(["student"])),
+    current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can track personal progress")
     item = db.query(ContentItem).filter(
         ContentItem.id == progress_data.content_item_id,
         ContentItem.is_approved == True
@@ -211,9 +242,20 @@ def update_progress(
                 easiness_factor=2.50,
                 next_review_date=tomorrow
             )
-            db.add(schedule)
-            
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        existing = db.query(StudentProgress).filter(
+            StudentProgress.student_user_id == current_user.id,
+            StudentProgress.content_item_id == progress_data.content_item_id
+        ).first()
+        if existing:
+            existing.progress_percentage = max(existing.progress_percentage, progress_data.progress_percentage)
+            if existing.progress_percentage == 100 and not existing.completed_at:
+                existing.completed_at = datetime.datetime.utcnow()
+            db.commit()
+            progress = existing
     
     return {
         "status": "success",

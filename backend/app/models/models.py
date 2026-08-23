@@ -132,6 +132,7 @@ class ContentItem(Base):
     view_count = Column(Integer, default=0)
     like_count = Column(Integer, default=0)
     is_approved = Column(Boolean, default=False)
+    school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     quizzes = relationship("Quiz", back_populates="content_item", cascade="all, delete-orphan")

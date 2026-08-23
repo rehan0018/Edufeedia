@@ -215,7 +215,8 @@ class TestE2EProductionLifecycle(unittest.TestCase):
         self.db.execute(
             parent_student_links.insert().values(
                 parent_user_id=self.parent_user.id,
-                student_user_id=student_id
+                student_user_id=student_id,
+                is_verified=True
             )
         )
         consent_log = ParentalConsentLog(
@@ -228,9 +229,14 @@ class TestE2EProductionLifecycle(unittest.TestCase):
         )
         self.db.add(consent_log)
         sp = self.db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
+        st_user = self.db.query(User).filter(User.id == student_id).first()
         if sp:
+            sp.school_id = self.SCHOOL_ID
+            sp.class_id = self.CLASS_ID
             sp.parental_consent_status = "GRANTED"
             sp.onboarding_status = "COMPLETED"
+        if st_user:
+            st_user.school_id = self.SCHOOL_ID
         self.db.commit()
 
         # 3. Login as Student

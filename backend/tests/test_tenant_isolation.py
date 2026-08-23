@@ -17,14 +17,14 @@ class TestTenantIsolation(unittest.TestCase):
         self.db: Session = SessionLocal()
 
         # Seed School Alpha
-        self.school_alpha = self.db.query(School).filter(School.name == "Alpha Academy").first()
+        self.school_alpha = self.db.query(School).filter((School.name == "Alpha Academy") | (School.domain == "alpha.edu")).first()
         if not self.school_alpha:
             self.school_alpha = School(name="Alpha Academy", domain="alpha.edu")
             self.db.add(self.school_alpha)
             self.db.flush()
 
         # Seed School Beta
-        self.school_beta = self.db.query(School).filter(School.name == "Beta High").first()
+        self.school_beta = self.db.query(School).filter((School.name == "Beta High") | (School.domain == "beta.edu")).first()
         if not self.school_beta:
             self.school_beta = School(name="Beta High", domain="beta.edu")
             self.db.add(self.school_beta)

@@ -59,6 +59,18 @@ SAFETY_RULES_TAXONOMY: Dict[str, List[str]] = {
         "doxxing",
         "cyberbullying guide",
         "target harassment"
+    ],
+    "PROMPT_INJECTION": [
+        "ignore previous instructions",
+        "ignore all previous instructions",
+        "system override",
+        "reveal administrative api keys",
+        "reveal root passwords",
+        "jailbreak",
+        "dan mode",
+        "developer mode enabled",
+        "disregard safety guidelines",
+        "bypass school network firewall"
     ]
 }
 

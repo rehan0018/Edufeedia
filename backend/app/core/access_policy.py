@@ -30,11 +30,20 @@ class AccessPolicy:
     @staticmethod
     def can_access_learning(user: User) -> bool:
         """Determines if a user has active permissions to browse learning materials."""
+        if user.account_status != "ACTIVE":
+            return False
         if user.role in ["teacher", "school_admin", "admin", "super_admin"]:
             return True
-        if user.role == "student":
-            return True
         if user.role == "parent":
+            return True
+        if user.role == "student":
+            sp: Optional[StudentProfile] = user.student_profile
+            if not sp:
+                return False
+            if sp.learning_access_status != "ACTIVE":
+                return False
+            if sp.onboarding_status != "COMPLETED":
+                return False
             return True
         return False
 
@@ -46,6 +55,8 @@ class AccessPolicy:
         2. Parents: authorized to inspect and preview learning materials.
         3. Students: onboarding MUST be COMPLETED and parental consent MUST be GRANTED or EXEMPT_ADULT.
         """
+        if user.account_status != "ACTIVE":
+            return False
         if user.role in ["teacher", "admin", "super_admin", "school_admin"]:
             return True
         if user.role == "parent":
@@ -53,6 +64,8 @@ class AccessPolicy:
         if user.role == "student":
             sp: Optional[StudentProfile] = user.student_profile
             if not sp:
+                return False
+            if sp.learning_access_status != "ACTIVE":
                 return False
             if sp.onboarding_status != "COMPLETED":
                 return False
@@ -68,9 +81,12 @@ class AccessPolicy:
         - Super Admin: global access
         - School Admin: same school only
         - Teacher: same school only
-        - Parent: must have verified link in parent_student_links
+        - Parent: must have verified link in parent_student_links (is_verified == True)
         - Student: self only
         """
+        if caller.account_status != "ACTIVE":
+            return False
+
         if caller.role in ["super_admin", "admin"]:
             return True
 
@@ -81,19 +97,22 @@ class AccessPolicy:
             return authorized
 
         if caller.role == "parent":
-            # Check ORM relationship first
-            linked_ids = [s.id for s in caller.students_linked] if hasattr(caller, "students_linked") and caller.students_linked else []
-            if target_student.id in linked_ids:
-                return True
-
-            # If db session is available, perform explicit relational join lookup
+            # If db session is available, perform explicit relational join lookup with is_verified == True
             if db is not None:
                 link = db.query(parent_student_links).filter(
                     parent_student_links.c.parent_user_id == caller.id,
-                    parent_student_links.c.student_user_id == target_student.id
+                    parent_student_links.c.student_user_id == target_student.id,
+                    parent_student_links.c.is_verified == True
                 ).first()
                 if link:
                     return True
+                cls.log_violation(caller, "VIEW_STUDENT_DATA", f"Unverified/unlinked parent access attempt on student {target_student.id}")
+                return False
+
+            # Check ORM relationship if db was not provided
+            linked_ids = [s.id for s in caller.students_linked] if hasattr(caller, "students_linked") and caller.students_linked else []
+            if target_student.id in linked_ids:
+                return True
 
             cls.log_violation(caller, "VIEW_STUDENT_DATA", f"Unlinked parent access attempt on student {target_student.id}")
             return False
@@ -201,5 +220,39 @@ def require_staff_access(current_user: User = Depends(get_current_user)) -> User
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Staff or administrator credentials required."
+        )
+    return current_user
+
+require_authenticated_user = get_current_user
+
+def require_student(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student credentials required."
+        )
+    return current_user
+
+def require_teacher(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role not in ["teacher", "school_admin", "admin", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Teacher or educator credentials required."
+        )
+    return current_user
+
+def require_school_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role not in ["school_admin", "admin", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="School administrator credentials required."
+        )
+    return current_user
+
+def require_parent(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "parent":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Parent or guardian credentials required."
         )
     return current_user

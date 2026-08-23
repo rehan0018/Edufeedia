@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import datetime
 
 # --- AUTH SCHEMAS ---
@@ -115,10 +115,29 @@ class QuestionOut(BaseModel):
     class Config:
         from_attributes = True
 
+class QuestionTeacherOut(BaseModel):
+    id: str
+    question_text: str
+    options: List[str]
+    correct_answer: str
+    explanation: Optional[str] = None
+    difficulty: str
+    
+    class Config:
+        from_attributes = True
+
 class QuizOut(BaseModel):
     id: str
     title: str
     questions: List[QuestionOut]
+    
+    class Config:
+        from_attributes = True
+
+class QuizTeacherOut(BaseModel):
+    id: str
+    title: str
+    questions: List[QuestionTeacherOut]
     
     class Config:
         from_attributes = True
@@ -359,6 +378,10 @@ class TutorResponse(BaseModel):
     socratic_cue: str
     follow_up_questions: List[str]
     is_safe: bool = True
+    grounding_source: Optional[str] = None
+    subject: Optional[str] = None
+    topic: Optional[str] = None
+    curriculum_citations: Optional[List[Dict[str, Any]]] = []
 
 # --- AI QUIZ GENERATOR SCHEMAS ---
 
