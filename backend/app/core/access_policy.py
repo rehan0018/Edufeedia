@@ -171,10 +171,45 @@ class AccessPolicy:
         cls.log_violation(caller, "MANAGE_SCHOOL", f"Role {caller.role} cannot manage school {target_school_id}")
         return False
 
+    @classmethod
+    def can_access_quiz(cls, caller: User, quiz: Any, db: Session) -> bool:
+        """
+        Validates whether caller can access or submit a specific assessment quiz.
+        Guarantees tenant boundaries, content approval, and active learning access.
+        """
+        if caller.account_status != "ACTIVE":
+            return False
+
+        if caller.role in ["admin", "super_admin"]:
+            return True
+
+        if caller.role in ["teacher", "school_admin"]:
+            if not getattr(quiz, "content_item", None):
+                return True
+            item = quiz.content_item
+            if item.school_id is None or item.school_id == caller.school_id:
+                return True
+            return False
+
+        if caller.role == "student":
+            if not cls.can_access_learning(caller):
+                return False
+
+            if getattr(quiz, "content_item", None):
+                item = quiz.content_item
+                if not item.is_approved:
+                    return False
+                if item.school_id is not None and item.school_id != caller.school_id:
+                    return False
+
+            return True
+
+        return False
+
     @staticmethod
     def can_manage_content(user: User) -> bool:
-        """Only educational staff and administrators can manage curriculum items."""
-        return user.role in ["teacher", "school_admin", "admin", "super_admin"]
+        """Checks if user has permissions to stage or curate curriculum content."""
+        return user.role in ["teacher", "school_admin", "admin", "super_admin"] and user.account_status == "ACTIVE"
 
     @staticmethod
     def can_approve_ingestion(user: User) -> bool:

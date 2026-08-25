@@ -33,7 +33,10 @@ SAFETY_RULES_TAXONOMY: Dict[str, List[str]] = {
         "heroin injection",
         "cocaine distribution",
         "vape tricks for kids",
-        "buying alcohol underage"
+        "buying alcohol underage",
+        "buy alcohol underage",
+        "alcohol underage",
+        "underage drinking"
     ],
     "NSFW_AND_EXPLOITATION": [
         "explicit sex",
@@ -58,6 +61,7 @@ SAFETY_RULES_TAXONOMY: Dict[str, List[str]] = {
         "racial slurs",
         "doxxing",
         "cyberbullying guide",
+        "cyberbullying",
         "target harassment"
     ],
     "PROMPT_INJECTION": [

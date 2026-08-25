@@ -51,13 +51,23 @@ def submit_url_for_ingestion(
 
 @router.get("/pending", response_model=List[Dict[str, Any]])
 def get_pending_review_queue(
-    current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin", "admin", "super_admin"])),
     db: Session = Depends(get_db)
 ):
     """
     Returns the list of content items awaiting human moderator approval.
+    Strictly tenant-scoped for school educators and administrators.
     """
-    pending = db.query(ContentItem).filter(ContentItem.is_approved == False).all()
+    query = db.query(ContentItem).filter(ContentItem.is_approved == False)
+    if current_user.role in ["teacher", "school_admin"]:
+        if current_user.school_id:
+            query = query.filter(
+                (ContentItem.school_id == current_user.school_id) | (ContentItem.school_id == None)
+            )
+        else:
+            query = query.filter(ContentItem.school_id == None)
+
+    pending = query.order_by(ContentItem.created_at.desc()).all()
     return [
         {
             "id": item.id,
@@ -80,15 +90,22 @@ def get_pending_review_queue(
 def review_staged_content(
     content_id: str,
     review: ReviewActionRequest,
-    current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin", "admin", "super_admin"])),
     db: Session = Depends(get_db)
 ):
     """
-    Approves or rejects a staged content item.
+    Approves or rejects a staged content item with strict tenant validation.
     """
     item = db.query(ContentItem).filter(ContentItem.id == content_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Content item not found")
+
+    if current_user.role in ["teacher", "school_admin"]:
+        if item.school_id and item.school_id != current_user.school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You cannot moderate staged content from another school."
+            )
 
     if review.action.lower() == "approve":
         item.is_approved = True

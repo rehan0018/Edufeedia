@@ -289,13 +289,27 @@ def verify_parent_otp(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-school student consent verification forbidden.")
 
     redis_key = f"guardian_otp:{parent_email_to_use}:{student.id}"
+    attempts_key = f"guardian_otp_attempts:{parent_email_to_use}:{student.id}"
+
+    attempts = int(redis_client.get(attempts_key) or 0)
+    if attempts >= 5:
+        redis_client.delete(redis_key)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Maximum OTP verification attempts exceeded. Verification code invalidated. Please request a new OTP."
+        )
+
     stored_otp = redis_client.get(redis_key)
 
     if not stored_otp or stored_otp != req.otp_code.strip():
+        redis_client.setex(attempts_key, 600, str(attempts + 1))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired parental verification OTP."
+            detail=f"Invalid or expired parental verification OTP. Attempt {attempts + 1} of 5."
         )
+
+    # Invalidate attempt tracking
+    redis_client.delete(attempts_key)
 
     # Verify parent existence and relationship
     parent = db.query(User).filter(User.email == parent_email_to_use, User.role == "parent").first()

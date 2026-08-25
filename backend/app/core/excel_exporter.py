@@ -48,9 +48,10 @@ def auto_fit_columns(ws):
                 max_len = len(val_str)
         ws.column_dimensions[col_letter].width = min(40, max(12, max_len + 3))
 
-def sync_database_to_excel(db: Session, export_path: str = None) -> str:
+def sync_database_to_excel(db: Session, export_path: str = None, school_id: str = None) -> str:
     """
-    Reads all SQLite SQL tables and exports a comprehensive, structured, read-only Excel workbook (.xlsx).
+    Reads SQL tables and exports a structured, read-only Excel workbook (.xlsx).
+    Strictly scoped to the tenant school_id when invoked by a school administrator.
     """
     target_path = Path(export_path) if export_path else DEFAULT_EXCEL_PATH
     
@@ -58,34 +59,42 @@ def sync_database_to_excel(db: Session, export_path: str = None) -> str:
     # Remove default sheet
     wb.remove(wb.active)
 
-    # 1. Sheet: Users
+    # 1. Sheet: Users (scoped)
     ws_users = wb.create_sheet(title="Users")
     ws_users.append(["User ID", "Full Name", "Email Address", "Role", "School Domain", "Is Verified", "Created Date"])
-    users = db.query(User).all()
+    user_query = db.query(User)
+    if school_id:
+        user_query = user_query.filter(User.school_id == school_id)
+    users = user_query.all()
     for u in users:
         ws_users.append([
             u.id,
             f"{u.first_name} {u.last_name}",
             u.email,
             u.role.upper(),
-            u.school.name if u.school else "Apex Academy",
+            u.school.name if u.school else "Partner School",
             "YES" if u.is_verified else "NO",
             u.created_at.strftime("%Y-%m-%d %H:%M:%S") if u.created_at else ""
         ])
     style_header_row(ws_users, "Users")
     auto_fit_columns(ws_users)
 
-    # 2. Sheet: Student_Profiles
+    # 2. Sheet: Student_Profiles (scoped)
     ws_students = wb.create_sheet(title="Student_Profiles")
     ws_students.append(["User ID", "Student Name", "Email", "Grade Level", "Section", "Board", "Total XP", "Streak (Days)", "Interests", "DOB"])
-    profiles = db.query(StudentProfile).all()
+    profile_query = db.query(StudentProfile).join(User, StudentProfile.user_id == User.id)
+    if school_id:
+        profile_query = profile_query.filter(User.school_id == school_id)
+    profiles = profile_query.all()
     for sp in profiles:
+        grade = sp.school_class.grade_level if sp.school_class else (sp.grade_level or 10)
+        section = sp.school_class.section_name if sp.school_class else "N/A"
         ws_students.append([
             sp.user_id,
             f"{sp.user.first_name} {sp.user.last_name}" if sp.user else "N/A",
             sp.user.email if sp.user else "N/A",
-            sp.school_class.grade_level if sp.school_class else 10,
-            sp.school_class.section_name if sp.school_class else "A",
+            grade,
+            section,
             sp.board or "CBSE",
             sp.xp_score,
             sp.streak_count,
@@ -95,10 +104,13 @@ def sync_database_to_excel(db: Session, export_path: str = None) -> str:
     style_header_row(ws_students, "Student_Profiles")
     auto_fit_columns(ws_students)
 
-    # 3. Sheet: Content_Catalog
+    # 3. Sheet: Content_Catalog (scoped)
     ws_content = wb.create_sheet(title="Content_Catalog")
     ws_content.append(["Content ID", "Module Title", "Subject", "Topic", "Grade", "Board", "Type", "Safety Score", "Edu Score", "Views", "Likes"])
-    items = db.query(ContentItem).all()
+    content_query = db.query(ContentItem)
+    if school_id:
+        content_query = content_query.filter((ContentItem.school_id == school_id) | (ContentItem.school_id == None))
+    items = content_query.all()
     for c in items:
         ws_content.append([
             c.id,

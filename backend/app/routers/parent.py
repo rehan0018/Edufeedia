@@ -195,6 +195,19 @@ def get_parent_weekly_summary(
     else:
         insight = f"{name} is maintaining positive learning momentum with zero safety alerts."
 
+    # Measure actual interactions
+    from app.models.models import UserInteraction
+    tutor_query_count = db.query(UserInteraction).filter(
+        UserInteraction.user_id == student_id,
+        UserInteraction.created_at >= week_start
+    ).count()
+
+    mastery_delta = 0.0
+    if len(weekly_attempts) >= 2:
+        oldest_acc = float(weekly_attempts[-1].accuracy_percentage)
+        newest_acc = float(weekly_attempts[0].accuracy_percentage)
+        mastery_delta = round(max(0.0, newest_acc - oldest_acc), 1)
+
     return ParentWeeklySummaryOut(
         student_id=student.id,
         student_name=name,
@@ -203,8 +216,8 @@ def get_parent_weekly_summary(
         lessons_completed=weekly_lessons,
         quizzes_taken=len(weekly_attempts),
         average_accuracy=round(avg_accuracy, 1),
-        ai_tutor_sessions=max(1, weekly_lessons // 2),
-        mastery_improvement_percentage=round(min(15.0, weekly_lessons * 2.5), 1),
+        ai_tutor_sessions=tutor_query_count,
+        mastery_improvement_percentage=mastery_delta,
         topics_needing_revision=revision_topics,
         safety_incident_count=0,
         parent_insight=insight

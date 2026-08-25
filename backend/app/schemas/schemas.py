@@ -13,6 +13,7 @@ class UserRegister(BaseModel):
     
     # Specific fields for student sign up
     date_of_birth: Optional[datetime.date] = None
+    grade_level: Optional[int] = 10
     board: Optional[str] = "CBSE"
     school_id: Optional[str] = None
     class_id: Optional[str] = None
@@ -47,6 +48,7 @@ class UserOut(BaseModel):
 # --- PROFILE SCHEMAS ---
 
 class StudentProfileUpdate(BaseModel):
+    grade_level: Optional[int] = None
     board: Optional[str] = None
     interests: Optional[List[str]] = None
     learning_preference: Optional[List[str]] = None
@@ -63,6 +65,7 @@ class StudentProfileOut(BaseModel):
     user_id: str
     school_id: Optional[str] = None
     class_id: Optional[str] = None
+    grade_level: Optional[int] = 10
     board: str
     date_of_birth: Optional[datetime.date] = None
     onboarding_status: str = "PENDING"

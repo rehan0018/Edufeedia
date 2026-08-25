@@ -52,6 +52,11 @@ class SafetyEngine:
         }
 
     @classmethod
+    def evaluate(cls, text: str, target_age: int = 16) -> Dict[str, Any]:
+        """Convenience method to evaluate safety of an arbitrary text string."""
+        return cls.audit_content(title=text, description="", target_age=target_age)
+
+    @classmethod
     def is_safe_for_students(
         cls,
         title: str,

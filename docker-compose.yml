@@ -41,15 +41,13 @@ services:
       - ./edufeedia_database_records.xlsx:/app/edufeedia_database_records.xlsx
 
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: edufeedia-postgres
     restart: unless-stopped
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-edufeedia_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-edufeedia_dev_secret_change_in_prod}
       - POSTGRES_DB=${POSTGRES_DB:-edufeedia_db}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

@@ -38,6 +38,9 @@ class StudentAgePolicy:
         if profile.school_class and profile.school_class.grade_level:
             return max(cls.MIN_STUDENT_AGE, min(cls.MAX_STUDENT_AGE, profile.school_class.grade_level + 5))
 
+        if profile.grade_level:
+            return max(cls.MIN_STUDENT_AGE, min(cls.MAX_STUDENT_AGE, profile.grade_level + 5))
+
         return 15
 
     @staticmethod

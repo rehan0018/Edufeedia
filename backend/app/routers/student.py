@@ -61,7 +61,18 @@ def complete_student_onboarding(
         profile = StudentProfile(user_id=current_user.id)
         db.add(profile)
 
+    # Validate student age
+    today = datetime.date.today()
+    dob = req.date_of_birth
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    if age < 10 or age >= 18:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Student age {age} not supported. Edufeedia is designed specifically for students aged 10 to 17."
+        )
+
     profile.date_of_birth = req.date_of_birth
+    profile.grade_level = req.grade_level or profile.grade_level or 10
     profile.board = req.board or profile.board or "CBSE"
     if req.interests:
         profile.interests = req.interests
@@ -395,10 +406,19 @@ def get_learning_health_score(
     schedules = db.query(SpacedRepetitionSchedule).filter(SpacedRepetitionSchedule.student_user_id == current_user.id).all()
 
     # 1. Accuracy component (0 to 40 pts)
-    avg_accuracy = (
-        sum(float(a.accuracy_percentage) for a in attempts) / len(attempts)
-        if attempts else 70.0
-    )
+    if not attempts:
+        return LearningHealthOut(
+            student_id=current_user.id,
+            learning_health_score=0,
+            status_label="Insufficient Data",
+            mastery_index=0.0,
+            streak_days=profile.streak_count if profile else 0,
+            revision_consistency_rate=1.0,
+            weak_topics_count=0,
+            summary_insight="Complete at least 2 quizzes to establish an initial diagnostic learning baseline."
+        )
+
+    avg_accuracy = sum(float(a.accuracy_percentage) for a in attempts) / len(attempts)
     accuracy_pts = (avg_accuracy / 100.0) * 40.0
 
     # 2. Spaced review consistency component (0 to 30 pts)

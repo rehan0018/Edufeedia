@@ -39,7 +39,7 @@ Detailed technical design specifications are maintained in the [`docs/`](docs/) 
 - 🗄️ [**Database & Migrations**](docs/DATABASE.md): Schema definitions, composite integrity constraints, and pgvector vector storage.
 - 🔌 [**REST API Specification**](docs/API.md): Standardized endpoints, Pydantic schemas, and role permissions.
 - 🚢 [**Deployment & Infrastructure**](docs/DEPLOYMENT.md): Multi-container Docker Compose orchestration and production checklist.
-- 🧪 [**Testing & Evaluation Framework**](docs/TESTING.md): 157-test automated verification tree and evaluation datasets.
+- 🧪 [**Testing & Evaluation Framework**](docs/TESTING.md): 161-test automated verification tree and evaluation datasets.
 
 ## 1. Executive Product Overview
 
@@ -49,7 +49,7 @@ Traditional open internet search exposing K-12 students to toxic content, clickb
 1. **Verified Curriculum Discovery**: Ingests exclusively from whitelisted, verified educational authorities (CBSE, NCERT, ICSE, Khan Academy, MIT OpenCourseWare).
 2. **Pedagogical AI Tutoring**: Socratic dialogue guides students step-by-step to arrive at conceptual solutions rather than spoon-feeding raw answers.
 3. **Multi-Category Safety Shield**: Real-time content filtering rejects toxic material, dangerous activities, hate speech, and adversarial prompt injections.
-4. **Adaptive Personalization**: Pointwise GBDT ranking and collaborative filtering adjust daily feeds based on dwell time, quiz accuracy, and subject mastery.
+4. **Adaptive Personalization**: Pedagogical heuristic weighted ranking with SM-2 memory decay weighting and cold-start exploration.
 5. **Verifiable Parental Consent**: Cryptographic OTP guardian verification designed with the Indian Digital Personal Data Protection (DPDP) Act 2023 principles and US COPPA parental consent requirements in mind.
 
 ---
@@ -81,7 +81,7 @@ flowchart TD
         PolicyEngine --> StudentSvc["Student Learning Service"]
         PolicyEngine --> QuizSvc["Quiz & Spaced Repetition Engine"]
         PolicyEngine --> RAGSvc["Hybrid RAG & Socratic Gateway"]
-        PolicyEngine --> RecSvc["GBDT Recommendation Ranker"]
+        PolicyEngine --> RecSvc["Pedagogical Outcome Ranker"]
         PolicyEngine --> AdminSvc["Tenant-Scoped Admin & Audit Service"]
     end
 

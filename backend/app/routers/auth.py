@@ -1,4 +1,5 @@
 import secrets
+import datetime
 from datetime import timedelta, date
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -48,6 +49,16 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             detail="Date of birth is required for student registration"
         )
 
+    # Validate age is strictly within the K-12 student range: 10 to 17
+    today = datetime.date.today()
+    dob = user_in.date_of_birth
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    if age < 10 or age >= 18:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Student age {age} not supported. Edufeedia is designed specifically for students aged 10 to 17."
+        )
+
     # Public registration is strictly locked to student role
     assigned_role = "student"
     
@@ -72,6 +83,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         user_id=user.id,
         school_id=None,
         class_id=None,
+        grade_level=user_in.grade_level or 10,
         board=user_in.board or "CBSE",
         date_of_birth=user_in.date_of_birth,
         onboarding_status="COMPLETED",
@@ -222,10 +234,11 @@ def get_current_user_profile(
     prof = None
     if current_user.student_profile:
         sp = current_user.student_profile
+        effective_grade = sp.school_class.grade_level if sp.school_class else sp.grade_level
         prof = {
             "board": sp.board,
-            "grade_level": sp.school_class.grade_level if sp.school_class else 10,
-            "section": sp.school_class.section_name if sp.school_class else "A",
+            "grade_level": effective_grade,
+            "section": sp.school_class.section_name if sp.school_class else None,
             "interests": sp.interests or [],
             "learning_preference": sp.learning_preference or [],
             "onboarding_status": sp.onboarding_status or "PENDING",

@@ -242,6 +242,7 @@ def update_progress(
                 easiness_factor=2.50,
                 next_review_date=tomorrow
             )
+            db.add(schedule)
     try:
         db.commit()
     except Exception:

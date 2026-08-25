@@ -280,9 +280,67 @@ def export_database_records_to_excel(
     """
     Authenticated, tenant-scoped administrative on-demand database report.
     """
-    file_path = sync_database_to_excel(db)
+    school_id = current_user.school_id if current_user.role == "school_admin" else None
+    file_path = sync_database_to_excel(db, school_id=school_id)
     return FileResponse(
         path=file_path,
         filename="edufeedia_database_records.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+@router.get("/exports/students", response_model=List[Dict[str, Any]])
+def export_students_json(
+    current_user: User = Depends(RoleChecker(["school_admin", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Export student academic roster strictly scoped to the administrator's school tenant.
+    """
+    school_id = current_user.school_id if current_user.role == "school_admin" else None
+    query = db.query(StudentProfile).join(User, StudentProfile.user_id == User.id)
+    if school_id:
+        query = query.filter(User.school_id == school_id)
+    
+    profiles = query.all()
+    return [
+        {
+            "student_id": sp.user_id,
+            "name": f"{sp.user.first_name} {sp.user.last_name}" if sp.user else "Student",
+            "email": sp.user.email if sp.user else "N/A",
+            "grade_level": sp.school_class.grade_level if sp.school_class else (sp.grade_level or 10),
+            "section": sp.school_class.section_name if sp.school_class else "N/A",
+            "board": sp.board,
+            "xp_score": sp.xp_score,
+            "streak_count": sp.streak_count,
+            "onboarding_status": sp.onboarding_status,
+            "parental_consent_status": sp.parental_consent_status
+        }
+        for sp in profiles
+    ]
+
+@router.get("/exports/learning", response_model=List[Dict[str, Any]])
+def export_learning_metrics_json(
+    current_user: User = Depends(RoleChecker(["school_admin", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Export aggregate quiz and progress metrics strictly scoped to the administrator's school tenant.
+    """
+    school_id = current_user.school_id if current_user.role == "school_admin" else None
+    query = db.query(QuizAttempt).join(User, QuizAttempt.student_user_id == User.id)
+    if school_id:
+        query = query.filter(User.school_id == school_id)
+
+    attempts = query.order_by(QuizAttempt.completed_at.desc()).limit(200).all()
+    return [
+        {
+            "attempt_id": qa.id,
+            "student_name": f"{qa.student.first_name} {qa.student.last_name}" if qa.student else "Student",
+            "quiz_id": qa.quiz_id,
+            "score": qa.score,
+            "max_score": qa.max_score,
+            "accuracy_percentage": float(qa.accuracy_percentage),
+            "completed_at": qa.completed_at.isoformat() if qa.completed_at else None
+        }
+        for qa in attempts
+    ]

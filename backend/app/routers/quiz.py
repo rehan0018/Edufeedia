@@ -8,7 +8,7 @@ from app.database import get_db
 from app.models.models import User, Quiz, Question, QuizAttempt, StudentProfile, SpacedRepetitionSchedule, ContentItem
 from app.schemas.schemas import QuizOut, QuizTeacherOut, QuizSubmit, QuizAttemptOut
 from app.core.security import get_current_user, RoleChecker
-from app.core.access_policy import require_learning_access
+from app.core.access_policy import require_learning_access, AccessPolicy
 from app.core.algorithms import calculate_sm2
 
 router = APIRouter(prefix="/quizzes", tags=["quizzes"])
@@ -22,6 +22,8 @@ def get_quiz_by_content_item(
     quiz = db.query(Quiz).filter(Quiz.content_item_id == content_item_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="No assessment quiz found for this lesson")
+    if not AccessPolicy.can_access_quiz(current_user, quiz, db):
+        raise HTTPException(status_code=403, detail="Access denied: You are not authorized for this quiz.")
     if current_user.role in ["teacher", "school_admin", "admin", "super_admin"]:
         return QuizTeacherOut.model_validate(quiz)
     return QuizOut.model_validate(quiz)
@@ -35,6 +37,8 @@ def get_quiz(
     quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+    if not AccessPolicy.can_access_quiz(current_user, quiz, db):
+        raise HTTPException(status_code=403, detail="Access denied: You are not authorized for this quiz.")
     if current_user.role in ["teacher", "school_admin", "admin", "super_admin"]:
         return QuizTeacherOut.model_validate(quiz)
     return QuizOut.model_validate(quiz)
@@ -48,6 +52,8 @@ def submit_quiz(
     quiz = db.query(Quiz).filter(Quiz.id == submission.quiz_id).first()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
+    if not AccessPolicy.can_access_quiz(current_user, quiz, db):
+        raise HTTPException(status_code=403, detail="Access denied: You are not authorized to submit this quiz.")
         
     questions = {q.id: q for q in quiz.questions}
     if not questions:

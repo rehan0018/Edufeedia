@@ -274,8 +274,23 @@ def get_moderation_queue(
 ):
     """
     Retrieves pending student/parent content reports for pedagogical & safety moderation.
+    Strictly tenant-scoped for teachers and school administrators.
     """
-    reports = db.query(ContentReport).filter(ContentReport.status == "pending_review").order_by(ContentReport.created_at.desc()).all()
+    query = db.query(ContentReport).join(ContentItem, ContentReport.content_item_id == ContentItem.id).filter(
+        ContentReport.status == "pending_review"
+    )
+
+    if current_user.role in ["teacher", "school_admin"]:
+        school_id = current_user.school_id
+        if school_id:
+            # Teacher / School Admin only sees reports for items tied to their school or reported by their students
+            query = query.join(User, ContentReport.reporter_user_id == User.id).filter(
+                (ContentItem.school_id == school_id) | (User.school_id == school_id)
+            )
+        else:
+            query = query.filter(ContentItem.school_id == None)
+
+    reports = query.order_by(ContentReport.created_at.desc()).all()
     results = []
     for r in reports:
         item = db.query(ContentItem).filter(ContentItem.id == r.content_item_id).first()
@@ -298,11 +313,24 @@ def moderate_report(
     db: Session = Depends(get_db)
 ):
     """
-    Resolves or dismisses a student/parent content report.
+    Resolves or dismisses a student/parent content report with strict tenant authorization.
     """
     report = db.query(ContentReport).filter(ContentReport.id == review.report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Content report not found")
+
+    item = db.query(ContentItem).filter(ContentItem.id == report.content_item_id).first()
+    reporter = db.query(User).filter(User.id == report.reporter_user_id).first()
+
+    # Tenant validation
+    if current_user.role in ["teacher", "school_admin"]:
+        is_same_item_school = (item and item.school_id == current_user.school_id)
+        is_same_reporter_school = (reporter and reporter.school_id == current_user.school_id)
+        if not (is_same_item_school or is_same_reporter_school or (item and item.school_id is None)):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You are not authorized to moderate reports from another school."
+            )
 
     report.status = review.status
     report.action_taken = review.action_taken
@@ -311,7 +339,6 @@ def moderate_report(
     db.commit()
     db.refresh(report)
 
-    item = db.query(ContentItem).filter(ContentItem.id == report.content_item_id).first()
     return ContentReportOut(
         id=report.id,
         content_item_id=report.content_item_id,

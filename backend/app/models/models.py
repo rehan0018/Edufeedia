@@ -94,6 +94,7 @@ class StudentProfile(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     class_id = Column(String, ForeignKey("school_classes.id", ondelete="SET NULL"), nullable=True)
+    grade_level = Column(Integer, nullable=True, default=10) # Explicit student grade level
     board = Column(String, default="CBSE") # 'CBSE', 'ICSE', 'State_Board', 'IB', 'IGCSE'
     date_of_birth = Column(Date, nullable=True) # Nullable for incomplete onboarding (e.g. Google sign-in)
     onboarding_status = Column(String, default="PENDING") # 'PENDING', 'COMPLETED'
@@ -212,6 +213,9 @@ class QuizAttempt(Base):
 
 class SpacedRepetitionSchedule(Base):
     __tablename__ = "spaced_repetition_schedules"
+    __table_args__ = (
+        UniqueConstraint("student_user_id", "subject", "topic", name="uq_student_topic_schedule"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     subject = Column(String, nullable=False)
@@ -359,3 +363,19 @@ class ContentReport(Base):
 
     reporter = relationship("User")
     content_item = relationship("ContentItem")
+
+class PendingGuardianInvitation(Base):
+    """
+    Staging invitation record for legal guardian accounts created during student registration.
+    Guardian receives an activation email with OTP to establish their own credentials and verify consent.
+    """
+    __tablename__ = "pending_guardian_invitations"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    guardian_email = Column(String, nullable=False, index=True)
+    invitation_token = Column(String, unique=True, index=True, nullable=False)
+    status = Column(String, default="pending") # 'pending', 'accepted', 'expired'
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    student = relationship("User")
