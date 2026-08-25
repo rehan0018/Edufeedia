@@ -30,9 +30,16 @@
 ## 📚 Deep-Dive System Documentation
 
 Detailed technical design specifications are maintained in the [`docs/`](docs/) directory:
-- 🏛️ [**Architecture & System Design**](docs/ARCHITECTURE.md): Component topology, data flow, and database integrity constraints.
-- 🛡️ [**Threat Model & Defense Matrix**](docs/THREAT_MODEL.md): Adversarial prompt injection mitigations, IDOR prevention, and fail-closed safety proofs.
+- 🏛️ [**Architecture & System Design**](docs/ARCHITECTURE.md): Component topology, 3-tier hierarchy, and data flow.
+- 🛡️ [**Security & Access Control**](docs/SECURITY.md): Multi-tenant isolation, role authorization, and anti-IDOR architecture.
+- 🎯 [**Threat Model & Defense Matrix**](docs/THREAT_MODEL.md): STRIDE threat analysis, adversarial prompt injection mitigations, and fail-closed proofs.
+- 🤖 [**AI & Socratic RAG Engine**](docs/AI_RAG.md): Hybrid Dense + BM25 + RRF retrieval, Socratic scaffolding, and quantitative MRR benchmarks.
+- 📈 [**Recommendation Engine**](docs/RECOMMENDATIONS.md): Pedagogical ranking, explainability taxonomy, and SM-2 memory decay weighting.
 - 🔒 [**Child Privacy & Consent Architecture**](docs/PRIVACY.md): DPDP Act 2023 & COPPA verifiable parental consent state machines.
+- 🗄️ [**Database & Migrations**](docs/DATABASE.md): Schema definitions, composite integrity constraints, and pgvector vector storage.
+- 🔌 [**REST API Specification**](docs/API.md): Standardized endpoints, Pydantic schemas, and role permissions.
+- 🚢 [**Deployment & Infrastructure**](docs/DEPLOYMENT.md): Multi-container Docker Compose orchestration and production checklist.
+- 🧪 [**Testing & Evaluation Framework**](docs/TESTING.md): 157-test automated verification tree and evaluation datasets.
 
 ## 1. Executive Product Overview
 

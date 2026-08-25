@@ -4,8 +4,8 @@ from typing import List, Dict, Any
 import datetime
 
 from app.database import get_db
-from app.models.models import User, StudentProfile, StudentProgress, QuizAttempt
-from app.schemas.schemas import StudentProfileOut, StudentProfileUpdate, ContentItemOut
+from app.models.models import User, StudentProfile, StudentProgress, QuizAttempt, SpacedRepetitionSchedule
+from app.schemas.schemas import StudentProfileOut, StudentProfileUpdate, ContentItemOut, LearningHealthOut
 from app.core.security import get_current_user, RoleChecker
 from app.core.algorithms import generate_daily_feed
 
@@ -379,3 +379,61 @@ def get_student_topic_mastery(
     """
     mastery_report = compute_student_topic_mastery(db=db, student_id=current_user.id)
     return mastery_report
+
+@router.get("/analytics/learning-health", response_model=LearningHealthOut)
+def get_learning_health_score(
+    current_user: User = Depends(RoleChecker(["student"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Computes an objective, pedagogical Learning Health Indicator.
+    Derived from: topic mastery, spaced repetition review adherence, and study streak consistency.
+    (Purely an educational health index, not mental-health related).
+    """
+    profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+    attempts = db.query(QuizAttempt).filter(QuizAttempt.student_user_id == current_user.id).all()
+    schedules = db.query(SpacedRepetitionSchedule).filter(SpacedRepetitionSchedule.student_user_id == current_user.id).all()
+
+    # 1. Accuracy component (0 to 40 pts)
+    avg_accuracy = (
+        sum(float(a.accuracy_percentage) for a in attempts) / len(attempts)
+        if attempts else 70.0
+    )
+    accuracy_pts = (avg_accuracy / 100.0) * 40.0
+
+    # 2. Spaced review consistency component (0 to 30 pts)
+    today = datetime.date.today()
+    overdue_count = sum(1 for s in schedules if s.next_review_date < today)
+    total_scheds = max(1, len(schedules))
+    review_rate = max(0.0, 1.0 - (overdue_count / total_scheds))
+    review_pts = review_rate * 30.0
+
+    # 3. Habit / Streak component (0 to 30 pts)
+    streak = profile.streak_count if profile else 0
+    streak_pts = min(30.0, streak * 5.0 + 10.0)
+
+    total_health = int(round(accuracy_pts + review_pts + streak_pts))
+    total_health = max(10, min(100, total_health))
+
+    if total_health >= 80:
+        label = "Strong Progress"
+        insight = "High retention, consistent study habit, and solid quiz accuracy."
+    elif total_health >= 60:
+        label = "Steady & Consistent"
+        insight = "Good progress. Reviewing upcoming flashcards will strengthen mastery."
+    else:
+        label = "Needs Reinforcement"
+        insight = "Focus on scheduled revision topics and foundational practice to build confidence."
+
+    weak_count = sum(1 for a in attempts if float(a.accuracy_percentage) < 60.0)
+
+    return LearningHealthOut(
+        student_id=current_user.id,
+        learning_health_score=total_health,
+        status_label=label,
+        mastery_index=round(avg_accuracy / 100.0, 2),
+        streak_days=streak,
+        revision_consistency_rate=round(review_rate, 2),
+        weak_topics_count=weak_count,
+        summary_insight=insight
+    )

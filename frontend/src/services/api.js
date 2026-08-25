@@ -34,10 +34,33 @@ export const getSession = () => ({
   role: currentRole
 });
 
-const defaultHeaders = () => ({
+export const defaultHeaders = () => ({
   'Content-Type': 'application/json',
   ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
 });
+
+export const apiFetch = async (endpoint, options = {}) => {
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  const headers = {
+    ...defaultHeaders(),
+    ...(options.headers || {})
+  };
+  
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    clearAuthSession();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('auth_session_expired'));
+    }
+    const err = await res.json().catch(() => ({ detail: 'Session expired. Please log in again.' }));
+    throw new Error(err.detail || 'Session expired.');
+  }
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: `Request failed with status ${res.status}` }));
+    throw new Error(errData.detail || errData.message || `Request failed (${res.status})`);
+  }
+  return await res.json();
+};
 
 // 1. Real Authentication Service
 export const apiLogin = async (email, password) => {
@@ -292,4 +315,39 @@ export const apiCreateCustomQuiz = async (quizData) => {
     throw new Error('Failed to publish assessment');
   }
   return await res.json();
+};
+
+// 15. Content Reporting
+export const reportContent = async (contentItemId, reason, details = '') => {
+  return await apiFetch('/content/report', {
+    method: 'POST',
+    body: JSON.stringify({ content_item_id: contentItemId, reason, details })
+  });
+};
+
+// 16. Learning Health Score
+export const fetchLearningHealth = async () => {
+  return await apiFetch('/students/analytics/learning-health');
+};
+
+// 17. Parent Weekly Summary
+export const fetchParentWeeklySummary = async (studentId) => {
+  return await apiFetch(`/parents/student/${studentId}/weekly-summary`);
+};
+
+// 18. Teacher Interventions
+export const fetchTeacherInterventions = async () => {
+  return await apiFetch('/teachers/interventions');
+};
+
+// 19. Content Moderation Queue
+export const fetchModerationQueue = async () => {
+  return await apiFetch('/teachers/moderation-queue');
+};
+
+export const moderateContentReport = async (reportId, status, actionTaken = '') => {
+  return await apiFetch('/teachers/moderate-report', {
+    method: 'POST',
+    body: JSON.stringify({ report_id: reportId, status, action_taken: actionTaken })
+  });
 };

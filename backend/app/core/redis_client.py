@@ -72,7 +72,26 @@ class RedisClient:
         if key in self._local_store:
             del self._local_store[key]
             return True
-        return False
+    def check_rate_limit(self, key: str, max_requests: int = 10, window_seconds: int = 60) -> bool:
+        """
+        Sliding rate limiter. Returns True if request is allowed, False if exceeded.
+        """
+        rate_key = f"rate_limit:{key}"
+        if self._redis:
+            try:
+                current = self._redis.incr(rate_key)
+                if current == 1:
+                    self._redis.expire(rate_key, window_seconds)
+                return current <= max_requests
+            except Exception as e:
+                logger.error(f"Redis rate limit check failed: {e}")
+                if os.getenv("ENVIRONMENT") == "production":
+                    raise RuntimeError(f"Production Redis cluster operation failed: {e}")
+        
+        # Local fallback counter for testing
+        current = int(self._local_store.get(rate_key, 0)) + 1
+        self._local_store[rate_key] = str(current)
+        return current <= max_requests
 
     def clear_all(self):
         """Used in test fixtures to wipe state."""

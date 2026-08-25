@@ -339,3 +339,23 @@ class ParentalConsentLog(Base):
 
     student = relationship("User", foreign_keys=[student_user_id])
     parent = relationship("User", foreign_keys=[parent_user_id])
+
+class ContentReport(Base):
+    """
+    Student and parent content reporting feedback loop for pedagogical and safety moderation.
+    Feeds directly into educator and administrative moderation queues.
+    """
+    __tablename__ = "content_reports"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    reporter_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
+    reason = Column(String, nullable=False) # 'Unsafe', 'Incorrect', 'Not age appropriate', 'Not educational', 'Broken', 'Other'
+    details = Column(Text, nullable=True)
+    status = Column(String, default="pending_review") # 'pending_review', 'resolved', 'dismissed'
+    action_taken = Column(String, nullable=True)
+    reviewed_by = Column(String, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    reporter = relationship("User")
+    content_item = relationship("ContentItem")

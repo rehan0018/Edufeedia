@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 import datetime
 
 from app.database import get_db
-from app.models.models import User, ContentItem, StudentProgress, StudentProfile, SpacedRepetitionSchedule
-from app.schemas.schemas import ContentItemOut, ProgressUpdate, ProgressResponse
+from app.models.models import User, ContentItem, StudentProgress, StudentProfile, SpacedRepetitionSchedule, ContentReport
+from app.schemas.schemas import ContentItemOut, ProgressUpdate, ProgressResponse, ContentReportCreate, ContentReportOut
 from app.core.security import get_current_user, RoleChecker
-from app.core.access_policy import require_learning_access
+from app.core.access_policy import require_learning_access, require_authenticated_user
 from app.core.age_policy import StudentAgePolicy
 from app.safety.engine import SafetyEngine
 from app.embeddings.embedder import embed_query, embed_content, cosine_similarity
@@ -262,3 +262,39 @@ def update_progress(
         "completed": progress.progress_percentage == 100,
         "xp_earned": xp_earned
     }
+
+@router.post("/report", response_model=ContentReportOut)
+def report_content(
+    report_data: ContentReportCreate,
+    current_user: User = Depends(require_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Submits a content report from student or parent into the moderation queue.
+    Closes the feedback loop for unsafe, inaccurate, or developmentally inappropriate material.
+    """
+    content_item = db.query(ContentItem).filter(ContentItem.id == report_data.content_item_id).first()
+    if not content_item:
+        raise HTTPException(status_code=404, detail="Content item not found")
+
+    report = ContentReport(
+        reporter_user_id=current_user.id,
+        content_item_id=report_data.content_item_id,
+        reason=report_data.reason,
+        details=report_data.details,
+        status="pending_review"
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    return ContentReportOut(
+        id=report.id,
+        content_item_id=report.content_item_id,
+        content_title=content_item.title,
+        reporter_id=report.reporter_user_id,
+        reason=report.reason,
+        details=report.details,
+        status=report.status,
+        created_at=report.created_at
+    )

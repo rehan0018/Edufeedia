@@ -6,13 +6,15 @@ import datetime
 from app.database import get_db
 from app.models.models import (
     User, SchoolClass, StudentProfile, StudentProgress, QuizAttempt,
-    Quiz, Question, ClassAssignment, teacher_classes
+    Quiz, Question, ClassAssignment, teacher_classes, ContentReport, ContentItem, SpacedRepetitionSchedule
 )
 from app.schemas.schemas import (
     TeacherClassOut, ClassAnalyticsOut, StudentRosterItem,
-    QuizCreateRequest, QuizOut, ClassAssignmentCreate, ClassAssignmentOut
+    QuizCreateRequest, QuizOut, ClassAssignmentCreate, ClassAssignmentOut,
+    ContentReportOut, ContentReportReview, TeacherInterventionItem, TeacherInterventionsResponse
 )
 from app.core.security import RoleChecker
+from app.core.access_policy import AccessPolicy
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
 
@@ -191,3 +193,132 @@ def get_class_assignments(
         )
 
     return db.query(ClassAssignment).filter(ClassAssignment.class_id == class_id).order_by(ClassAssignment.created_at.desc()).all()
+
+@router.get("/interventions", response_model=TeacherInterventionsResponse)
+def get_teacher_interventions(
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Teacher Intervention Engine:
+    Scans assigned classrooms to detect students struggling with accuracy (<60%),
+    missed spaced repetition reviews, or weak prerequisite topics.
+    """
+    # 1. Get assigned class IDs
+    if current_user.role == "school_admin":
+        classes = db.query(SchoolClass).filter(SchoolClass.school_id == current_user.school_id).all()
+    else:
+        assigned_links = db.query(teacher_classes).filter(teacher_classes.c.teacher_user_id == current_user.id).all()
+        class_ids = [l.class_id for l in assigned_links]
+        classes = db.query(SchoolClass).filter(SchoolClass.id.in_(class_ids)).all() if class_ids else []
+
+    interventions: List[TeacherInterventionItem] = []
+
+    for sc in classes:
+        students = db.query(StudentProfile).filter(StudentProfile.class_id == sc.id).all()
+        for sp in students:
+            student_user = db.query(User).filter(User.id == sp.user_id).first()
+            if not student_user:
+                continue
+
+            name = f"{student_user.first_name} {student_user.last_name}"
+
+            # Check recent quiz attempts
+            recent_attempts = db.query(QuizAttempt).filter(
+                QuizAttempt.student_user_id == student_user.id
+            ).order_by(QuizAttempt.completed_at.desc()).limit(5).all()
+
+            if recent_attempts:
+                low_score_attempts = [a for a in recent_attempts if float(a.accuracy_percentage) < 60.0]
+                if len(low_score_attempts) >= 2:
+                    interventions.append(TeacherInterventionItem(
+                        student_id=student_user.id,
+                        student_name=name,
+                        class_id=sc.id,
+                        grade_level=sc.grade_level,
+                        section_name=sc.section_name,
+                        severity="high",
+                        reason="Repeated Low Quiz Accuracy (<60%)",
+                        recommended_action="Assign targeted diagnostic flashcard deck and foundational revision lesson."
+                    ))
+
+            # Check missed spaced reviews
+            overdue_reviews = db.query(SpacedRepetitionSchedule).filter(
+                SpacedRepetitionSchedule.student_user_id == student_user.id,
+                SpacedRepetitionSchedule.next_review_date < datetime.date.today()
+            ).count()
+
+            if overdue_reviews >= 3:
+                interventions.append(TeacherInterventionItem(
+                    student_id=student_user.id,
+                    student_name=name,
+                    class_id=sc.id,
+                    grade_level=sc.grade_level,
+                    section_name=sc.section_name,
+                    severity="medium",
+                    reason=f"{overdue_reviews} Overdue Spaced Repetition Reviews",
+                    recommended_action="Encourage daily 5-minute memory retention review cycle."
+                ))
+
+    high_count = sum(1 for i in interventions if i.severity == "high")
+    return TeacherInterventionsResponse(
+        total_interventions=len(interventions),
+        high_urgency_count=high_count,
+        interventions=interventions
+    )
+
+@router.get("/moderation-queue", response_model=List[ContentReportOut])
+def get_moderation_queue(
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin", "admin", "super_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieves pending student/parent content reports for pedagogical & safety moderation.
+    """
+    reports = db.query(ContentReport).filter(ContentReport.status == "pending_review").order_by(ContentReport.created_at.desc()).all()
+    results = []
+    for r in reports:
+        item = db.query(ContentItem).filter(ContentItem.id == r.content_item_id).first()
+        results.append(ContentReportOut(
+            id=r.id,
+            content_item_id=r.content_item_id,
+            content_title=item.title if item else "Unknown Resource",
+            reporter_id=r.reporter_user_id,
+            reason=r.reason,
+            details=r.details,
+            status=r.status,
+            created_at=r.created_at
+        ))
+    return results
+
+@router.post("/moderate-report", response_model=ContentReportOut)
+def moderate_report(
+    review: ContentReportReview,
+    current_user: User = Depends(RoleChecker(["teacher", "school_admin", "admin", "super_admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Resolves or dismisses a student/parent content report.
+    """
+    report = db.query(ContentReport).filter(ContentReport.id == review.report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Content report not found")
+
+    report.status = review.status
+    report.action_taken = review.action_taken
+    report.reviewed_by = current_user.id
+    report.reviewed_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(report)
+
+    item = db.query(ContentItem).filter(ContentItem.id == report.content_item_id).first()
+    return ContentReportOut(
+        id=report.id,
+        content_item_id=report.content_item_id,
+        content_title=item.title if item else "Unknown Resource",
+        reporter_id=report.reporter_user_id,
+        reason=report.reason,
+        details=report.details,
+        status=report.status,
+        created_at=report.created_at
+    )

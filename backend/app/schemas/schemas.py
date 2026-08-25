@@ -441,3 +441,74 @@ class TopicMasteryResponse(BaseModel):
     subject_mastery: List[SubjectMasteryItem]
     remedial_schedules_activated: List[str]
     upcoming_revisions: Optional[List[UpcomingRevisionItem]] = None
+
+# --- CONTENT REPORTING SCHEMAS ---
+
+class ContentReportCreate(BaseModel):
+    content_item_id: str
+    reason: str = Field(..., pattern="^(Unsafe|Incorrect|Not age appropriate|Not educational|Broken|Other)$")
+    details: Optional[str] = None
+
+class ContentReportOut(BaseModel):
+    id: str
+    content_item_id: str
+    content_title: Optional[str] = None
+    reporter_id: str
+    reason: str
+    details: Optional[str] = None
+    status: str
+    created_at: datetime.datetime
+
+    class Config:
+        from_attributes = True
+
+class ContentReportReview(BaseModel):
+    report_id: str
+    status: str = Field(..., pattern="^(resolved|dismissed)$")
+    action_taken: Optional[str] = None
+
+# --- LEARNING HEALTH & TELEMETRY SCHEMAS ---
+
+class LearningHealthOut(BaseModel):
+    student_id: str
+    learning_health_score: int # 0 to 100
+    status_label: str # 'Strong Progress', 'Steady & Consistent', 'Needs Reinforcement'
+    mastery_index: float
+    streak_days: int
+    revision_consistency_rate: float
+    weak_topics_count: int
+    summary_insight: str
+
+# --- PARENT WEEKLY SUMMARY SCHEMAS ---
+
+class ParentWeeklySummaryOut(BaseModel):
+    student_id: str
+    student_name: str
+    week_start: str
+    week_end: str
+    lessons_completed: int
+    quizzes_taken: int
+    average_accuracy: float
+    ai_tutor_sessions: int
+    mastery_improvement_percentage: float
+    topics_needing_revision: List[str]
+    safety_incident_count: int
+    parent_insight: str
+
+# --- TEACHER INTERVENTION SCHEMAS ---
+
+class TeacherInterventionItem(BaseModel):
+    student_id: str
+    student_name: str
+    class_id: str
+    grade_level: int
+    section_name: str
+    severity: str # 'high', 'medium', 'low'
+    reason: str # 'Repeated Low Quiz Accuracy', 'Missed Reviews', 'Struggling with Prerequisite'
+    topic: Optional[str] = None
+    recommended_action: str
+
+class TeacherInterventionsResponse(BaseModel):
+    total_interventions: int
+    high_urgency_count: int
+    interventions: List[TeacherInterventionItem]

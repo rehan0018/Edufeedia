@@ -1,0 +1,42 @@
+[
+  {
+    "id": "eval_rec_001",
+    "scenario": "weak_topic_recovery",
+    "student_state": {
+      "grade_level": 10,
+      "weak_topics": ["Quadratic Equations"],
+      "interests": ["Robotics", "Coding"],
+      "streak": 5
+    },
+    "expected_top_subject": "Mathematics",
+    "expected_top_topic": "Quadratic Equations",
+    "expected_reason_source": "weak_topic"
+  },
+  {
+    "id": "eval_rec_002",
+    "scenario": "spaced_repetition_due",
+    "student_state": {
+      "grade_level": 10,
+      "weak_topics": [],
+      "due_review_topics": ["Electricity"],
+      "interests": ["Physics"],
+      "streak": 3
+    },
+    "expected_top_subject": "Science",
+    "expected_top_topic": "Electricity",
+    "expected_reason_source": "review_due"
+  },
+  {
+    "id": "eval_rec_003",
+    "scenario": "cold_start_new_student",
+    "student_state": {
+      "grade_level": 10,
+      "weak_topics": [],
+      "due_review_topics": [],
+      "interests": [],
+      "streak": 0
+    },
+    "expected_top_subject": "Mathematics",
+    "expected_reason_source": "curriculum_progression"
+  }
+]

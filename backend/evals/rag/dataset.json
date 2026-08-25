@@ -1,0 +1,52 @@
+[
+  {
+    "id": "eval_rag_001",
+    "question": "What is the discriminant in a quadratic equation and what does it tell us?",
+    "subject": "Mathematics",
+    "expected_topic": "Quadratic Equations",
+    "grade_level": 10,
+    "expected_keywords": ["b^2 - 4ac", "nature of roots", "real and distinct", "equal roots"],
+    "expected_sources": ["NCERT Class 10 Mathematics Chapter 4"],
+    "age_band": "13-15"
+  },
+  {
+    "id": "eval_rag_002",
+    "question": "State Newton's second law of motion and write its mathematical formula.",
+    "subject": "Science",
+    "expected_topic": "Force and Laws of Motion",
+    "grade_level": 9,
+    "expected_keywords": ["rate of change of momentum", "F = ma", "mass", "acceleration"],
+    "expected_sources": ["NCERT Class 9 Science Chapter 9"],
+    "age_band": "13-15"
+  },
+  {
+    "id": "eval_rag_003",
+    "question": "How does photosynthesis convert carbon dioxide and water into glucose?",
+    "subject": "Science",
+    "expected_topic": "Life Processes",
+    "grade_level": 10,
+    "expected_keywords": ["chlorophyll", "sunlight", "carbon dioxide", "glucose", "oxygen"],
+    "expected_sources": ["NCERT Class 10 Science Chapter 6"],
+    "age_band": "13-15"
+  },
+  {
+    "id": "eval_rag_004",
+    "question": "What is Ohm's Law and what is the relationship between V, I, and R?",
+    "subject": "Science",
+    "expected_topic": "Electricity",
+    "grade_level": 10,
+    "expected_keywords": ["potential difference", "current", "resistance", "V = IR"],
+    "expected_sources": ["NCERT Class 10 Science Chapter 12"],
+    "age_band": "13-15"
+  },
+  {
+    "id": "eval_rag_005",
+    "question": "Explain how binary search works on a sorted array with time complexity.",
+    "subject": "Computer Science",
+    "expected_topic": "Algorithms",
+    "grade_level": 11,
+    "expected_keywords": ["sorted", "divide and conquer", "O(log n)", "mid point"],
+    "expected_sources": ["CBSE Class 11 Computer Science"],
+    "age_band": "16-17"
+  }
+]
