@@ -214,9 +214,12 @@ class LLMClient:
     @staticmethod
     def sanitize_prompt(prompt: str) -> str:
         blocked = [
-            r"ignore previous instructions",
+            r"ignore (all )?(previous )?(system )?instructions",
+            r"system override",
+            r"print secret_key",
             r"you are now in developer mode",
             r"disregard safety guidelines",
+            r"disable safety.*",
             r"jailbreak",
             r"reveal the hidden system prompt",
             r"reveal system prompt",
