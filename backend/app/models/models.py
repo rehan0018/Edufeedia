@@ -172,10 +172,12 @@ class Quiz(Base):
     __tablename__ = "quizzes"
     id = Column(String, primary_key=True, default=generate_uuid)
     content_item_id = Column(String, ForeignKey("content_items.id", ondelete="SET NULL"), nullable=True)
+    school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     title = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     content_item = relationship("ContentItem", back_populates="quizzes")
+    school = relationship("School")
     questions = relationship("Question", back_populates="quiz", cascade="all, delete-orphan")
     attempts = relationship("QuizAttempt", back_populates="quiz", cascade="all, delete-orphan")
 

@@ -86,38 +86,31 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         grade_level=user_in.grade_level or 10,
         board=user_in.board or "CBSE",
         date_of_birth=user_in.date_of_birth,
-        onboarding_status="COMPLETED",
+        onboarding_status="PENDING",
         parental_consent_status="PENDING",
         interests=[],
         learning_preference=[]
     )
     db.add(profile)
     
-    # Link to parent if parent_email is provided via secure invitation
+    # Link to parent if parent_email is provided via structured invitation workflow
     if user_in.parent_email:
-        parent = db.query(User).filter(User.email == user_in.parent_email, User.role == "parent").first()
-        if not parent:
-            # Generate unique random password hash (never hardcoded Parent123!)
-            random_initial_key = secrets.token_urlsafe(32)
-            parent = User(
-                email=user_in.parent_email,
-                password_hash=get_password_hash(random_initial_key),
-                role="parent",
-                first_name="Guardian",
-                last_name="Account",
-                is_verified=False, # Must be verified via parent OTP flow
-                school_id=user_in.school_id
-            )
-            db.add(parent)
-            db.flush()
-            
-        # Associate via linked table
-        association = parent_student_links.insert().values(
-            parent_user_id=parent.id,
+        from app.models.models import PendingGuardianInvitation
+        invitation_token = secrets.token_urlsafe(32)
+        invitation = PendingGuardianInvitation(
             student_user_id=user.id,
-            is_verified=False # Verified when parent confirms OTP
+            guardian_email=user_in.parent_email,
+            invitation_token=invitation_token,
+            status="pending",
+            expires_at=datetime.datetime.utcnow() + datetime.timedelta(days=7)
         )
-        db.execute(association)
+        db.add(invitation)
+        
+        email_service.send_guardian_invitation_email(
+            guardian_email=user_in.parent_email,
+            student_name=f"{user_in.first_name} {user_in.last_name}",
+            invitation_token=invitation_token
+        )
         
     db.commit()
     db.refresh(user)
@@ -130,7 +123,73 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     Staff / Guardian Invitation Activation Endpoint:
     Allows an invited teacher, school admin, or guardian to establish their credentials securely.
     """
-    # Look up token in Redis
+    from app.models.models import PendingGuardianInvitation
+    validate_password_complexity(req.password)
+
+    # 1. Check database-backed PendingGuardianInvitation
+    guardian_inv = db.query(PendingGuardianInvitation).filter(
+        PendingGuardianInvitation.invitation_token == req.token,
+        PendingGuardianInvitation.status == "pending"
+    ).first()
+
+    if guardian_inv:
+        if guardian_inv.expires_at < datetime.datetime.utcnow():
+            guardian_inv.status = "expired"
+            db.commit()
+            raise HTTPException(status_code=400, detail="Guardian invitation has expired. Please request a new invite.")
+
+        parent = db.query(User).filter(User.email == guardian_inv.guardian_email).first()
+        if not parent:
+            parent = User(
+                email=guardian_inv.guardian_email,
+                password_hash=get_password_hash(req.password),
+                role="parent",
+                first_name=req.first_name or "Guardian",
+                last_name=req.last_name or "Parent",
+                is_verified=False,
+                account_status="ACTIVE"
+            )
+            db.add(parent)
+            db.flush()
+        else:
+            parent.password_hash = get_password_hash(req.password)
+            if req.first_name:
+                parent.first_name = req.first_name
+            if req.last_name:
+                parent.last_name = req.last_name
+
+        # Link parent to student if not linked
+        existing_link = db.execute(
+            parent_student_links.select().where(
+                (parent_student_links.c.parent_user_id == parent.id) &
+                (parent_student_links.c.student_user_id == guardian_inv.student_user_id)
+            )
+        ).first()
+
+        if not existing_link:
+            db.execute(
+                parent_student_links.insert().values(
+                    parent_user_id=parent.id,
+                    student_user_id=guardian_inv.student_user_id,
+                    is_verified=False
+                )
+            )
+
+        guardian_inv.status = "accepted"
+        db.commit()
+        db.refresh(parent)
+
+        access_token = create_access_token(
+            data={"sub": parent.email, "role": parent.role}
+        )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": parent.role,
+            "user_id": parent.id
+        }
+
+    # 2. Check Redis-backed Staff Invite Token
     user_id = redis_client.get(f"invite_token:{req.token}")
     if not user_id:
         raise HTTPException(
@@ -141,8 +200,6 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User account not found.")
-
-    validate_password_complexity(req.password)
 
     user.password_hash = get_password_hash(req.password)
     if req.first_name:

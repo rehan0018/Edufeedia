@@ -70,6 +70,8 @@ class ContentIngestionPipeline:
         )
 
         # Step 6: Persist into database
+        school_id = submitted_by_user.school_id if (submitted_by_user and submitted_by_user.role in ["teacher", "school_admin"]) else None
+
         new_item = ContentItem(
             title=inferred_title,
             description=inferred_desc,
@@ -86,6 +88,7 @@ class ContentIngestionPipeline:
             safety_score=safety_audit["safety_score"],
             edu_score=meta["edu_score"],
             is_approved=is_auto_approved,
+            school_id=school_id,
             tags=meta["detected_keywords"],
             embedding=embedding
         )

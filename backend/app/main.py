@@ -8,18 +8,23 @@ from app.database import engine, Base
 from app.config import settings
 from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin, ingestion, privacy, challenges
 
+import logging
+
+logger = logging.getLogger("edufeedia.main")
+
 # Conditional table automigration on boot (development & test only)
 if settings.ENVIRONMENT != "production":
     Base.metadata.create_all(bind=engine)
     try:
         with engine.connect() as conn:
-            res = conn.execute(text("PRAGMA table_info(content_items)"))
-            cols = [r[1] for r in res.fetchall()]
-            if cols and "school_id" not in cols:
-                conn.execute(text("ALTER TABLE content_items ADD COLUMN school_id VARCHAR"))
-                conn.commit()
-    except Exception:
-        pass
+            if conn.dialect.name == "sqlite":
+                res = conn.execute(text("PRAGMA table_info(content_items)"))
+                cols = [r[1] for r in res.fetchall()]
+                if cols and "school_id" not in cols:
+                    conn.execute(text("ALTER TABLE content_items ADD COLUMN school_id VARCHAR"))
+                    conn.commit()
+    except Exception as e:
+        logger.error(f"[SCHEMA INITIALIZATION WARNING]: {e}", exc_info=True)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

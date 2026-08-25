@@ -8,6 +8,7 @@ import os
 import sys
 import json
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
 # Add backend directory to sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

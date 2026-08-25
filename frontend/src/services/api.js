@@ -103,6 +103,22 @@ export const apiLogin = async (email, password) => {
   return { ...data, user: userData };
 };
 
+export const apiRegister = async (registerData) => {
+  const res = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(registerData)
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Registration failed' }));
+    throw new Error(errData.detail || 'Registration failed');
+  }
+
+  // Automatically authenticate upon successful registration
+  return await apiLogin(registerData.email, registerData.password);
+};
+
 // 2. Student Daily Learning Plan Feed
 export const fetchDailyPlanFeed = async () => {
   const res = await fetch(`${API_BASE_URL}/recommendations/feed`, {

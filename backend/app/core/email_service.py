@@ -159,4 +159,35 @@ class EmailService:
             "provider": "development_mock"
         }
 
+    def send_guardian_invitation_email(
+        self,
+        guardian_email: str,
+        student_name: str,
+        invitation_token: str
+    ) -> Dict[str, Any]:
+        """
+        Dispatches an invitation link for a legal guardian to establish their account and provide verifiable consent.
+        """
+        activation_link = f"https://edufeedia.com/activate?token={invitation_token}"
+        subject = f"Parent/Guardian Account Activation for {student_name} on Edufeedia"
+        plain_body = (
+            f"Hello,\n\n"
+            f"{student_name} has registered on Edufeedia and listed you as their legal parent/guardian.\n\n"
+            f"To activate your guardian account, review child safety settings, and verify consent, click below:\n"
+            f"{activation_link}\n\n"
+            f"This link expires in 7 days.\n\n"
+            f"If you did not authorize this, please contact safety@edufeedia.com immediately."
+        )
+
+        if self.is_live_configured:
+            return self._send_real_smtp_email(guardian_email, subject, plain_body)
+
+        logger.info(f"[Guardian Invitation Dispatch (Dev Mode)] To: {guardian_email} | Student: {student_name} | Mode: simulated_local_dev")
+        return {
+            "status": "simulated_local_dev",
+            "recipient": guardian_email,
+            "activation_link": activation_link,
+            "provider": "development_mock"
+        }
+
 email_service = EmailService()

@@ -40,26 +40,31 @@ def get_all_database_records(
         })
 
     # 2. Student Profiles & XP (scoped)
-    profile_query = db.query(StudentProfile)
+    profile_query = db.query(StudentProfile).join(User, StudentProfile.user_id == User.id)
     if school_id:
-        profile_query = profile_query.filter(StudentProfile.school_id == school_id)
+        profile_query = profile_query.filter(User.school_id == school_id)
     profiles_db = profile_query.all()
     student_records = []
     for sp in profiles_db:
+        grade = sp.school_class.grade_level if sp.school_class else (sp.grade_level or 10)
+        section = sp.school_class.section_name if sp.school_class else "N/A"
         student_records.append({
             "user_id": sp.user_id,
             "name": f"{sp.user.first_name} {sp.user.last_name}" if sp.user else "Student",
             "email": sp.user.email if sp.user else "N/A",
-            "grade": sp.school_class.grade_level if sp.school_class else 10,
-            "section": sp.school_class.section_name if sp.school_class else "A",
+            "grade": grade,
+            "section": section,
             "board": sp.board or "CBSE",
             "xp_score": sp.xp_score,
             "streak_count": sp.streak_count,
             "interests": sp.interests or []
         })
 
-    # 3. Content Items & Safety Scores
-    content_db = db.query(ContentItem).all()
+    # 3. Content Items & Safety Scores (scoped)
+    content_query = db.query(ContentItem)
+    if school_id:
+        content_query = content_query.filter((ContentItem.school_id == school_id) | (ContentItem.school_id == None))
+    content_db = content_query.all()
     content_list = []
     for c in content_db:
         content_list.append({

@@ -1,9 +1,9 @@
 import logging
-from typing import Optional
+from typing import Optional, Any, List, Dict
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.models import User, StudentProfile, parent_student_links, teacher_classes, SchoolClass
+from app.models.models import User, StudentProfile, parent_student_links, teacher_classes, SchoolClass, ParentalConsentLog
 from app.core.security import get_current_user
 
 logger = logging.getLogger("edufeedia.security")
@@ -47,13 +47,40 @@ class AccessPolicy:
             return True
         return False
 
-    @staticmethod
-    def can_use_ai_tutor(user: User) -> bool:
+    @classmethod
+    def has_consent(cls, student: User, scope: str, db: Optional[Session] = None) -> bool:
+        """
+        Verifies whether student has verified guardian consent for a specific processing scope
+        (e.g., 'ai_socratic_tutor', 'analytics_tracking', 'curriculum_access').
+        """
+        sp: Optional[StudentProfile] = student.student_profile
+        if not sp:
+            return False
+        if sp.parental_consent_status == "EXEMPT_ADULT":
+            return True
+        if sp.parental_consent_status != "GRANTED":
+            return False
+
+        if db:
+            latest_consent = db.query(ParentalConsentLog).filter(
+                ParentalConsentLog.student_user_id == student.id,
+                ParentalConsentLog.consent_status == "granted",
+                ParentalConsentLog.revoked_at == None
+            ).order_by(ParentalConsentLog.granted_at.desc()).first()
+
+            if latest_consent:
+                return scope in (latest_consent.consent_scope or [])
+            return sp.parental_consent_status in ["GRANTED", "EXEMPT_ADULT"]
+
+        return True
+
+    @classmethod
+    def can_use_ai_tutor(cls, user: User, db: Optional[Session] = None) -> bool:
         """
         AI Socratic Tutor strictly requires:
         1. Educators & Admins: authorized by default.
         2. Parents: authorized to inspect and preview learning materials.
-        3. Students: onboarding MUST be COMPLETED and parental consent MUST be GRANTED or EXEMPT_ADULT.
+        3. Students: onboarding MUST be COMPLETED and parental consent scope MUST include 'ai_socratic_tutor'.
         """
         if user.account_status != "ACTIVE":
             return False
@@ -69,9 +96,7 @@ class AccessPolicy:
                 return False
             if sp.onboarding_status != "COMPLETED":
                 return False
-            if sp.parental_consent_status not in ["GRANTED", "EXEMPT_ADULT"]:
-                return False
-            return True
+            return cls.has_consent(user, "ai_socratic_tutor", db=db)
         return False
 
     @classmethod
@@ -184,6 +209,8 @@ class AccessPolicy:
             return True
 
         if caller.role in ["teacher", "school_admin"]:
+            if getattr(quiz, "school_id", None) and quiz.school_id != caller.school_id:
+                return False
             if not getattr(quiz, "content_item", None):
                 return True
             item = quiz.content_item
@@ -193,6 +220,9 @@ class AccessPolicy:
 
         if caller.role == "student":
             if not cls.can_access_learning(caller):
+                return False
+
+            if getattr(quiz, "school_id", None) and quiz.school_id != caller.school_id:
                 return False
 
             if getattr(quiz, "content_item", None):

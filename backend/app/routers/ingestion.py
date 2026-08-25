@@ -61,11 +61,9 @@ def get_pending_review_queue(
     query = db.query(ContentItem).filter(ContentItem.is_approved == False)
     if current_user.role in ["teacher", "school_admin"]:
         if current_user.school_id:
-            query = query.filter(
-                (ContentItem.school_id == current_user.school_id) | (ContentItem.school_id == None)
-            )
+            query = query.filter(ContentItem.school_id == current_user.school_id)
         else:
-            query = query.filter(ContentItem.school_id == None)
+            query = query.filter(ContentItem.id == None) # Empty for unassigned school staff
 
     pending = query.order_by(ContentItem.created_at.desc()).all()
     return [
@@ -101,7 +99,12 @@ def review_staged_content(
         raise HTTPException(status_code=404, detail="Content item not found")
 
     if current_user.role in ["teacher", "school_admin"]:
-        if item.school_id and item.school_id != current_user.school_id:
+        if item.school_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Global platform content can only be reviewed by platform administrators."
+            )
+        if item.school_id != current_user.school_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: You cannot moderate staged content from another school."

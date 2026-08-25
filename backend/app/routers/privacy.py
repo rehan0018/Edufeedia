@@ -1,6 +1,8 @@
 import datetime
 import secrets
 import logging
+import hmac
+import hashlib
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -14,10 +16,13 @@ from app.models.models import (
 from app.core.security import get_current_user, RoleChecker, get_password_hash
 from app.core.redis_client import redis_client
 from app.core.email_service import email_service
+from app.config import settings
 
 logger = logging.getLogger("edufeedia.privacy")
 
 router = APIRouter(prefix="/privacy", tags=["privacy"])
+
+from pydantic import BaseModel, EmailStr, Field
 
 class ParentVerificationRequest(BaseModel):
     parent_email: EmailStr
@@ -27,7 +32,9 @@ class ParentOtpVerifyRequest(BaseModel):
     parent_email: EmailStr
     otp_code: str
     student_id: Optional[str] = None
-    consent_scope: Optional[List[str]] = ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"]
+    consent_scope: Optional[List[str]] = Field(
+        default_factory=lambda: ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"]
+    )
 
 from app.core.age_policy import StudentAgePolicy
 
@@ -203,7 +210,8 @@ def request_parent_verification(
     # Generate 6-digit cryptographic OTP (never hardcoded, no bypasses)
     otp_code = f"{secrets.randbelow(900000) + 100000}"
     redis_key = f"guardian_otp:{parent_email_to_use}:{student.id}"
-    redis_client.setex(redis_key, 900, otp_code)
+    hashed_otp = hmac.new(settings.SECRET_KEY.encode("utf-8"), otp_code.strip().encode("utf-8"), hashlib.sha256).hexdigest()
+    redis_client.setex(redis_key, 900, hashed_otp)
 
     # Record initial pending audit entry
     log_entry = ParentalConsentLog(
@@ -246,7 +254,7 @@ def verify_parent_otp(
 ):
     """
     Step 2 of Verifiable Parental Consent:
-    Verifies guardian OTP code against Redis, validates caller authorization and parent-student relationship,
+    Verifies guardian OTP code against Redis digest, validates caller authorization and parent-student relationship,
     captures explicit consent scope, and enables student learning access.
     """
     # 1. Caller Authorization Scoping
@@ -299,17 +307,26 @@ def verify_parent_otp(
             detail="Maximum OTP verification attempts exceeded. Verification code invalidated. Please request a new OTP."
         )
 
-    stored_otp = redis_client.get(redis_key)
+    stored_hash = redis_client.get(redis_key)
+    candidate_hash = hmac.new(settings.SECRET_KEY.encode("utf-8"), req.otp_code.strip().encode("utf-8"), hashlib.sha256).hexdigest()
 
-    if not stored_otp or stored_otp != req.otp_code.strip():
+    is_valid = False
+    if stored_hash:
+        if hmac.compare_digest(stored_hash, candidate_hash):
+            is_valid = True
+        elif hmac.compare_digest(stored_hash, req.otp_code.strip()):
+            is_valid = True
+
+    if not is_valid:
         redis_client.setex(attempts_key, 600, str(attempts + 1))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid or expired parental verification OTP. Attempt {attempts + 1} of 5."
         )
 
-    # Invalidate attempt tracking
+    # Invalidate attempt tracking and single-use OTP
     redis_client.delete(attempts_key)
+    redis_client.delete(redis_key)
 
     # Verify parent existence and relationship
     parent = db.query(User).filter(User.email == parent_email_to_use, User.role == "parent").first()

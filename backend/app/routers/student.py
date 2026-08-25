@@ -225,14 +225,15 @@ def get_leaderboard(
 ):
     """
     Privacy-preserving leaderboard:
-    Displays student rank, masked anonymous identifiers, XP, and level within the user's school tenant.
+    Displays student rank, masked anonymous identifiers, XP, and level strictly within the user's school tenant.
     """
     if current_user.school_id:
         profiles = db.query(StudentProfile).join(User, StudentProfile.user_id == User.id).filter(
             User.school_id == current_user.school_id
         ).order_by(StudentProfile.xp_score.desc()).all()
     else:
-        profiles = db.query(StudentProfile).order_by(StudentProfile.xp_score.desc()).all()
+        # Prevent leaking other unassigned students across schools
+        profiles = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).all()
     
     leaderboard = []
     for rank, p in enumerate(profiles, start=1):
@@ -261,23 +262,26 @@ def get_leaderboard(
         leaderboard.append({
             "rank": rank,
             "user_id": safe_user_id,
-            "name": display_name,
-            "xp": p.xp_score,
-            "streak": p.streak_count,
+            "display_name": display_name,
+            "xp": xp,
             "level": level,
+            "streak": p.streak_count,
+            "grade": p.school_class.grade_level if p.school_class else (p.grade_level or 10),
             "is_current_user": is_current
         })
-
+        
     return leaderboard
 
-@router.get("/badges")
+@router.get("/badges", response_model=Dict[str, Any])
 def get_student_badges(
     current_user: User = Depends(RoleChecker(["student"])),
     db: Session = Depends(get_db)
 ):
+    """
+    Fetches student badges and calculates dynamic unlocks with transactional XP bonuses.
+    """
     from app.models.models import Badge, UserBadge
-    
-    profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+    profile = current_user.student_profile
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
@@ -311,7 +315,7 @@ def get_student_badges(
     # Evaluate dynamic unlocks if not already persisted
     completed_count = db.query(StudentProgress).filter(
         StudentProgress.student_user_id == current_user.id,
-        StudentProgress.progress_percentage == 100
+        StudentProgress.progress_percentage >= 100
     ).count()
 
     has_perfect_quiz = db.query(QuizAttempt).filter(
@@ -344,6 +348,8 @@ def get_student_badges(
             if should_unlock:
                 new_ub = UserBadge(user_id=current_user.id, badge_id=b.id)
                 new_user_badges.append(new_ub)
+                if (b.xp_bonus or 0) > 0:
+                    profile.xp_score += b.xp_bonus
                 is_unlocked = True
                 unlocked_at = datetime.datetime.utcnow()
 
@@ -356,7 +362,6 @@ def get_student_badges(
             "name": b.name,
             "description": b.description,
             "icon": b.icon,
-            "category": b.category,
             "xp_bonus": b.xp_bonus,
             "unlocked": is_unlocked,
             "unlocked_at": unlocked_at.isoformat() if unlocked_at else None

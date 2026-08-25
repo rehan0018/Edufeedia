@@ -27,6 +27,7 @@ COPY --from=builder /root/.local /home/edufeedia/.local
 ENV PATH=/home/edufeedia/.local/bin:$PATH
 
 COPY --chown=edufeedia:edufeedia . /app
+RUN chmod +x /app/entrypoint.sh
 
 USER edufeedia
 
@@ -35,4 +36,5 @@ EXPOSE 8000
 ENV ENVIRONMENT=production
 ENV PYTHONUNBUFFERED=1
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "backend", "--host", "0.0.0.0", "--port", "8000"]

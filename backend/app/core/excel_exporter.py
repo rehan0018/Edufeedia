@@ -128,10 +128,13 @@ def sync_database_to_excel(db: Session, export_path: str = None, school_id: str 
     style_header_row(ws_content, "Content_Catalog")
     auto_fit_columns(ws_content)
 
-    # 4. Sheet: Quiz_Attempts
+    # 4. Sheet: Quiz_Attempts (scoped)
     ws_quizzes = wb.create_sheet(title="Quiz_Attempts")
     ws_quizzes.append(["Attempt ID", "Student Name", "Student Email", "Score", "Max Score", "Accuracy %", "Graded Date"])
-    attempts = db.query(QuizAttempt).order_by(QuizAttempt.completed_at.desc()).all()
+    quiz_query = db.query(QuizAttempt).join(User, QuizAttempt.student_user_id == User.id)
+    if school_id:
+        quiz_query = quiz_query.filter(User.school_id == school_id)
+    attempts = quiz_query.order_by(QuizAttempt.completed_at.desc()).all()
     for qa in attempts:
         ws_quizzes.append([
             qa.id,
@@ -145,10 +148,13 @@ def sync_database_to_excel(db: Session, export_path: str = None, school_id: str 
     style_header_row(ws_quizzes, "Quiz_Attempts")
     auto_fit_columns(ws_quizzes)
 
-    # 5. Sheet: User_Interactions
+    # 5. Sheet: User_Interactions (scoped)
     ws_inter = wb.create_sheet(title="User_Interactions")
     ws_inter.append(["Interaction ID", "User Email", "Content Title", "Interaction Signal", "Signal Weight", "Dwell Time (s)", "Timestamp"])
-    interactions = db.query(UserInteraction).order_by(UserInteraction.created_at.desc()).all()
+    inter_query = db.query(UserInteraction).join(User, UserInteraction.user_id == User.id)
+    if school_id:
+        inter_query = inter_query.filter(User.school_id == school_id)
+    interactions = inter_query.order_by(UserInteraction.created_at.desc()).all()
     for inter in interactions:
         ws_inter.append([
             inter.id,
@@ -178,10 +184,13 @@ def sync_database_to_excel(db: Session, export_path: str = None, school_id: str 
     style_header_row(ws_flash, "Flashcards")
     auto_fit_columns(ws_flash)
 
-    # 7. Sheet: Spaced_Schedules
+    # 7. Sheet: Spaced_Schedules (scoped)
     ws_spaced = wb.create_sheet(title="Spaced_Schedules")
     ws_spaced.append(["Schedule ID", "Student Email", "Subject", "Topic", "Interval (Days)", "Repetitions", "Easiness Factor", "Next Review Date"])
-    schedules = db.query(SpacedRepetitionSchedule).all()
+    sched_query = db.query(SpacedRepetitionSchedule).join(User, SpacedRepetitionSchedule.student_user_id == User.id)
+    if school_id:
+        sched_query = sched_query.filter(User.school_id == school_id)
+    schedules = sched_query.all()
     for s in schedules:
         ws_spaced.append([
             s.id,
@@ -196,10 +205,13 @@ def sync_database_to_excel(db: Session, export_path: str = None, school_id: str 
     style_header_row(ws_spaced, "Spaced_Schedules")
     auto_fit_columns(ws_spaced)
 
-    # 8. Sheet: Class_Assignments
+    # 8. Sheet: Class_Assignments (scoped)
     ws_assign = wb.create_sheet(title="Class_Assignments")
     ws_assign.append(["Assignment ID", "Class Grade", "Teacher Email", "Title", "Instructions", "Due Date", "Created Date"])
-    assignments = db.query(ClassAssignment).all()
+    assign_query = db.query(ClassAssignment).join(SchoolClass, ClassAssignment.class_id == SchoolClass.id)
+    if school_id:
+        assign_query = assign_query.filter(SchoolClass.school_id == school_id)
+    assignments = assign_query.all()
     for a in assignments:
         ws_assign.append([
             a.id,

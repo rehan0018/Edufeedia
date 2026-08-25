@@ -123,9 +123,20 @@ def create_quiz(
     if not quiz_in.questions:
         raise HTTPException(status_code=400, detail="Quiz must contain at least one question")
 
+    if quiz_in.content_item_id:
+        item = db.query(ContentItem).filter(ContentItem.id == quiz_in.content_item_id).first()
+        if not item:
+            raise HTTPException(status_code=404, detail="Referenced curriculum content not found")
+        if item.school_id and item.school_id != current_user.school_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Cannot create assessments for content belonging to another school."
+            )
+
     quiz = Quiz(
         title=quiz_in.title,
-        content_item_id=quiz_in.content_item_id
+        content_item_id=quiz_in.content_item_id,
+        school_id=current_user.school_id
     )
     db.add(quiz)
     db.flush()
