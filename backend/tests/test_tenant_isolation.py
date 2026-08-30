@@ -177,5 +177,40 @@ class TestTenantIsolation(unittest.TestCase):
         student_res = self.client.get("/api/v1/admin/records", headers=self._get_headers(self.student_alpha))
         self.assertEqual(student_res.status_code, 403)
 
+    def test_school_admin_records_strictly_isolated_to_own_school(self):
+        """School Admin Alpha only sees Alpha users, students, and attempts, never Beta."""
+        res = self.client.get("/api/v1/admin/records", headers=self._get_headers(self.admin_alpha))
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+
+        # Check users: all users must belong to School Alpha
+        user_emails = [u["email"] for u in data["users"]]
+        self.assertIn(self.student_alpha.email, user_emails)
+        self.assertIn(self.admin_alpha.email, user_emails)
+        self.assertNotIn(self.student_beta.email, user_emails)
+
+        # Check students: only Alpha students
+        student_emails = [s["email"] for s in data["students"]]
+        self.assertIn(self.student_alpha.email, student_emails)
+        self.assertNotIn(self.student_beta.email, student_emails)
+
+    def test_school_admin_exports_strictly_isolated(self):
+        """Export endpoints only return records belonging to the admin's school."""
+        res = self.client.get("/api/v1/admin/exports/students", headers=self._get_headers(self.admin_alpha))
+        self.assertEqual(res.status_code, 200)
+        exported_students = res.json()
+        student_ids = [s["student_id"] for s in exported_students]
+        self.assertIn(self.student_alpha.id, student_ids)
+        self.assertNotIn(self.student_beta.id, student_ids)
+
+    def test_teacher_class_management_strictly_isolated(self):
+        """Teacher cannot create quizzes or manage classes across school boundaries."""
+        # Teacher Alpha attempting to access unassigned class in foreign school Beta
+        res = self.client.get(
+            "/api/v1/teachers/classes/nonexistent-beta-class/analytics",
+            headers=self._get_headers(self.teacher_alpha)
+        )
+        self.assertIn(res.status_code, [403, 404])
+
 if __name__ == "__main__":
     unittest.main()

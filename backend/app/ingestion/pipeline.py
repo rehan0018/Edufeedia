@@ -92,8 +92,21 @@ class ContentIngestionPipeline:
             tags=meta["detected_keywords"],
             embedding=embedding
         )
-
         db.add(new_item)
+
+        if is_auto_approved:
+            from app.models.models import CurriculumChunk
+            chunk = CurriculumChunk(
+                board=board,
+                grade_level=meta["estimated_grade"],
+                subject=meta["subject"],
+                topic=meta["topic"],
+                section="Core Syllabus & Interactive Learning",
+                chunk_text=f"{inferred_title}: {inferred_desc}",
+                embedding=embedding
+            )
+            db.add(chunk)
+
         db.commit()
         db.refresh(new_item)
 
