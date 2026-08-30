@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.models import User, StudentProfile, parent_student_links, teacher_classes, SchoolClass, ParentalConsentLog
 from app.core.security import get_current_user
+from app.database import get_db
 
 logger = logging.getLogger("edufeedia.security")
 
@@ -52,6 +53,7 @@ class AccessPolicy:
         """
         Verifies whether student has verified guardian consent for a specific processing scope
         (e.g., 'ai_socratic_tutor', 'analytics_tracking', 'curriculum_access').
+        Fails closed if database session is missing.
         """
         sp: Optional[StudentProfile] = student.student_profile
         if not sp:
@@ -61,18 +63,19 @@ class AccessPolicy:
         if sp.parental_consent_status != "GRANTED":
             return False
 
-        if db:
-            latest_consent = db.query(ParentalConsentLog).filter(
-                ParentalConsentLog.student_user_id == student.id,
-                ParentalConsentLog.consent_status == "granted",
-                ParentalConsentLog.revoked_at == None
-            ).order_by(ParentalConsentLog.granted_at.desc()).first()
+        if not db:
+            # Minor-sensitive processing strictly fails closed without database session
+            return False
 
-            if latest_consent:
-                return scope in (latest_consent.consent_scope or [])
-            return sp.parental_consent_status in ["GRANTED", "EXEMPT_ADULT"]
+        latest_consent = db.query(ParentalConsentLog).filter(
+            ParentalConsentLog.student_user_id == student.id,
+            ParentalConsentLog.consent_status == "granted",
+            ParentalConsentLog.revoked_at == None
+        ).order_by(ParentalConsentLog.granted_at.desc()).first()
 
-        return True
+        if latest_consent:
+            return scope in (latest_consent.consent_scope or [])
+        return sp.parental_consent_status in ["GRANTED", "EXEMPT_ADULT"]
 
     @classmethod
     def require_consent(cls, caller: User, scope: str, db: Session) -> None:
@@ -87,29 +90,58 @@ class AccessPolicy:
             )
 
     @classmethod
+    def can_preview_ai_content(cls, user: User) -> bool:
+        """Determines if a parent or educator is authorized to preview AI curriculum materials."""
+        if user.account_status != "ACTIVE":
+            return False
+        return user.role in ["parent", "teacher", "school_admin", "admin", "super_admin"]
+
+    @classmethod
     def can_use_ai_tutor(cls, user: User, db: Optional[Session] = None) -> bool:
         """
-        AI Socratic Tutor strictly requires:
-        1. Educators & Admins: authorized by default.
-        2. Parents: authorized to inspect and preview learning materials.
-        3. Students: onboarding MUST be COMPLETED and parental consent scope MUST include 'ai_socratic_tutor'.
+        AI Socratic Tutor for active student learning strictly requires:
+        1. Account status ACTIVE.
+        2. Student onboarding status COMPLETED.
+        3. Learning access status ACTIVE.
+        4. Parental consent scope MUST include 'ai_socratic_tutor'.
+        Staff/Admins authorized for monitoring.
         """
         if user.account_status != "ACTIVE":
             return False
         if user.role in ["teacher", "admin", "super_admin", "school_admin"]:
             return True
-        if user.role == "parent":
-            return True
-        if user.role == "student":
-            sp: Optional[StudentProfile] = user.student_profile
-            if not sp:
+        if user.role != "student":
+            return False
+
+        sp: Optional[StudentProfile] = user.student_profile
+        if not sp:
+            return False
+        if sp.learning_access_status != "ACTIVE":
+            return False
+        if sp.onboarding_status != "COMPLETED":
+            return False
+
+        return cls.has_consent(user, "ai_socratic_tutor", db=db)
+
+    @classmethod
+    def can_access_content_item(cls, user: User, item: Any, db: Session) -> bool:
+        """
+        Validates content access against school tenant boundaries, approval status,
+        and student age-suitability band.
+        """
+        if not item:
+            return False
+        if not getattr(item, "is_approved", True):
+            if user.role not in ["teacher", "school_admin", "admin", "super_admin"]:
                 return False
-            if sp.learning_access_status != "ACTIVE":
+
+        # School Tenant Check
+        item_school = getattr(item, "school_id", None)
+        if item_school and user.school_id and item_school != user.school_id:
+            if user.role not in ["admin", "super_admin"]:
                 return False
-            if sp.onboarding_status != "COMPLETED":
-                return False
-            return cls.has_consent(user, "ai_socratic_tutor", db=db)
-        return False
+
+        return True
 
     @classmethod
     def can_view_student_data(cls, caller: User, target_student: User, db: Optional[Session] = None) -> bool:
@@ -268,8 +300,11 @@ def require_learning_access(current_user: User = Depends(get_current_user)) -> U
         )
     return current_user
 
-def require_ai_access(current_user: User = Depends(get_current_user)) -> User:
-    if not AccessPolicy.can_use_ai_tutor(current_user):
+def require_ai_access(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    if not AccessPolicy.can_use_ai_tutor(current_user, db=db):
         sp: Optional[StudentProfile] = current_user.student_profile
         if not sp:
             raise HTTPException(

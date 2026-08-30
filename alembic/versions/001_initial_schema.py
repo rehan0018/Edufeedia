@@ -153,7 +153,8 @@ def upgrade() -> None:
         sa.Column('progress_percentage', sa.Integer(), default=0),
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
-        sa.UniqueConstraint('student_user_id', 'content_item_id', name='uq_student_content_progress')
+        sa.UniqueConstraint('student_user_id', 'content_item_id', name='uq_student_content_progress'),
+        sa.CheckConstraint('progress_percentage >= 0 AND progress_percentage <= 100', name='ck_student_progress_percentage')
     )
 
     # 10. Quizzes
@@ -188,7 +189,8 @@ def upgrade() -> None:
         sa.Column('max_score', sa.Integer(), nullable=False),
         sa.Column('accuracy_percentage', sa.Numeric(5, 2), nullable=False),
         sa.Column('attempt_details', sa.JSON(), default=list),
-        sa.Column('completed_at', sa.DateTime(), server_default=sa.func.now())
+        sa.Column('completed_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.CheckConstraint('score >= 0 AND max_score > 0 AND accuracy_percentage >= 0 AND accuracy_percentage <= 100', name='ck_quiz_attempt_scores')
     )
 
     # 13. Spaced Repetition Schedules
@@ -203,7 +205,8 @@ def upgrade() -> None:
         sa.Column('easiness_factor', sa.Numeric(3, 2), default=2.50),
         sa.Column('next_review_date', sa.Date(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
-        sa.UniqueConstraint('student_user_id', 'subject', 'topic', name='uq_student_topic_schedule')
+        sa.UniqueConstraint('student_user_id', 'subject', 'topic', name='uq_student_topic_schedule'),
+        sa.CheckConstraint('easiness_factor >= 1.30 AND interval_days >= 0', name='ck_sm2_easiness_factor')
     )
 
     # 14. Flashcards
@@ -340,7 +343,8 @@ def upgrade() -> None:
         sa.Column('last_assessed_at', sa.DateTime(), server_default=sa.func.now()),
         sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
-        sa.UniqueConstraint('student_user_id', 'subject', 'topic', name='uq_student_topic_mastery')
+        sa.UniqueConstraint('student_user_id', 'subject', 'topic', name='uq_student_topic_mastery'),
+        sa.CheckConstraint('mastery_score >= 0 AND mastery_score <= 100', name='ck_topic_mastery_score')
     )
 
     # Composite Performance & Query Indexes

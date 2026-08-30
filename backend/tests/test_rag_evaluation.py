@@ -1,4 +1,11 @@
 import unittest
+import os
+import sys
+from pathlib import Path
+
+# Ensure backend root is on sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from app.ai.evaluator import rag_evaluator, GOLDEN_EVALUATION_DATASET
 from app.safety.policy_engine import policy_engine
 from app.safety.content_classifier import content_classifier

@@ -161,18 +161,30 @@ class HybridRecommender:
                 score_data["total_relevance_score"] += 0.25
                 score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 25)
 
-            # Generate pedagogical explainability reason
+            # Generate pedagogical explainability reason & reason code
             if source == "spaced_repetition":
+                reason_code = "SPACED_REPETITION_DUE"
+                confidence = 0.90
                 reason = f"Due for active recall review in {item.topic} to solidify memory retention"
             elif source == "weak_topic_remedy":
+                reason_code = "WEAK_TOPIC_REMEDY"
+                confidence = 0.88
                 reason = f"Targeted review to boost diagnostic mastery in {item.topic}"
             elif source == "interest_matching":
+                reason_code = "INTEREST_MATCH"
+                confidence = 0.80
                 reason = f"Recommended based on your focus area in {item.subject}"
             elif source == "collaborative":
+                reason_code = "PEER_MASTERY_TRENDING"
+                confidence = 0.75
                 reason = f"High mastery lesson among Grade {item.grade_level} peers"
             elif source == "semantic_search":
+                reason_code = "CONCEPTUAL_PREREQUISITE"
+                confidence = 0.82
                 reason = f"Conceptually builds upon your recent study of {item.topic}"
             else:
+                reason_code = "CURRICULUM_CORE"
+                confidence = 0.78
                 reason = f"Curriculum-essential lesson for Grade {item.grade_level} {item.subject}"
 
             ranked_results.append({
@@ -193,6 +205,8 @@ class HybridRecommender:
                 "edu_score": item.edu_score or 95,
                 "relevance_percentage": score_data["relevance_percentage"],
                 "recommendation_reason": reason,
+                "reason_code": reason_code,
+                "confidence_score": confidence,
                 "recommendation_source": source,
                 "explanation": score_data
             })

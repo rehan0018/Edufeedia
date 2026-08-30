@@ -85,11 +85,14 @@ def ask_ai_tutor(
         if not ci:
             valid_content_id = None
 
+    board = current_user.student_profile.board if current_user.student_profile else "CBSE"
     rag_result = RAGEngine.query_rag_tutor(
         db=db,
         question=request.question,
         content_item_id=valid_content_id,
-        student_grade=grade_lvl
+        student_grade=grade_lvl,
+        student_id=current_user.id,
+        board=board
     )
 
     # 3. Output Safety Gate — Validate synthesized LLM response before returning to minor

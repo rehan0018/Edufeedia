@@ -1,6 +1,9 @@
 import datetime
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON, ForeignKey, Table, Text, UniqueConstraint, Index
+from sqlalchemy import (
+    Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON,
+    ForeignKey, Table, Text, UniqueConstraint, Index, CheckConstraint
+)
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -170,6 +173,7 @@ class StudentProgress(Base):
     __tablename__ = "student_progress"
     __table_args__ = (
         UniqueConstraint("student_user_id", "content_item_id", name="uq_student_content_progress"),
+        CheckConstraint("progress_percentage >= 0 AND progress_percentage <= 100", name="ck_student_progress_percentage"),
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -212,6 +216,7 @@ class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
     __table_args__ = (
         UniqueConstraint("student_user_id", "quiz_id", "attempt_number", name="uq_student_quiz_attempt"),
+        CheckConstraint("score >= 0 AND max_score > 0 AND accuracy_percentage >= 0 AND accuracy_percentage <= 100", name="ck_quiz_attempt_scores"),
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -230,6 +235,7 @@ class SpacedRepetitionSchedule(Base):
     __tablename__ = "spaced_repetition_schedules"
     __table_args__ = (
         UniqueConstraint("student_user_id", "subject", "topic", name="uq_student_topic_schedule"),
+        CheckConstraint("easiness_factor >= 1.30 AND interval_days >= 0", name="ck_sm2_easiness_factor"),
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -308,6 +314,7 @@ class TopicMastery(Base):
     __table_args__ = (
         UniqueConstraint("student_user_id", "subject", "topic", name="uq_student_topic_mastery"),
         Index("ix_topic_masteries_student_subject", "student_user_id", "subject"),
+        CheckConstraint("mastery_score >= 0 AND mastery_score <= 100", name="ck_topic_mastery_score"),
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
