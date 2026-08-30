@@ -45,7 +45,7 @@ class School(Base):
     name = Column(String, nullable=False)
     domain = Column(String, unique=True, index=True)
     address = Column(String)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     classes = relationship("SchoolClass", back_populates="school", cascade="all, delete-orphan")
     users = relationship("User", back_populates="school")
@@ -60,7 +60,7 @@ class SchoolClass(Base):
     grade_level = Column(Integer, nullable=False) # e.g. 10
     section_name = Column(String, nullable=False) # e.g. "A"
     academic_year = Column(String, nullable=False) # e.g. "2026-2027"
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     school = relationship("School", back_populates="classes")
     students = relationship("StudentProfile", back_populates="school_class")
@@ -79,7 +79,7 @@ class User(Base):
     guardian_verified = Column(Boolean, default=False)
     identity_verified = Column(Boolean, default=False) # Separated from consent
     account_status = Column(String, default="ACTIVE") # ACTIVE, SUSPENDED, DEACTIVATED
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     school = relationship("School", back_populates="users")
@@ -115,7 +115,7 @@ class StudentProfile(Base):
     last_active_date = Column(Date, nullable=True)
     interests = Column(JSON, default=list) # Store list of strings, e.g. ["coding", "space"]
     learning_preference = Column(JSON, default=list) # Store list of strings, e.g. ["video", "reading"]
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     user = relationship("User", back_populates="student_profile")
     school_class = relationship("SchoolClass", back_populates="students")
@@ -147,7 +147,7 @@ class ContentItem(Base):
     like_count = Column(Integer, default=0)
     is_approved = Column(Boolean, default=False)
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     quizzes = relationship("Quiz", back_populates="content_item", cascade="all, delete-orphan")
     progress_logs = relationship("StudentProgress", back_populates="content_item", cascade="all, delete-orphan")
@@ -164,7 +164,7 @@ class UserInteraction(Base):
     interaction_type = Column(String, nullable=False) # 'view', 'click', 'watch_time', 'completed', 'quiz_completed', 'bookmark', 'like', 'skip'
     weight = Column(Numeric(4, 2), default=1.0) # +5 for completion, +4 for bookmark, -2 for skip, etc.
     dwell_time_seconds = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     user = relationship("User")
     content_item = relationship("ContentItem", back_populates="interactions")
@@ -180,7 +180,7 @@ class StudentProgress(Base):
     content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
     progress_percentage = Column(Integer, default=0) # 0 to 100
     completed_at = Column(DateTime, nullable=True)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     student = relationship("User", back_populates="progress_logs")
     content_item = relationship("ContentItem", back_populates="progress_logs")
@@ -191,7 +191,7 @@ class Quiz(Base):
     content_item_id = Column(String, ForeignKey("content_items.id", ondelete="SET NULL"), nullable=True)
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     title = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     content_item = relationship("ContentItem", back_populates="quizzes")
     school = relationship("School")
@@ -208,7 +208,7 @@ class Question(Base):
     correct_answer = Column(String, nullable=False)
     explanation = Column(String, nullable=True)
     difficulty = Column(String, default="medium")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     quiz = relationship("Quiz", back_populates="questions")
 
@@ -226,7 +226,7 @@ class QuizAttempt(Base):
     max_score = Column(Integer, nullable=False)
     accuracy_percentage = Column(Numeric(5, 2), nullable=False)
     xp_awarded = Column(Integer, default=0)
-    completed_at = Column(DateTime, default=datetime.datetime.utcnow)
+    completed_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     student = relationship("User", back_populates="quiz_attempts")
     quiz = relationship("Quiz", back_populates="attempts")
@@ -245,7 +245,7 @@ class SpacedRepetitionSchedule(Base):
     repetition_number = Column(Integer, default=0)
     easiness_factor = Column(Numeric(3, 2), default=2.50)
     next_review_date = Column(Date, nullable=False)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     student = relationship("User", back_populates="spaced_schedules")
 
@@ -259,7 +259,7 @@ class Flashcard(Base):
     hint = Column(String, nullable=True)
     grade_level = Column(Integer, default=10)
     board = Column(String, default="CBSE")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class Badge(Base):
     __tablename__ = "badges"
@@ -279,7 +279,7 @@ class UserBadge(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     badge_id = Column(String, ForeignKey("badges.id", ondelete="CASCADE"), nullable=False)
-    unlocked_at = Column(DateTime, default=datetime.datetime.utcnow)
+    unlocked_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     badge = relationship("Badge")
     user = relationship("User")
@@ -297,7 +297,7 @@ class ClassAssignment(Base):
     title = Column(String, nullable=False)
     instructions = Column(String, nullable=True)
     due_date = Column(Date, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     teacher = relationship("User")
     school_class = relationship("SchoolClass")
@@ -326,9 +326,9 @@ class TopicMastery(Base):
     confidence = Column(Numeric(4, 2), default=0.5) # 0.00 to 1.00
     attempt_count = Column(Integer, default=0)
     trend = Column(String, default="stable") # 'improving', 'stable', 'declining'
-    last_assessed_at = Column(DateTime, default=datetime.datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    last_assessed_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     student = relationship("User", back_populates="topic_masteries")
 
@@ -355,7 +355,7 @@ class CurriculumChunk(Base):
     curriculum_code = Column(String, index=True, nullable=True) # e.g. "CBSE-G10-MATH-QUADRA"
     chunk_text = Column(Text, nullable=False)
     embedding = Column(Vector(384) if (HAS_PGVECTOR and Vector is not None) else JSON, nullable=True) # 384-dimensional dense semantic vector
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class IngestedSource(Base):
     """
@@ -387,7 +387,7 @@ class IngestedSource(Base):
     submitted_by = Column(String, nullable=True)
     reviewed_by = Column(String, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class ParentalConsentLog(Base):
     """
@@ -404,7 +404,7 @@ class ParentalConsentLog(Base):
     verification_token = Column(String, nullable=True)
     ip_hash = Column(String, nullable=True)
     consent_scope = Column(JSON, default=list) # e.g. ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"]
-    granted_at = Column(DateTime, default=datetime.datetime.utcnow)
+    granted_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     revoked_at = Column(DateTime, nullable=True)
 
     student = relationship("User", foreign_keys=[student_user_id])
@@ -425,7 +425,7 @@ class ContentReport(Base):
     action_taken = Column(String, nullable=True)
     reviewed_by = Column(String, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     reporter = relationship("User")
     content_item = relationship("ContentItem")
@@ -442,6 +442,34 @@ class PendingGuardianInvitation(Base):
     invitation_token = Column(String, unique=True, index=True, nullable=False)
     status = Column(String, default="pending") # 'pending', 'accepted', 'expired'
     expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     student = relationship("User")
+
+
+class StaffInvitation(Base):
+    """
+    Authoritative database record for staff (teacher, school_admin) invitations.
+    Stores SHA-256 hash of the invitation token, supporting explicit lifecycle states:
+    PENDING -> ACCEPTED, REVOKED, or EXPIRED.
+    """
+    __tablename__ = "staff_invitations"
+    __table_args__ = (
+        Index("ix_staff_invitations_school_status", "school_id", "status"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    school_id = Column(String, ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
+    email = Column(String, nullable=False, index=True)
+    role = Column(String, default="teacher") # 'teacher', 'school_admin'
+    token_hash = Column(String, unique=True, index=True, nullable=False) # SHA-256 hex digest
+    status = Column(String, default="PENDING") # 'PENDING', 'ACCEPTED', 'REVOKED', 'EXPIRED'
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    accepted_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+    school = relationship("School", foreign_keys=[school_id])
+    creator = relationship("User", foreign_keys=[created_by])

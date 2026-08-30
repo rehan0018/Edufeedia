@@ -145,7 +145,7 @@ class ContentIntelligencePipeline:
         # 1. Update IngestedSource Status
         source.status = "approved"
         source.reviewed_by = actual_reviewer_id
-        source.reviewed_at = datetime.datetime.utcnow()
+        source.reviewed_at = datetime.datetime.now(datetime.timezone.utc)
 
         # 2. Generate 384-d Embedding
         embedding_vec = embed_content(

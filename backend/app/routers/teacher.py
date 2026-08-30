@@ -365,7 +365,7 @@ def moderate_report(
     report.status = review.status
     report.action_taken = review.action_taken
     report.reviewed_by = current_user.id
-    report.reviewed_at = datetime.datetime.utcnow()
+    report.reviewed_at = datetime.datetime.now(datetime.timezone.utc)
     db.commit()
     db.refresh(report)
 

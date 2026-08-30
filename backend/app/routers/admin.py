@@ -1,3 +1,6 @@
+import datetime
+import hashlib
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
@@ -5,7 +8,8 @@ from typing import Dict, Any, List, Optional
 from app.database import get_db
 from app.models.models import (
     User, StudentProfile, ContentItem, QuizAttempt, Quiz,
-    UserInteraction, Flashcard, Badge, ClassAssignment, School, SchoolClass
+    UserInteraction, Flashcard, Badge, ClassAssignment, School, SchoolClass,
+    StaffInvitation
 )
 from app.core.security import get_password_hash, RoleChecker
 
@@ -212,11 +216,26 @@ def invite_teacher(
                 class_id=cid
             ))
 
+    # Generate 7-day invitation token and hash for authoritative DB storage
+    invite_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(invite_token.encode("utf-8")).hexdigest()
+    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
+
+    invitation = StaffInvitation(
+        user_id=teacher_user.id,
+        school_id=school_id,
+        email=req.email,
+        role="teacher",
+        token_hash=token_hash,
+        status="PENDING",
+        expires_at=expires_at,
+        created_by=current_user.id
+    )
+    db.add(invitation)
     db.commit()
 
-    # Generate 7-day invitation token
-    invite_token = secrets.token_urlsafe(32)
-    redis_client.setex(f"invite_token:{invite_token}", 7 * 86400, teacher_user.id)
+    # Cache in Redis TTL accelerator
+    redis_client.set(f"invite_token:{invite_token}", teacher_user.id, ex=7 * 86400)
 
     school_obj = db.query(School).filter(School.id == school_id).first()
     school_name = school_obj.name if school_obj else "Partner School"
@@ -230,6 +249,7 @@ def invite_teacher(
 
     return {
         "status": "invitation_dispatched",
+        "invitation_id": invitation.id,
         "email": req.email,
         "role": "teacher",
         "school_id": school_id,
@@ -259,10 +279,26 @@ def create_school_admin(
         school_id=req.school_id
     )
     db.add(admin_user)
-    db.commit()
+    db.flush()
 
     invite_token = secrets.token_urlsafe(32)
-    redis_client.setex(f"invite_token:{invite_token}", 7 * 86400, admin_user.id)
+    token_hash = hashlib.sha256(invite_token.encode("utf-8")).hexdigest()
+    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
+
+    invitation = StaffInvitation(
+        user_id=admin_user.id,
+        school_id=req.school_id,
+        email=req.email,
+        role="school_admin",
+        token_hash=token_hash,
+        status="PENDING",
+        expires_at=expires_at,
+        created_by=current_user.id
+    )
+    db.add(invitation)
+    db.commit()
+
+    redis_client.set(f"invite_token:{invite_token}", admin_user.id, ex=7 * 86400)
 
     email_service.send_staff_invitation(
         recipient_email=req.email,
@@ -273,9 +309,32 @@ def create_school_admin(
 
     return {
         "status": "school_admin_invited",
+        "invitation_id": invitation.id,
         "email": req.email,
         "school_id": req.school_id
     }
+
+@router.post("/invitations/{invitation_id}/revoke")
+def revoke_staff_invitation(
+    invitation_id: str,
+    current_user: User = Depends(RoleChecker(["school_admin", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Revoke a pending staff invitation.
+    """
+    inv = db.query(StaffInvitation).filter(StaffInvitation.id == invitation_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
+    if current_user.role == "school_admin" and inv.school_id != current_user.school_id:
+        raise HTTPException(status_code=403, detail="Access denied to this school tenant's invitation.")
+    if inv.status != "PENDING":
+        raise HTTPException(status_code=400, detail=f"Cannot revoke invitation with status {inv.status}.")
+    
+    inv.status = "REVOKED"
+    inv.revoked_at = datetime.datetime.now(datetime.timezone.utc)
+    db.commit()
+    return {"status": "revoked", "invitation_id": inv.id}
 
 @router.get("/export-excel")
 def export_database_records_to_excel(

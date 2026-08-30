@@ -111,7 +111,7 @@ def run_recommender_evaluation():
             score=2,
             max_score=5,
             accuracy_percentage=40.0,
-            completed_at=datetime.datetime.utcnow() - datetime.timedelta(days=1)
+            completed_at=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
         )
         db.add(attempt)
 

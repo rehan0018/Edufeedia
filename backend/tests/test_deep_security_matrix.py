@@ -404,7 +404,7 @@ class TestDeepSecurityMatrix(unittest.TestCase):
         expired_payload = {
             "sub": self.child1.email,
             "role": "student",
-            "exp": datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+            "exp": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2)
         }
         expired_token = jwt.encode(expired_payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
         res = self.client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {expired_token}"})

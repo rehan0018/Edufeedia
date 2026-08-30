@@ -73,6 +73,7 @@ class TestE2EProductionLifecycle(unittest.TestCase):
             role="teacher",
             first_name="Priya",
             last_name="Sharma",
+            is_verified=True,
             school_id=cls.SCHOOL_ID
         )
         cls.db.add(cls.teacher_user)

@@ -229,7 +229,7 @@ class IngestionStateMachine:
     @classmethod
     def _transition(cls, db: Session, source: IngestedSource, new_status: str):
         source.status = new_status
-        source.last_attempt_at = datetime.datetime.utcnow()
+        source.last_attempt_at = datetime.datetime.now(datetime.timezone.utc)
         db.flush()
 
     @classmethod
@@ -238,7 +238,7 @@ class IngestionStateMachine:
         source.error_code = code
         source.error_message = msg
         source.retry_count = (source.retry_count or 0) + 1
-        source.last_attempt_at = datetime.datetime.utcnow()
+        source.last_attempt_at = datetime.datetime.now(datetime.timezone.utc)
         db.commit()
         return {
             "success": False,

@@ -88,7 +88,7 @@ class StudentLifecycleService:
             consent_status="granted",
             verification_method=verification_method,
             consent_scope=scopes,
-            granted_at=datetime.datetime.utcnow()
+            granted_at=datetime.datetime.now(datetime.timezone.utc)
         )
         db.add(log)
         db.commit()
@@ -120,7 +120,7 @@ class StudentLifecycleService:
             parent_email=parent_email,
             consent_status="revoked",
             verification_method="parent_portal",
-            revoked_at=datetime.datetime.utcnow()
+            revoked_at=datetime.datetime.now(datetime.timezone.utc)
         )
         db.add(log)
         db.commit()

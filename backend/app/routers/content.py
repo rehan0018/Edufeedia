@@ -208,7 +208,7 @@ def update_progress(
             progress_percentage=progress_data.progress_percentage
         )
         if progress_data.progress_percentage == 100:
-            progress.completed_at = datetime.datetime.utcnow()
+            progress.completed_at = datetime.datetime.now(datetime.timezone.utc)
             newly_completed = True
         db.add(progress)
     else:
@@ -216,7 +216,7 @@ def update_progress(
         progress.progress_percentage = max(progress.progress_percentage, progress_data.progress_percentage)
         
         if progress.progress_percentage == 100 and not was_completed:
-            progress.completed_at = datetime.datetime.utcnow()
+            progress.completed_at = datetime.datetime.now(datetime.timezone.utc)
             newly_completed = True
             
     if newly_completed:
@@ -254,7 +254,7 @@ def update_progress(
         if existing:
             existing.progress_percentage = max(existing.progress_percentage, progress_data.progress_percentage)
             if existing.progress_percentage == 100 and not existing.completed_at:
-                existing.completed_at = datetime.datetime.utcnow()
+                existing.completed_at = datetime.datetime.now(datetime.timezone.utc)
             db.commit()
             progress = existing
     

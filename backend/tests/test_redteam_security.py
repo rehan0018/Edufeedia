@@ -241,8 +241,8 @@ class TestRedTeamSecurity(unittest.TestCase):
             consent_status=status,
             verification_method="email_otp_verified",
             consent_scope=["curriculum_access", "ai_socratic_tutor", "analytics_tracking"],
-            granted_at=datetime.datetime.utcnow() if status == "granted" else None,
-            revoked_at=datetime.datetime.utcnow() if status == "revoked" else None
+            granted_at=datetime.datetime.now(datetime.timezone.utc) if status == "granted" else None,
+            revoked_at=datetime.datetime.now(datetime.timezone.utc) if status == "revoked" else None
         )
         cls.db.add(log)
         cls.db.commit()

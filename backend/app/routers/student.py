@@ -351,7 +351,7 @@ def get_student_badges(
                 if (b.xp_bonus or 0) > 0:
                     profile.xp_score += b.xp_bonus
                 is_unlocked = True
-                unlocked_at = datetime.datetime.utcnow()
+                unlocked_at = datetime.datetime.now(datetime.timezone.utc)
 
         if is_unlocked:
             unlocked_count += 1

@@ -351,8 +351,10 @@ class TestAIModelGateway(unittest.TestCase):
     def test_staff_invitation_and_activation_lifecycle(self):
         """Verify school admin can invite teacher and teacher can activate account via token."""
         from fastapi.testclient import TestClient
+        from unittest.mock import patch
+        import uuid
         from app.main import app
-        from app.models.models import User
+        from app.models.models import User, StaffInvitation
         from app.database import SessionLocal
 
         db = SessionLocal()
@@ -366,47 +368,46 @@ class TestAIModelGateway(unittest.TestCase):
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # 1. School Admin invites teacher
-        import uuid
         new_teacher_email = f"new_math_faculty_{uuid.uuid4().hex[:6]}@apexschool.edu"
-        invite_res = client.post(
-            "/api/v1/admin/invite-teacher",
-            headers=admin_headers,
-            json={
-                "email": new_teacher_email,
-                "first_name": "Siddharth",
-                "last_name": "Rao"
-            }
-        )
-        self.assertEqual(invite_res.status_code, 200)
-        self.assertEqual(invite_res.json()["status"], "invitation_dispatched")
+        with patch("app.core.email_service.email_service.send_staff_invitation") as mock_email:
+            mock_email.return_value = {"status": "sent", "provider": "mock"}
+            invite_res = client.post(
+                "/api/v1/admin/invite-teacher",
+                headers=admin_headers,
+                json={
+                    "email": new_teacher_email,
+                    "first_name": "Siddharth",
+                    "last_name": "Rao"
+                }
+            )
+            self.assertEqual(invite_res.status_code, 200)
+            self.assertEqual(invite_res.json()["status"], "invitation_dispatched")
+            raw_token = mock_email.call_args[1]["invitation_token"]
 
-        from app.core.redis_client import redis_client
-
-        # Find the invite token in Redis
+        # Verify DB records
         invited_user = db.query(User).filter(User.email == new_teacher_email).first()
         self.assertIsNotNone(invited_user)
         self.assertEqual(invited_user.role, "teacher")
         self.assertFalse(invited_user.is_verified)
 
+        inv_record = db.query(StaffInvitation).filter(StaffInvitation.user_id == invited_user.id).first()
+        self.assertIsNotNone(inv_record)
+        self.assertEqual(inv_record.status, "PENDING")
+
         # 2. Teacher activates invite with password
-        # Find key in Redis
-        invite_token = None
-        for key in redis_client._local_store:
-            if key.startswith("invite_token:") and redis_client._local_store[key] == invited_user.id:
-                invite_token = key.replace("invite_token:", "")
-                break
-
-        self.assertIsNotNone(invite_token)
-
         act_res = client.post("/api/v1/auth/activate-invite", json={
-            "token": invite_token,
+            "token": raw_token,
             "password": "StrongPassword123!"
         })
         self.assertEqual(act_res.status_code, 200)
         self.assertEqual(act_res.json()["role"], "teacher")
         self.assertIn("access_token", act_res.json())
+
         db.refresh(invited_user)
+        db.refresh(inv_record)
         self.assertTrue(invited_user.is_verified)
+        self.assertEqual(inv_record.status, "ACCEPTED")
+        self.assertIsNotNone(inv_record.accepted_at)
         db.close()
 
     def test_transactional_email_service_smtp_delivery(self):

@@ -341,7 +341,7 @@ def verify_parent_otp(
         consent_status="granted",
         verification_method="email_otp_verified",
         consent_scope=req.consent_scope or ["curriculum_access", "ai_socratic_tutor", "analytics_tracking"],
-        granted_at=datetime.datetime.utcnow(),
+        granted_at=datetime.datetime.now(datetime.timezone.utc),
         revoked_at=None
     )
     db.add(log_entry)
@@ -373,7 +373,7 @@ def verify_parent_otp(
         "consent_granted": True,
         "verification_method": "email_otp_verified",
         "consent_version": "2026.1-Privacy-Guard",
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "message": "Verifiable guardian consent confirmed and recorded in immutable audit log."
     }
 
@@ -421,7 +421,7 @@ def revoke_parental_consent(
         verification_method="guardian_portal_revocation",
         consent_scope=[],
         granted_at=None,
-        revoked_at=datetime.datetime.utcnow()
+        revoked_at=datetime.datetime.now(datetime.timezone.utc)
     )
     db.add(log_entry)
 
@@ -437,7 +437,7 @@ def revoke_parental_consent(
         "consent_log_id": log_entry.id,
         "parent_email": req.parent_email.lower(),
         "consent_granted": False,
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "message": "Parental consent revoked. Student interactive access restricted."
     }
 
@@ -459,7 +459,7 @@ def export_student_data(
         "export_metadata": {
             "platform": "Edufeedia Safe Learning",
             "compliance": "GDPR-K Article 20 / COPPA Data Portability",
-            "exported_at": datetime.datetime.utcnow().isoformat(),
+            "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "user_id": current_user.id,
             "email": current_user.email
         },
@@ -538,7 +538,7 @@ def delete_student_data(
         verification_method="legal_erasure_request",
         consent_scope=[],
         granted_at=None,
-        revoked_at=datetime.datetime.utcnow()
+        revoked_at=datetime.datetime.now(datetime.timezone.utc)
     )
     db.add(tombstone)
 
@@ -561,5 +561,5 @@ def delete_student_data(
     return {
         "status": "success",
         "message": "All personal records and learning history have been permanently purged and anonymized. Compliance record preserved.",
-        "timestamp": datetime.datetime.utcnow().isoformat()
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }

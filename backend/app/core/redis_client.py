@@ -7,7 +7,7 @@ logger = logging.getLogger("edufeedia.redis")
 class RedisClient:
     """
     Thread-safe Redis client wrapper with high-availability connection pooling
-    and automatic memory cache fallback for standalone unit testing.
+    and automatic memory cache fallback for standalone unit testing and dev.
     """
     _instance = None
     _redis = None
@@ -21,7 +21,9 @@ class RedisClient:
 
     def __init__(self):
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        is_production = (os.getenv("ENVIRONMENT") == "production")
+        env = os.getenv("ENVIRONMENT", "development").lower()
+        is_production = (env == "production")
+        is_test = (env == "test")
         try:
             import redis
             self._redis = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=2)
@@ -31,21 +33,29 @@ class RedisClient:
             if is_production:
                 logger.critical(f"[CRITICAL: Production Redis Connection Failed]: {e}")
                 raise RuntimeError(f"Critical Infrastructure Failure: Redis cluster is unreachable in production environment ({e}). In-memory fallback is strictly disallowed.")
-            logger.warning(f"Redis unavailable ({e}). Initializing in-process fallback store for testing.")
+            if not is_test:
+                logger.warning(f"Redis unavailable ({e}). Initializing in-process fallback store for testing/dev.")
+            else:
+                logger.debug(f"Test environment initialized with in-process mock fallback: {e}")
             self._redis = None
 
-    def setex(self, key: str, seconds: int, value: str) -> bool:
+    def set(self, key: str, value: str, ex: Optional[int] = None) -> bool:
+        """Modern Redis set with optional expiration seconds."""
         if self._redis:
             try:
-                return bool(self._redis.setex(key, seconds, value))
+                return bool(self._redis.set(key, value, ex=ex))
             except Exception as e:
-                logger.error(f"Redis setex failed: {e}")
+                logger.error(f"Redis set failed: {e}")
                 if os.getenv("ENVIRONMENT") == "production":
                     raise RuntimeError(f"Production Redis cluster operation failed: {e}")
         elif os.getenv("ENVIRONMENT") == "production":
             raise RuntimeError("Production Redis cluster unavailable. In-memory OTP storage is disallowed.")
         self._local_store[key] = value
         return True
+
+    def setex(self, key: str, seconds: int, value: str) -> bool:
+        """Alias for modern set(key, value, ex=seconds) preventing deprecation warnings."""
+        return self.set(key, value, ex=seconds)
 
     def get(self, key: str) -> Optional[str]:
         if self._redis:
@@ -72,6 +82,8 @@ class RedisClient:
         if key in self._local_store:
             del self._local_store[key]
             return True
+        return False
+
     def check_rate_limit(self, key: str, max_requests: int = 10, window_seconds: int = 60) -> bool:
         """
         Sliding rate limiter. Returns True if request is allowed, False if exceeded.
@@ -94,7 +106,7 @@ class RedisClient:
         return current <= max_requests
 
     def clear_all(self):
-        """Used in test fixtures to wipe state."""
+        """Used in test fixtures to wipe state cleanly."""
         if self._redis:
             try:
                 self._redis.flushdb()

@@ -1,6 +1,7 @@
 import secrets
+import hashlib
 import datetime
-from datetime import timedelta, date
+from datetime import timedelta, date, timezone
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models.models import User, StudentProfile, parent_student_links
+from app.models.models import User, StudentProfile, parent_student_links, StaffInvitation
 from app.schemas.schemas import UserRegister, UserLogin, Token, UserOut
 from app.core.security import (
     get_password_hash, verify_password, create_access_token,
@@ -102,7 +103,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             guardian_email=user_in.parent_email,
             invitation_token=invitation_token,
             status="pending",
-            expires_at=datetime.datetime.utcnow() + datetime.timedelta(days=7)
+            expires_at=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
         )
         db.add(invitation)
         
@@ -133,7 +134,7 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     ).first()
 
     if guardian_inv:
-        if guardian_inv.expires_at < datetime.datetime.utcnow():
+        if guardian_inv.expires_at < datetime.datetime.now(datetime.timezone.utc):
             guardian_inv.status = "expired"
             db.commit()
             raise HTTPException(status_code=400, detail="Guardian invitation has expired. Please request a new invite.")
@@ -189,8 +190,38 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
             "user_id": parent.id
         }
 
-    # 2. Check Redis-backed Staff Invite Token
-    user_id = redis_client.get(f"invite_token:{req.token}")
+    # 2. Check Authoritative Staff Invitation Record via SHA-256 token hash
+    token_hash = hashlib.sha256(req.token.encode("utf-8")).hexdigest()
+    invitation = db.query(StaffInvitation).filter(StaffInvitation.token_hash == token_hash).first()
+    
+    user_id = None
+    if invitation:
+        if invitation.status == "REVOKED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This invitation has been revoked by an administrator."
+            )
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        exp = invitation.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=datetime.timezone.utc)
+        if exp < now_utc:
+            invitation.status = "EXPIRED"
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invitation token has expired."
+            )
+        if invitation.status != "PENDING":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invitation token has already been used or is inactive."
+            )
+        user_id = invitation.user_id
+    else:
+        # Fallback to Redis cache for legacy tokens
+        user_id = redis_client.get(f"invite_token:{req.token}")
+
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -207,11 +238,16 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     if req.last_name:
         user.last_name = req.last_name
     user.is_verified = True
+    user.account_status = "ACTIVE"
+
+    if invitation:
+        invitation.status = "ACCEPTED"
+        invitation.accepted_at = datetime.datetime.now(datetime.timezone.utc)
 
     db.commit()
     db.refresh(user)
 
-    # Invalidate token
+    # Invalidate token in Redis
     redis_client.delete(f"invite_token:{req.token}")
 
     # Issue JWT token
@@ -247,6 +283,13 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check staff verification status
+    if user.role in ["teacher", "school_admin"] and not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staff account activation is pending. Please activate your account via the invitation link sent to your email."
         )
 
     if user.account_status != "ACTIVE":

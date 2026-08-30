@@ -85,7 +85,7 @@ class MasteryEngine:
             accuracy_percentage=Decimal(str(accuracy)),
             attempt_number=attempt_number,
             xp_awarded=xp_earned,
-            completed_at=datetime.datetime.utcnow()
+            completed_at=datetime.datetime.now(datetime.timezone.utc)
         )
         db.add(attempt)
 
@@ -179,7 +179,7 @@ class MasteryEngine:
                 confidence=Decimal("0.60"),
                 attempt_count=1,
                 trend="stable",
-                last_assessed_at=datetime.datetime.utcnow()
+                last_assessed_at=datetime.datetime.now(datetime.timezone.utc)
             )
             db.add(mastery_record)
         else:
@@ -199,7 +199,7 @@ class MasteryEngine:
             mastery_record.attempt_count = (mastery_record.attempt_count or 0) + 1
             mastery_record.confidence = min(Decimal("0.98"), Decimal(str(round(float(mastery_record.confidence or 0.5) + 0.10, 2))))
             mastery_record.trend = trend
-            mastery_record.last_assessed_at = datetime.datetime.utcnow()
+            mastery_record.last_assessed_at = datetime.datetime.now(datetime.timezone.utc)
 
         return {
             "subject": subject,
