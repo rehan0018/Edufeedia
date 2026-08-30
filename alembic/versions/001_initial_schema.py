@@ -324,7 +324,15 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), server_default=sa.func.now())
     )
 
+    # Composite Performance & Query Indexes
+    op.create_index('ix_content_items_board_grade_approved', 'content_items', ['board', 'grade_level', 'is_approved'])
+    op.create_index('ix_user_interactions_user_content', 'user_interactions', ['user_id', 'content_item_id'])
+    op.create_index('ix_class_assignments_teacher_class', 'class_assignments', ['teacher_user_id', 'class_id'])
+
 def downgrade() -> None:
+    op.drop_index('ix_class_assignments_teacher_class', table_name='class_assignments')
+    op.drop_index('ix_user_interactions_user_content', table_name='user_interactions')
+    op.drop_index('ix_content_items_board_grade_approved', table_name='content_items')
     op.drop_table('pending_guardian_invitations')
     op.drop_table('content_reports')
     op.drop_table('parental_consent_logs')

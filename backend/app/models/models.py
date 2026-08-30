@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON, ForeignKey, Table, Text, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON, ForeignKey, Table, Text, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -112,6 +112,9 @@ class StudentProfile(Base):
 
 class ContentItem(Base):
     __tablename__ = "content_items"
+    __table_args__ = (
+        Index("ix_content_items_board_grade_approved", "board", "grade_level", "is_approved"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     title = Column(String, nullable=False)
     description = Column(String)
@@ -142,6 +145,9 @@ class ContentItem(Base):
 
 class UserInteraction(Base):
     __tablename__ = "user_interactions"
+    __table_args__ = (
+        Index("ix_user_interactions_user_content", "user_id", "content_item_id"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
@@ -267,6 +273,9 @@ class UserBadge(Base):
 
 class ClassAssignment(Base):
     __tablename__ = "class_assignments"
+    __table_args__ = (
+        Index("ix_class_assignments_teacher_class", "teacher_user_id", "class_id"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     teacher_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     class_id = Column(String, ForeignKey("school_classes.id", ondelete="CASCADE"), nullable=False)

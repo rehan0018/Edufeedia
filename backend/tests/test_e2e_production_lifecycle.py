@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.main import app
 from app.database import SessionLocal
 from app.models.models import (
-    User, StudentProfile, StudentProgress, QuizAttempt, Quiz, Question,
+    School, User, StudentProfile, StudentProgress, QuizAttempt, Quiz, Question,
     ContentItem, SpacedRepetitionSchedule, ParentalConsentLog, SchoolClass,
     teacher_classes, parent_student_links
 )
@@ -35,6 +35,18 @@ class TestE2EProductionLifecycle(unittest.TestCase):
     def setUpClass(cls):
         cls.db: Session = SessionLocal()
         cls._cleanup_all(cls.db)
+
+        # 0. Dedicated School Fixture
+        cls.school = cls.db.query(School).filter(School.id == cls.SCHOOL_ID).first()
+        if not cls.school:
+            cls.school = School(
+                id=cls.SCHOOL_ID,
+                name="E2E Testing Academy",
+                domain="e2eschool.edu",
+                address="Testing Lab"
+            )
+            cls.db.add(cls.school)
+            cls.db.flush()
 
         # 1. Dedicated School Class Fixture
         cls.school_class = SchoolClass(
@@ -165,11 +177,12 @@ class TestE2EProductionLifecycle(unittest.TestCase):
                 db.execute(parent_student_links.delete().where(parent_student_links.c.parent_user_id == parent.id))
                 db.delete(parent)
 
-            # Delete questions, quiz, content, school class
+            # Delete questions, quiz, content, school class, school
             db.query(Question).filter(Question.quiz_id == cls.QUIZ_ID).delete()
             db.query(Quiz).filter(Quiz.id == cls.QUIZ_ID).delete()
             db.query(ContentItem).filter(ContentItem.id == cls.CONTENT_ID).delete()
             db.query(SchoolClass).filter(SchoolClass.id == cls.CLASS_ID).delete()
+            db.query(School).filter(School.id == cls.SCHOOL_ID).delete()
             
             # Clean any staged content ingested during test
             staged_items = db.query(ContentItem).filter(ContentItem.title == "Laws of Motion & Force Demonstration").all()
