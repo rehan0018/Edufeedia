@@ -308,7 +308,9 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
         style={{ display: 'flex', gap: '12px' }}
       >
         <input
+          id="socratic-chat-input"
           type="text"
+          aria-label="Ask a Socratic question"
           value={inputQuestion}
           onChange={(e) => setInputQuestion(e.target.value)}
           placeholder="Ask Edufeedia a question (e.g. 'what is computer network', 'how does gravity work')..."

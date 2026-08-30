@@ -16,7 +16,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
               <Sparkles size={16} /> Curated Curriculum • Grade 10 CBSE
             </div>
-            <h1 style={{ fontSize: '2.2rem', marginBottom: '6px' }}>{dailyPlan?.greeting || 'Good morning, Rahul! 👋'}</h1>
+            <h1 style={{ fontSize: '2.2rem', marginBottom: '6px' }}>{dailyPlan?.greeting || 'Good morning! 👋'}</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '560px' }}>
               Your distraction-free daily syllabus. Focused, verified, and personalized to your learning pace.
             </p>
@@ -38,7 +38,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
               <span>{completedCount} of {items.length} completed</span>
-              <span>{dailyPlan?.xp || 350} XP earned</span>
+              <span>{dailyPlan?.xp ?? 0} XP earned</span>
             </div>
           </div>
         </div>
@@ -155,7 +155,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
                         )}
 
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Clock size={14} /> ~{item.duration_minutes || 15} min
+                          <Clock size={14} /> ~{item.duration_minutes ?? 15} min
                         </span>
                       </div>
 

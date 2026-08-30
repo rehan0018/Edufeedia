@@ -317,9 +317,9 @@ export default function TeacherDashboard() {
                   <div key={item.id} className="glass-panel" style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <span className="badge badge-subject-science">Safety: {Math.round(item.safety_score || 95)}%</span>
-                        <span className="badge badge-subject-coding">Edu Score: {Math.round(item.edu_score || 90)}</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.source_platform || 'OER'} • Grade {item.grade_level || 10}</span>
+                        <span className="badge badge-subject-science">Safety: {Math.round(item.safety_score ?? 95)}%</span>
+                        <span className="badge badge-subject-coding">Edu Score: {Math.round(item.edu_score ?? 90)}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.source_platform || 'OER'} • Grade {item.grade_level ?? 10}</span>
                       </div>
                       <h4 style={{ fontSize: '1.15rem', marginBottom: '4px' }}>{item.title}</h4>
                       <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>{item.description || item.source_url}</p>
@@ -425,10 +425,11 @@ export default function TeacherDashboard() {
               <div>
                 <form onSubmit={handleGenerateAiDraft} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    <label htmlFor="ai-generator-subject" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Subject
                     </label>
                     <select
+                      id="ai-generator-subject"
                       value={aiSubject}
                       onChange={(e) => setAiSubject(e.target.value)}
                       style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', background: 'var(--bg-space)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
@@ -441,10 +442,11 @@ export default function TeacherDashboard() {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    <label htmlFor="ai-generator-topic" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Curriculum Topic
                     </label>
                     <input
+                      id="ai-generator-topic"
                       type="text"
                       value={aiTopic}
                       onChange={(e) => setAiTopic(e.target.value)}
@@ -455,10 +457,11 @@ export default function TeacherDashboard() {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    <label htmlFor="ai-generator-grade" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Grade Level
                     </label>
                     <select
+                      id="ai-generator-grade"
                       value={aiGrade}
                       onChange={(e) => setAiGrade(parseInt(e.target.value))}
                       style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', background: 'var(--bg-space)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
@@ -469,10 +472,11 @@ export default function TeacherDashboard() {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    <label htmlFor="ai-generator-num-questions" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Number of Questions
                     </label>
                     <select
+                      id="ai-generator-num-questions"
                       value={aiNumQuestions}
                       onChange={(e) => setAiNumQuestions(parseInt(e.target.value))}
                       style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', background: 'var(--bg-space)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
@@ -513,9 +517,9 @@ export default function TeacherDashboard() {
                       {aiDraftQuestions.map((q, idx) => (
                         <div key={idx} className="glass-panel" style={{ padding: '16px', border: '1px solid var(--border-subtle)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                            <span style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontSize: '0.9rem' }}>
+                            <label htmlFor={`ai-draft-q-text-${idx}`} style={{ fontWeight: 700, color: 'var(--accent-cyan)', fontSize: '0.9rem', cursor: 'pointer' }}>
                               Question {idx + 1} ({q.blooms_level || 'Understand'})
-                            </span>
+                            </label>
                             <button
                               type="button"
                               className="btn btn-outline btn-sm"
@@ -527,7 +531,9 @@ export default function TeacherDashboard() {
                           </div>
 
                           <input
+                            id={`ai-draft-q-text-${idx}`}
                             type="text"
+                            aria-label={`Question ${idx + 1} text`}
                             value={q.question_text}
                             onChange={(e) => {
                               const updated = [...aiDraftQuestions];
@@ -543,6 +549,8 @@ export default function TeacherDashboard() {
                               <div key={optIdx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <input
                                   type="radio"
+                                  id={`ai-draft-q-${idx}-opt-${optIdx}-radio`}
+                                  aria-label={`Mark option ${optIdx + 1} as correct answer for question ${idx + 1}`}
                                   name={`correct_ai_${idx}`}
                                   checked={q.correct_answer === opt}
                                   onChange={() => {
@@ -553,6 +561,8 @@ export default function TeacherDashboard() {
                                 />
                                 <input
                                   type="text"
+                                  id={`ai-draft-q-${idx}-opt-${optIdx}-text`}
+                                  aria-label={`Option ${optIdx + 1} text for question ${idx + 1}`}
                                   value={opt}
                                   onChange={(e) => {
                                     const updated = [...aiDraftQuestions];
@@ -569,9 +579,13 @@ export default function TeacherDashboard() {
                             ))}
                           </div>
 
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Distractor Explanation:</div>
+                          <label htmlFor={`ai-draft-q-explanation-${idx}`} style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                            Distractor Explanation:
+                          </label>
                           <input
+                            id={`ai-draft-q-explanation-${idx}`}
                             type="text"
+                            aria-label={`Distractor explanation for question ${idx + 1}`}
                             value={q.explanation || ''}
                             onChange={(e) => {
                               const updated = [...aiDraftQuestions];
@@ -603,10 +617,11 @@ export default function TeacherDashboard() {
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    <label htmlFor="manual-quiz-title" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Assessment Title
                     </label>
                     <input
+                      id="manual-quiz-title"
                       type="text"
                       value={manualTitle}
                       onChange={(e) => setManualTitle(e.target.value)}
@@ -616,10 +631,11 @@ export default function TeacherDashboard() {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    <label htmlFor="manual-quiz-subject" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                       Subject
                     </label>
                     <select
+                      id="manual-quiz-subject"
                       value={manualSubject}
                       onChange={(e) => setManualSubject(e.target.value)}
                       style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', background: 'var(--bg-space)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
@@ -637,9 +653,9 @@ export default function TeacherDashboard() {
                   {manualQuestions.map((q, qIdx) => (
                     <div key={qIdx} className="glass-panel" style={{ padding: '16px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontWeight: 700, color: 'var(--accent-purple)', fontSize: '0.9rem' }}>
+                        <label htmlFor={`manual-q-text-${qIdx}`} style={{ fontWeight: 700, color: 'var(--accent-purple)', fontSize: '0.9rem', cursor: 'pointer' }}>
                           Question {qIdx + 1}
-                        </span>
+                        </label>
                         {manualQuestions.length > 1 && (
                           <button
                             type="button"
@@ -653,7 +669,9 @@ export default function TeacherDashboard() {
                       </div>
 
                       <input
+                        id={`manual-q-text-${qIdx}`}
                         type="text"
+                        aria-label={`Question ${qIdx + 1} text`}
                         placeholder="Enter question text..."
                         value={q.question_text}
                         onChange={(e) => handleUpdateManualQuestion(qIdx, 'question_text', e.target.value)}
@@ -666,12 +684,16 @@ export default function TeacherDashboard() {
                           <div key={optIdx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <input
                               type="radio"
+                              id={`manual-q-${qIdx}-opt-${optIdx}-radio`}
+                              aria-label={`Mark option ${String.fromCharCode(65 + optIdx)} as correct answer for question ${qIdx + 1}`}
                               name={`correct_manual_${qIdx}`}
                               checked={q.correct_answer === opt && opt !== ''}
                               onChange={() => handleUpdateManualQuestion(qIdx, 'correct_answer', opt)}
                             />
                             <input
                               type="text"
+                              id={`manual-q-${qIdx}-opt-${optIdx}-text`}
+                              aria-label={`Option ${String.fromCharCode(65 + optIdx)} text for question ${qIdx + 1}`}
                               placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
                               value={opt}
                               onChange={(e) => handleUpdateManualOption(qIdx, optIdx, e.target.value)}
@@ -683,13 +705,17 @@ export default function TeacherDashboard() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                         <input
+                          id={`manual-q-explanation-${qIdx}`}
                           type="text"
+                          aria-label={`Explanation for question ${qIdx + 1}`}
                           placeholder="Explanation for students..."
                           value={q.explanation}
                           onChange={(e) => handleUpdateManualQuestion(qIdx, 'explanation', e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-space)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', fontSize: '0.82rem' }}
                         />
                         <select
+                          id={`manual-q-blooms-${qIdx}`}
+                          aria-label={`Bloom's taxonomy level for question ${qIdx + 1}`}
                           value={q.blooms_level}
                           onChange={(e) => handleUpdateManualQuestion(qIdx, 'blooms_level', e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-space)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', fontSize: '0.82rem' }}

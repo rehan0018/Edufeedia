@@ -55,7 +55,9 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
           <div style={{ flex: '1 1 300px', position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
             <input
+              id="catalog-search-input"
               type="text"
+              aria-label="Search curriculum concepts"
               placeholder="Search concepts (e.g. 'computer networks', 'electricity', 'newton', 'quadratic')..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -75,6 +77,8 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <Filter size={16} color="var(--text-muted)" />
             <select
+              id="catalog-grade-filter"
+              aria-label="Filter by Grade Level"
               value={selectedGrade}
               onChange={(e) => setSelectedGrade(e.target.value)}
               style={{
@@ -233,13 +237,13 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
                   color: 'var(--text-muted)'
                 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Clock size={14} /> {item.duration_minutes || 12} min
+                    <Clock size={14} /> {item.duration_minutes ?? 12} min
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <ShieldCheck size={14} color="var(--accent-emerald)" /> Safe EDU
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Award size={14} color="var(--accent-gold)" /> {item.edu_score || 98}% Score
+                    <Award size={14} color="var(--accent-gold)" /> {item.edu_score ?? 98}% Score
                   </span>
                 </div>
 

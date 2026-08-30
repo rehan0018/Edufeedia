@@ -136,7 +136,7 @@ export default function Navbar({ currentTab, setTab, user, onLogout }) {
               fontSize: '0.85rem',
               fontWeight: 700
             }}>
-              <Zap size={16} /> {user?.xp_score || 350} XP
+              <Zap size={16} /> {user?.xp_score ?? 0} XP
             </div>
           </div>
         )}
@@ -151,7 +151,7 @@ export default function Navbar({ currentTab, setTab, user, onLogout }) {
           border: '1px solid var(--border-subtle)',
           fontSize: '0.88rem'
         }}>
-          <span style={{ fontWeight: 600 }}>{user?.first_name || 'Guest'}</span>
+          <span style={{ fontWeight: 600 }}>{user?.first_name || 'User'}</span>
           <span style={{
             fontSize: '0.72rem',
             padding: '2px 6px',
@@ -161,7 +161,7 @@ export default function Navbar({ currentTab, setTab, user, onLogout }) {
             fontWeight: 700,
             textTransform: 'uppercase'
           }}>
-            {user?.role || 'Student'}
+            {user?.role || 'student'}
           </span>
         </div>
 
