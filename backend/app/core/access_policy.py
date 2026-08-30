@@ -75,6 +75,18 @@ class AccessPolicy:
         return True
 
     @classmethod
+    def require_consent(cls, caller: User, scope: str, db: Session) -> None:
+        """Raises 403 Forbidden if the student caller lacks verified consent for the given scope."""
+        if caller.role != "student":
+            return
+        if not cls.has_consent(caller, scope, db):
+            cls.log_violation(caller, f"REQUIRE_CONSENT_{scope.upper()}", f"Missing consent scope: {scope}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: Verified parental consent is required for {scope}."
+            )
+
+    @classmethod
     def can_use_ai_tutor(cls, user: User, db: Optional[Session] = None) -> bool:
         """
         AI Socratic Tutor strictly requires:

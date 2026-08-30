@@ -18,7 +18,8 @@ from app.database import engine, SessionLocal, Base
 from app.models.models import (
     ContentItem, Quiz, Question, School, SchoolClass, User, StudentProfile,
     StudentProgress, QuizAttempt, SpacedRepetitionSchedule, Flashcard,
-    Badge, UserBadge, ClassAssignment, parent_student_links, teacher_classes
+    Badge, UserBadge, ClassAssignment, parent_student_links, teacher_classes,
+    TopicMastery
 )
 from app.embeddings.embedder import embed_content
 from app.core.excel_exporter import sync_database_to_excel
@@ -573,6 +574,44 @@ def seed_demo_data():
             instructions="Watch video and complete the 2-question concept review.",
             due_date=datetime.date.today() + datetime.timedelta(days=3)
         ))
+
+        # 12. Mock Topic Mastery Index
+        from decimal import Decimal
+        db.add_all([
+            TopicMastery(
+                student_user_id=student_rahul.id,
+                board="CBSE",
+                grade_level=10,
+                subject="Mathematics",
+                topic="Quadratic Equations",
+                mastery_score=Decimal("88.50"),
+                confidence=Decimal("0.85"),
+                attempt_count=2,
+                trend="improving"
+            ),
+            TopicMastery(
+                student_user_id=student_rahul.id,
+                board="CBSE",
+                grade_level=10,
+                subject="Science",
+                topic="Newton's Laws of Motion",
+                mastery_score=Decimal("45.00"),
+                confidence=Decimal("0.60"),
+                attempt_count=1,
+                trend="declining"
+            ),
+            TopicMastery(
+                student_user_id=student_priya.id,
+                board="CBSE",
+                grade_level=10,
+                subject="Mathematics",
+                topic="Quadratic Equations",
+                mastery_score=Decimal("94.00"),
+                confidence=Decimal("0.90"),
+                attempt_count=3,
+                trend="improving"
+            )
+        ])
 
         db.commit()
         print("Seeding complete! Database records exported to Excel sheet: edufeedia_database_records.xlsx")

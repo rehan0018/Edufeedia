@@ -4,9 +4,12 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.models import ContentItem
+from app.models.models import ContentItem, CurriculumChunk
 from app.embeddings.embedder import embed_query, embed_content, cosine_similarity
 from app.ai.llm_client import llm_client
+from app.ai.socratic_policy import SocraticPolicy
+from app.safety.engine import SafetyEngine
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -200,15 +203,30 @@ class RAGEngine:
         db: Session,
         question: str,
         content_item_id: Optional[str] = None,
-        student_grade: int = 10
+        student_grade: int = 10,
+        student_id: Optional[str] = None
     ) -> Dict[str, Any]:
+        start_time = time.time()
+
+        # Gate 1: Input Safety & Prompt Injection Check
+        safety_audit = SafetyEngine.audit_content(question, target_age=student_grade + 5)
+        if not safety_audit.get("is_safe", True):
+            logger.warning("[RAG Input Safety Rejection]: %s", safety_audit.get("explanation"))
+            return {
+                "socratic_guidance": "I am here to help you explore your school subjects safely! Let's refocus on mathematics, science, or computer science concepts from your curriculum.",
+                "citations": [],
+                "provenance": "Edufeedia Safety Policy Gate",
+                "groundedness_score": 1.0,
+                "is_safe": False,
+                "safety_audit": safety_audit
+            }
+
         # 1. Inspect Current Lesson (if open)
         current_lesson: Optional[ContentItem] = None
         if content_item_id:
             current_lesson = db.query(ContentItem).filter(ContentItem.id == content_item_id).first()
 
         # 2. Intent & Relevance Classification
-        # Does the student question actually relate to the open lesson, or is it an independent inquiry?
         is_lesson_related = False
         if current_lesson:
             is_lesson_related = cls._is_query_related_to_lesson(question, current_lesson)
@@ -231,14 +249,22 @@ class RAGEngine:
             topic_name = "General Curriculum"
             lesson_context = ""
 
-        # 5. Assemble Curriculum Context
+        # 5. Assemble Curriculum Context & Structured Provenance Citations
         curriculum_context_pieces = [lesson_context] if lesson_context else []
+        citations = []
         for chunk, score in top_chunks:
             curriculum_context_pieces.append(f"[{chunk['subject']} - {chunk['topic']} ({chunk['section']})]: {chunk['text']}")
+            citations.append({
+                "title": chunk.get("source_doc") or f"NCERT {chunk['subject']} Class {student_grade}",
+                "chapter": chunk.get("chapter") or chunk["topic"],
+                "section": chunk.get("section", "Core Concepts"),
+                "url": chunk.get("source_url") or "",
+                "relevance_score": score
+            })
 
         assembled_context = "\n".join(curriculum_context_pieces)
 
-        # 6. Generate Socratic Guidance via Model Gateway (OpenAI / Gemini / Local Socratic)
+        # 6. Generate Socratic Guidance via Model Gateway
         response = llm_client.generate_socratic_response(
             question=question,
             curriculum_context=assembled_context,
@@ -247,10 +273,47 @@ class RAGEngine:
             subject=subject_name
         )
 
+        # Gate 2: Output Safety & Answer Leakage Detector
+        raw_guidance = response.get("socratic_guidance") or response.get("answer") or ""
+        audit_res = SocraticPolicy.audit_and_steer_response(
+            raw_llm_response=raw_guidance,
+            student_question=question,
+            topic=topic_name,
+            subject=subject_name,
+            retrieved_chunks=[c for c, _ in top_chunks]
+        )
+
+        latency_ms = (time.time() - start_time) * 1000.0
+
+        # AI Telemetry Tracing
+        SocraticPolicy.trace_ai_request(
+            student_id=student_id,
+            query=question,
+            model=response.get("model", "gpt-4o-mini"),
+            provider=response.get("provider", "openai"),
+            retrieved_count=len(top_chunks),
+            prompt_tokens=len(assembled_context) // 4,
+            completion_tokens=len(audit_res["response_text"]) // 4,
+            latency_ms=latency_ms,
+            safety_verdict="SAFE",
+            groundedness=audit_res["groundedness_score"],
+            fallback_used=response.get("fallback_used", False)
+        )
+
+        provenance_str = (
+            f"Based on: {citations[0]['title']} — {citations[0]['chapter']}, {citations[0]['section']}"
+            if citations else f"Based on: {subject_name} • Grade {student_grade}"
+        )
+
+        response["socratic_guidance"] = audit_res["response_text"]
+        response["citations"] = citations
+        response["provenance"] = provenance_str
+        response["groundedness_score"] = audit_res["groundedness_score"]
+        response["leakage_blocked"] = audit_res["leakage_blocked"]
         response["subject"] = subject_name
         response["topic"] = topic_name
         response["grade"] = student_grade
-        response["grounding_source"] = f"{subject_name} • Grade {student_grade}"
+        response["grounding_source"] = provenance_str
 
         return response
 

@@ -82,7 +82,27 @@ class HybridRecommender:
                     "source": "collaborative"
                 }
 
-        # Source D: Trending / High-Quality fallback padding
+        # Source D: Diagnostic Weak Topics from TopicMastery
+        from app.models.models import TopicMastery
+        weak_masteries = db.query(TopicMastery).filter(
+            TopicMastery.student_user_id == student_id,
+            (TopicMastery.mastery_score < 70) | (TopicMastery.trend == "declining")
+        ).order_by(TopicMastery.mastery_score.asc()).limit(3).all()
+
+        for wm in weak_masteries:
+            weak_items = db.query(ContentItem).filter(
+                ContentItem.subject == wm.subject,
+                ContentItem.topic.ilike(f"%{wm.topic}%"),
+                ContentItem.is_approved == True
+            ).limit(2).all()
+            for wi in weak_items:
+                if wi.id not in candidate_pool:
+                    candidate_pool[wi.id] = {
+                        "item": wi,
+                        "source": "weak_topic_remedy"
+                    }
+
+        # Source E: Trending / High-Quality fallback padding
         if len(candidate_pool) < limit:
             padding = db.query(ContentItem).filter(
                 ContentItem.is_approved == True,
@@ -133,14 +153,19 @@ class HybridRecommender:
                 candidate_source=source
             )
 
-            # Boost spaced repetition items slightly so review is guaranteed in top feed
+            # Boost spaced repetition and weak topic remedy items so intervention is prioritized
             if source == "spaced_repetition":
-                score_data["total_relevance_score"] += 0.15
-                score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 15)
+                score_data["total_relevance_score"] += 0.20
+                score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 20)
+            elif source == "weak_topic_remedy":
+                score_data["total_relevance_score"] += 0.25
+                score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 25)
 
             # Generate pedagogical explainability reason
             if source == "spaced_repetition":
                 reason = f"Due for active recall review in {item.topic} to solidify memory retention"
+            elif source == "weak_topic_remedy":
+                reason = f"Targeted review to boost diagnostic mastery in {item.topic}"
             elif source == "interest_matching":
                 reason = f"Recommended based on your focus area in {item.subject}"
             elif source == "collaborative":

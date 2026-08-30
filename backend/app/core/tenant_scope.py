@@ -5,11 +5,11 @@ Guarantees that school-level administrators and educators cannot access foreign 
 """
 
 from typing import Any, Optional
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import Query, Session
 from app.models.models import (
     User, StudentProfile, ContentItem, Quiz, QuizAttempt,
     UserInteraction, SpacedRepetitionSchedule, ClassAssignment,
-    SchoolClass, Flashcard
+    SchoolClass, Flashcard, TopicMastery
 )
 
 class TenantScope:
@@ -45,6 +45,9 @@ class TenantScope:
         elif model == QuizAttempt:
             return query.join(User, QuizAttempt.student_user_id == User.id).filter(User.school_id == school_id)
 
+        elif model == TopicMastery:
+            return query.join(User, TopicMastery.student_user_id == User.id).filter(User.school_id == school_id)
+
         elif model == UserInteraction:
             return query.join(User, UserInteraction.user_id == User.id).filter(User.school_id == school_id)
 
@@ -61,3 +64,27 @@ class TenantScope:
             return query.filter((model.school_id == school_id) | (model.school_id == None))
 
         return query
+
+    @classmethod
+    def users(cls, db: Session, user: User) -> Query:
+        return cls.apply(db.query(User), User, user)
+
+    @classmethod
+    def content(cls, db: Session, user: User) -> Query:
+        return cls.apply(db.query(ContentItem), ContentItem, user)
+
+    @classmethod
+    def quizzes(cls, db: Session, user: User) -> Query:
+        return cls.apply(db.query(Quiz), Quiz, user)
+
+    @classmethod
+    def attempts(cls, db: Session, user: User) -> Query:
+        return cls.apply(db.query(QuizAttempt), QuizAttempt, user)
+
+    @classmethod
+    def masteries(cls, db: Session, user: User) -> Query:
+        return cls.apply(db.query(TopicMastery), TopicMastery, user)
+
+    @classmethod
+    def assignments(cls, db: Session, user: User) -> Query:
+        return cls.apply(db.query(ClassAssignment), ClassAssignment, user)

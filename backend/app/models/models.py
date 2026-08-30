@@ -20,7 +20,11 @@ parent_student_links = Table(
     Base.metadata,
     Column("parent_user_id", String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
     Column("student_user_id", String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-    Column("is_verified", Boolean, default=False)
+    Column("relationship_type", String, default="guardian"), # 'parent', 'guardian', 'tutor'
+    Column("is_verified", Boolean, default=False),
+    Column("verified_at", DateTime, nullable=True),
+    Column("revoked_at", DateTime, nullable=True),
+    Column("verification_method", String, default="email_otp") # 'email_otp', 'school_admin_attestation'
 )
 
 # Teacher-Class Link Table
@@ -68,6 +72,8 @@ class User(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     is_verified = Column(Boolean, default=False)
+    email_verified = Column(Boolean, default=False)
+    guardian_verified = Column(Boolean, default=False)
     identity_verified = Column(Boolean, default=False) # Separated from consent
     account_status = Column(String, default="ACTIVE") # ACTIVE, SUSPENDED, DEACTIVATED
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -79,6 +85,7 @@ class User(Base):
     quiz_attempts = relationship("QuizAttempt", back_populates="student", cascade="all, delete-orphan")
     progress_logs = relationship("StudentProgress", back_populates="student", cascade="all, delete-orphan")
     spaced_schedules = relationship("SpacedRepetitionSchedule", back_populates="student", cascade="all, delete-orphan")
+    topic_masteries = relationship("TopicMastery", back_populates="student", cascade="all, delete-orphan")
 
     # Relationships for parents
     students_linked = relationship(
@@ -291,18 +298,53 @@ class ClassAssignment(Base):
     content_item = relationship("ContentItem")
     quiz = relationship("Quiz")
 
+class TopicMastery(Base):
+    """
+    Topic-level student mastery index tracking diagnostic comprehension,
+    confidence score, assessment history, and learning trajectory trend.
+    Forms the central learning intelligence layer linking quizzes, SM-2, and recommendations.
+    """
+    __tablename__ = "topic_masteries"
+    __table_args__ = (
+        UniqueConstraint("student_user_id", "subject", "topic", name="uq_student_topic_mastery"),
+        Index("ix_topic_masteries_student_subject", "student_user_id", "subject"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    board = Column(String, default="CBSE")
+    grade_level = Column(Integer, default=10)
+    subject = Column(String, nullable=False)
+    topic = Column(String, nullable=False)
+    mastery_score = Column(Numeric(5, 2), default=0.0) # 0.00 to 100.00 (%)
+    confidence = Column(Numeric(4, 2), default=0.5) # 0.00 to 1.00
+    attempt_count = Column(Integer, default=0)
+    trend = Column(String, default="stable") # 'improving', 'stable', 'declining'
+    last_assessed_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    student = relationship("User", back_populates="topic_masteries")
+
 class CurriculumChunk(Base):
     """
     Structured database-backed curriculum knowledge chunk for RAG and semantic vector search.
-    Supports pgvector embeddings and PostgreSQL database storage.
+    Supports pgvector embeddings, section provenance, and PostgreSQL database storage.
     """
     __tablename__ = "curriculum_chunks"
+    __table_args__ = (
+        Index("ix_curriculum_chunks_subject_topic", "subject", "topic", "grade_level"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
+    source_id = Column(String, ForeignKey("content_items.id", ondelete="SET NULL"), nullable=True)
+    source_url = Column(String, nullable=True)
+    source_doc = Column(String, nullable=True) # e.g. "NCERT Class 10 Science - Light"
     board = Column(String, default="CBSE") # 'CBSE', 'ICSE', 'State_Board'
     grade_level = Column(Integer, default=10)
     subject = Column(String, nullable=False) # 'Mathematics', 'Science', 'Computer Science', 'Space Science'
     topic = Column(String, nullable=False)
+    chapter = Column(String, nullable=True)
     section = Column(String, nullable=False)
+    chunk_index = Column(Integer, default=0)
     curriculum_code = Column(String, index=True, nullable=True) # e.g. "CBSE-G10-MATH-QUADRA"
     chunk_text = Column(Text, nullable=False)
     embedding = Column(Vector(384) if (HAS_PGVECTOR and Vector is not None) else JSON, nullable=True) # 384-dimensional dense semantic vector
@@ -311,22 +353,28 @@ class CurriculumChunk(Base):
 class IngestedSource(Base):
     """
     Staging table for the automated Content Intelligence Ingestion Pipeline.
-    Stores fetched transcripts, SHA-256 deduplication hashes, and moderation reviews.
+    Supports 11-stage finite state machine and failure recovery.
     """
     __tablename__ = "ingested_sources"
     id = Column(String, primary_key=True, default=generate_uuid)
     source_url = Column(String, nullable=False)
     url_hash = Column(String, unique=True, index=True, nullable=False) # SHA-256 canonical digest
-    source_platform = Column(String, nullable=False) # 'youtube', 'khan_academy', 'ncert_oer', 'phet'
+    source_platform = Column(String, nullable=False) # 'youtube', 'khan_academy', 'ncert_oer', 'phet', 'pdf', 'html'
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     raw_text = Column(Text, nullable=True) # Extracted transcript or OER text
     subject = Column(String, nullable=True)
     topic = Column(String, nullable=True)
+    chapter = Column(String, nullable=True)
     grade_level = Column(Integer, default=10)
     board = Column(String, default="CBSE")
     curriculum_code = Column(String, nullable=True)
-    status = Column(String, default="pending_review") # 'pending_review', 'approved', 'rejected'
+    status = Column(String, default="DISCOVERED") # DISCOVERED, FETCHING, EXTRACTED, NORMALIZED, CURRICULUM_MAPPED, SAFETY_CHECKED, CHUNKED, EMBEDDED, PENDING_REVIEW, APPROVED, PUBLISHED, FAILED
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    last_attempt_at = Column(DateTime, nullable=True)
+    pipeline_version = Column(String, default="2.0")
     safety_audit = Column(JSON, nullable=True)
     edu_score = Column(Integer, default=80)
     submitted_by = Column(String, nullable=True)

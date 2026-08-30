@@ -112,7 +112,23 @@ def submit_quiz(
     )
     db.add(attempt)
         
-    # Spaced Repetition (SM-2) Interval Calculation
+    # Spaced Repetition (SM-2) & Topic Mastery Calculation
+    subject = (quiz.content_item.subject if quiz.content_item else getattr(quiz, "subject", None)) or "Science"
+    topic = (quiz.content_item.topic if quiz.content_item else getattr(quiz, "topic", None)) or "General"
+    board = (quiz.content_item.board if quiz.content_item else getattr(quiz, "board", None)) or "CBSE"
+    grade_level = (quiz.content_item.grade_level if quiz.content_item else getattr(quiz, "grade_level", None)) or 10
+    
+    from app.core.mastery_engine import MasteryEngine
+    mastery_info = MasteryEngine.update_topic_mastery(
+        db=db,
+        student_id=current_user.id,
+        subject=subject,
+        topic=topic,
+        quiz_score_pct=accuracy,
+        board=board,
+        grade_level=grade_level
+    )
+
     # Scale accuracy to 0-5 response quality grade
     if accuracy >= 100.0:
         q = 5
@@ -128,40 +144,39 @@ def submit_quiz(
         q = 0
         
     # Find active spaced repetition schedule for this quiz subject/topic
-    if quiz.content_item:
-        item = quiz.content_item
-        schedule = db.query(SpacedRepetitionSchedule).filter(
-            SpacedRepetitionSchedule.student_user_id == current_user.id,
-            SpacedRepetitionSchedule.subject == item.subject,
-            SpacedRepetitionSchedule.topic == item.topic
-        ).first()
-        
-        if not schedule:
-            # Create a fresh schedule starting with SM-2 defaults
-            interval, repetition, ef = calculate_sm2(q, 1, 0, 2.50)
-            tomorrow = datetime.date.today() + datetime.timedelta(days=interval)
-            schedule = SpacedRepetitionSchedule(
-                student_user_id=current_user.id,
-                subject=item.subject,
-                topic=item.topic,
-                interval_days=interval,
-                repetition_number=repetition,
-                easiness_factor=ef,
-                next_review_date=tomorrow
-            )
-            db.add(schedule)
-        else:
-            # Update existing schedule parameters
-            interval, repetition, ef = calculate_sm2(
-                q,
-                schedule.interval_days,
-                schedule.repetition_number,
-                schedule.easiness_factor
-            )
-            next_date = datetime.date.today() + datetime.timedelta(days=interval)
-            schedule.interval_days = interval
-            schedule.repetition_number = repetition
-            schedule.easiness_factor = ef
+    schedule = db.query(SpacedRepetitionSchedule).filter(
+        SpacedRepetitionSchedule.student_user_id == current_user.id,
+        SpacedRepetitionSchedule.subject == subject,
+        SpacedRepetitionSchedule.topic == topic
+    ).first()
+    
+    if not schedule:
+        # Create a fresh schedule starting with SM-2 defaults
+        interval, repetition, ef = calculate_sm2(q, 1, 0, 2.50)
+        tomorrow = datetime.date.today() + datetime.timedelta(days=interval)
+        schedule = SpacedRepetitionSchedule(
+            student_user_id=current_user.id,
+            subject=subject,
+            topic=topic,
+            interval_days=interval,
+            repetition_number=repetition,
+            easiness_factor=ef,
+            next_review_date=tomorrow
+        )
+        db.add(schedule)
+    else:
+        # Update existing schedule parameters
+        interval, repetition, ef = calculate_sm2(
+            q,
+            schedule.interval_days,
+            schedule.repetition_number,
+            schedule.easiness_factor
+        )
+        next_date = datetime.date.today() + datetime.timedelta(days=interval)
+        schedule.interval_days = interval
+        schedule.repetition_number = repetition
+        schedule.easiness_factor = ef
+        schedule.next_review_date = next_date
     for _ in range(5):
         try:
             db.commit()

@@ -253,6 +253,25 @@ def get_teacher_interventions(
                         recommended_action="Assign targeted diagnostic flashcard deck and foundational revision lesson."
                     ))
 
+            # Check Topic Mastery deficiencies
+            from app.models.models import TopicMastery
+            weak_masteries = db.query(TopicMastery).filter(
+                TopicMastery.student_user_id == student_user.id,
+                (TopicMastery.mastery_score < 55) | (TopicMastery.trend == "declining")
+            ).all()
+
+            for wt in weak_masteries:
+                interventions.append(TeacherInterventionItem(
+                    student_id=student_user.id,
+                    student_name=name,
+                    class_id=sc.id,
+                    grade_level=sc.grade_level,
+                    section_name=sc.section_name,
+                    severity="high" if (wt.mastery_score or 0) < 40 else "medium",
+                    reason=f"Deficiency in {wt.topic} (Mastery: {float(wt.mastery_score):.0f}%, Trend: {wt.trend})",
+                    recommended_action=f"Assign foundational lesson in {wt.subject} — {wt.topic}."
+                ))
+
             # Check missed spaced reviews
             overdue_reviews = db.query(SpacedRepetitionSchedule).filter(
                 SpacedRepetitionSchedule.student_user_id == student_user.id,

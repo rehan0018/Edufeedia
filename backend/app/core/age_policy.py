@@ -53,6 +53,62 @@ class StudentAgePolicy:
         else:
             return "BAND_16_18" # Senior Secondary (Grades 11–12)
 
+    @staticmethod
+    def get_allowed_content_policy(age: int) -> Dict[str, Any]:
+        """Returns the permitted content difficulty and strictness policy by age."""
+        if age <= 12:
+            return {
+                "max_difficulty": "medium",
+                "min_safety_score": 90,
+                "allow_external_embeds": False,
+                "language_complexity": "simple",
+                "recommended_duration_max": 15
+            }
+        elif age <= 15:
+            return {
+                "max_difficulty": "hard",
+                "min_safety_score": 80,
+                "allow_external_embeds": True,
+                "language_complexity": "standard",
+                "recommended_duration_max": 30
+            }
+        else:
+            return {
+                "max_difficulty": "hard",
+                "min_safety_score": 75,
+                "allow_external_embeds": True,
+                "language_complexity": "advanced",
+                "recommended_duration_max": 45
+            }
+
+    @staticmethod
+    def get_ai_policy(age: int) -> Dict[str, Any]:
+        """Returns AI Socratic guidance parameters and capability constraints by age."""
+        if age <= 12:
+            return {
+                "socratic_depth": "guided_step_by_step",
+                "max_response_length": 150,
+                "tone": "encouraging_simple",
+                "allow_code_generation": False,
+                "strict_safety_gate": True
+            }
+        elif age <= 15:
+            return {
+                "socratic_depth": "inquiry_and_hints",
+                "max_response_length": 250,
+                "tone": "curriculum_coach",
+                "allow_code_generation": True,
+                "strict_safety_gate": True
+            }
+        else:
+            return {
+                "socratic_depth": "first_principles_deep_dive",
+                "max_response_length": 400,
+                "tone": "academic_rigorous",
+                "allow_code_generation": True,
+                "strict_safety_gate": True
+            }
+
     @classmethod
     def is_minor(cls, age: int) -> bool:
         """Determines if student is under 18."""
@@ -63,4 +119,5 @@ class StudentAgePolicy:
         """Determines if student requires verifiable guardian consent."""
         return age < cls.GUARDIAN_CONSENT_AGE_THRESHOLD
 
+AgePolicyService = StudentAgePolicy
 age_policy = StudentAgePolicy()

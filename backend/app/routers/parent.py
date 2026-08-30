@@ -111,12 +111,35 @@ def get_student_progress_summary(
         elif avg_sub_acc < 70:
             weaknesses.append({"subject": sub, "accuracy": avg_sub_acc})
 
+    # Query Real Topic Masteries
+    from app.models.models import TopicMastery
+    masteries = db.query(TopicMastery).filter(TopicMastery.student_user_id == student_id).all()
+    topic_breakdown = [
+        {
+            "subject": m.subject,
+            "topic": m.topic,
+            "mastery_score": float(m.mastery_score or 0.0),
+            "confidence": float(m.confidence or 0.5),
+            "trend": m.trend,
+            "attempts": m.attempt_count
+        }
+        for m in masteries
+    ]
+
+    weak_topics = [m.topic for m in masteries if (m.mastery_score or 0) < 70 or m.trend == "declining"]
+    if weak_topics:
+        recommended_action = f"Encourage 20 minutes of {weak_topics[0]} practice this week."
+    elif weaknesses:
+        recommended_action = f"Encourage 15 minutes of {weaknesses[0]['subject']} revision."
+    else:
+        recommended_action = "Maintain the current study cadence with regular active recall reviews."
+
     consent = db.query(ParentalConsentLog).filter(
         ParentalConsentLog.parent_user_id == current_user.id,
         ParentalConsentLog.student_user_id == student_id,
         ParentalConsentLog.consent_status == "granted"
     ).first()
-        
+
     return {
         "student_name": f"{student.first_name} {student.last_name}",
         "class_grade": profile.school_class.grade_level if profile.school_class else 10,
@@ -127,11 +150,13 @@ def get_student_progress_summary(
         "subject_progress": [
             {"subject": sub, "lessons_completed": count} for sub, count in subject_completion.items()
         ],
+        "topic_masteries": topic_breakdown,
         "academic_insights": {
             "strengths": strengths,
             "weaknesses": weaknesses,
             "insufficient_data": (len(attempts) == 0),
-            "revision_urgency": "Medium" if weaknesses else "Low"
+            "revision_urgency": "High" if weak_topics else ("Medium" if weaknesses else "Low"),
+            "recommended_parent_action": recommended_action
         },
         "consent": {
             "is_verified": bool(consent),

@@ -324,15 +324,39 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), server_default=sa.func.now())
     )
 
+    # 23. Topic Masteries Table
+    op.create_table(
+        'topic_masteries',
+        sa.Column('id', sa.String(), primary_key=True),
+        sa.Column('student_user_id', sa.String(), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
+        sa.Column('board', sa.String(), default='CBSE'),
+        sa.Column('grade_level', sa.Integer(), default=10),
+        sa.Column('subject', sa.String(), nullable=False),
+        sa.Column('topic', sa.String(), nullable=False),
+        sa.Column('mastery_score', sa.Numeric(5, 2), default=0.0),
+        sa.Column('confidence', sa.Numeric(4, 2), default=0.5),
+        sa.Column('attempt_count', sa.Integer(), default=0),
+        sa.Column('trend', sa.String(), default='stable'),
+        sa.Column('last_assessed_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.UniqueConstraint('student_user_id', 'subject', 'topic', name='uq_student_topic_mastery')
+    )
+
     # Composite Performance & Query Indexes
     op.create_index('ix_content_items_board_grade_approved', 'content_items', ['board', 'grade_level', 'is_approved'])
     op.create_index('ix_user_interactions_user_content', 'user_interactions', ['user_id', 'content_item_id'])
     op.create_index('ix_class_assignments_teacher_class', 'class_assignments', ['teacher_user_id', 'class_id'])
+    op.create_index('ix_topic_masteries_student_subject', 'topic_masteries', ['student_user_id', 'subject'])
+    op.create_index('ix_curriculum_chunks_subject_topic', 'curriculum_chunks', ['subject', 'topic', 'grade_level'])
 
 def downgrade() -> None:
+    op.drop_index('ix_curriculum_chunks_subject_topic', table_name='curriculum_chunks')
+    op.drop_index('ix_topic_masteries_student_subject', table_name='topic_masteries')
     op.drop_index('ix_class_assignments_teacher_class', table_name='class_assignments')
     op.drop_index('ix_user_interactions_user_content', table_name='user_interactions')
     op.drop_index('ix_content_items_board_grade_approved', table_name='content_items')
+    op.drop_table('topic_masteries')
     op.drop_table('pending_guardian_invitations')
     op.drop_table('content_reports')
     op.drop_table('parental_consent_logs')
