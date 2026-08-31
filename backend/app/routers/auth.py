@@ -198,7 +198,8 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
         db.refresh(parent)
 
         access_token = create_access_token(
-            data={"sub": parent.email, "role": parent.role}
+            data={"sub": parent.email, "role": parent.role},
+            token_version=parent.token_version
         )
         return {
             "access_token": access_token,
@@ -269,7 +270,8 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
 
     # Issue JWT token
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role}
+        data={"sub": user.email, "role": user.role},
+        token_version=user.token_version
     )
     return {
         "access_token": access_token,
@@ -280,6 +282,14 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, request: Request, db: Session = Depends(get_db)):
+    # 1. Multi-dimensional Rate Limiting: IP-level and account-level
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    if not redis_client.check_rate_limit(f"login_ip:{client_ip}", max_requests=30, window_seconds=900):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts from this network. Please try again in 15 minutes."
+        )
+
     email_key = credentials.email.lower().strip()
     rate_key = f"login_rate_limit:{email_key}"
     attempts = redis_client.get(rate_key)
@@ -330,7 +340,8 @@ def login(credentials: UserLogin, request: Request, db: Session = Depends(get_db
         )
         
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role}
+        data={"sub": user.email, "role": user.role},
+        token_version=user.token_version
     )
     return {
         "access_token": access_token,
@@ -375,7 +386,8 @@ def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
 @router.post("/reset-password")
 def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     """
-    Redeems a valid password reset token and updates the user's password.
+    Redeems a valid password reset token, updates the user's password,
+    and increments token_version to invalidate all existing active JWT sessions.
     """
     validate_password_complexity(req.new_password)
 
@@ -395,6 +407,8 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User account not found.")
 
     user.password_hash = get_password_hash(req.new_password)
+    user.token_version = (user.token_version or 1) + 1
+    user.password_changed_at = datetime.datetime.now(datetime.timezone.utc)
     db.commit()
 
     redis_client.delete(f"pwd_reset:{req.token}")
@@ -404,7 +418,7 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
 
     return {
         "status": "password_reset_success",
-        "message": "Your password has been successfully reset. Please log in with your new password."
+        "message": "Your password has been successfully reset. All previous sessions have been invalidated. Please log in with your new password."
     }
 
 @router.post("/logout")

@@ -79,6 +79,8 @@ class User(Base):
     guardian_verified = Column(Boolean, default=False)
     identity_verified = Column(Boolean, default=False) # Separated from consent
     account_status = Column(String, default="ACTIVE") # ACTIVE, SUSPENDED, DEACTIVATED
+    token_version = Column(Integer, default=1, nullable=False) # Incremented on password reset to invalidate active JWTs
+    password_changed_at = Column(DateTime, nullable=True) # Explicit timestamp of last credential reset
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
@@ -473,3 +475,102 @@ class StaffInvitation(Base):
     user = relationship("User", foreign_keys=[user_id])
     school = relationship("School", foreign_keys=[school_id])
     creator = relationship("User", foreign_keys=[created_by])
+
+
+class LearningEvent(Base):
+    """
+    Authoritative server-side learning event log for tracking verified student engagement.
+    Replaces unverified client completion submissions with audited event streams.
+    """
+    __tablename__ = "learning_events"
+    __table_args__ = (
+        Index("ix_learning_events_student_content", "student_user_id", "content_item_id"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
+    event_type = Column(String, nullable=False)  # 'heartbeat', 'progress_checkpoint', 'completion_verified', 'quiz_submission'
+    progress_percentage = Column(Integer, default=0)
+    verified_seconds = Column(Integer, default=0)
+    heartbeat_count = Column(Integer, default=0)
+    client_timestamp = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    student = relationship("User")
+    content_item = relationship("ContentItem")
+
+
+class RewardLedger(Base):
+    """
+    Immutable transaction ledger for XP and gamification disbursements.
+    Guarantees idempotency via unique_reward_key, preventing duplicate awards and race conditions.
+    """
+    __tablename__ = "reward_ledgers"
+    __table_args__ = (
+        UniqueConstraint("unique_reward_key", name="uq_reward_unique_key"),
+        Index("ix_reward_ledgers_student", "student_user_id"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    event_id = Column(String, nullable=True)
+    reward_type = Column(String, nullable=False)  # 'CONTENT_COMPLETION_XP', 'QUIZ_MASTERY_XP', 'STREAK_BONUS_XP'
+    xp_amount = Column(Integer, nullable=False)
+    unique_reward_key = Column(String, nullable=False, unique=True, index=True)  # e.g. "xp:completion:{student_id}:{content_id}"
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    student = relationship("User")
+
+
+class ConceptNode(Base):
+    """
+    Represents a discrete pedagogical concept in the K-12 curriculum knowledge graph.
+    """
+    __tablename__ = "concept_nodes"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    code = Column(String, unique=True, index=True, nullable=False)  # e.g. "MATH_G10_QUAD_DISCRIMINANT"
+    subject = Column(String, nullable=False, index=True)
+    topic = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    grade_level = Column(Integer, nullable=False)
+    board = Column(String, default="CBSE")
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+
+class PrerequisiteEdge(Base):
+    """
+    Directed prerequisite relationship between concepts: concept_id requires prerequisite_concept_id.
+    """
+    __tablename__ = "prerequisite_edges"
+    __table_args__ = (
+        UniqueConstraint("concept_id", "prerequisite_concept_id", name="uq_prerequisite_edge"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    concept_id = Column(String, ForeignKey("concept_nodes.id", ondelete="CASCADE"), nullable=False)
+    prerequisite_concept_id = Column(String, ForeignKey("concept_nodes.id", ondelete="CASCADE"), nullable=False)
+    weight = Column(Numeric(3, 2), default=1.0)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    concept = relationship("ConceptNode", foreign_keys=[concept_id])
+    prerequisite = relationship("ConceptNode", foreign_keys=[prerequisite_concept_id])
+
+
+class MisconceptionLog(Base):
+    """
+    Tracks persistent student cognitive misconceptions diagnosed during Socratic tutoring or quiz attempts.
+    """
+    __tablename__ = "misconception_logs"
+    __table_args__ = (
+        Index("ix_misconceptions_student_concept", "student_user_id", "concept_code"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    subject = Column(String, nullable=False)
+    topic = Column(String, nullable=False)
+    concept_code = Column(String, nullable=True)
+    pattern = Column(String, nullable=False)  # e.g. "confuses_acceleration_with_velocity"
+    confidence = Column(Numeric(3, 2), default=0.85)
+    first_seen_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    resolved_at = Column(DateTime, nullable=True)
+
+    student = relationship("User")

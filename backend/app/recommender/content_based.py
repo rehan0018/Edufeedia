@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Tuple, Any
 from app.models.models import ContentItem, StudentProfile, StudentProgress
 from app.embeddings.embedder import embed_student, embed_content, cosine_similarity
+from app.core.tenant_scope import TenantScope
 
 def generate_content_based_candidates(
     db: Session,
@@ -10,9 +11,10 @@ def generate_content_based_candidates(
 ) -> List[Dict[str, Any]]:
     """
     Candidate Generation Layer 1: Content-Based Filtering
-    Retrieves syllabus content aligned with student's board, grade, and semantic interest vector.
+    Retrieves syllabus content strictly within student's tenant scope, board, and grade.
+    Zero cross-school or cross-grade leakage.
     """
-    grade = student_profile.school_class.grade_level if student_profile.school_class else 10
+    grade = student_profile.school_class.grade_level if student_profile.school_class else (student_profile.grade_level or 10)
     board = student_profile.board or "CBSE"
     interests = student_profile.interests or []
 
@@ -23,32 +25,17 @@ def generate_content_based_candidates(
     ).all()
     completed_ids = {log[0] for log in completed_logs}
 
-    # Query approved syllabus items matching grade and board
-    items = db.query(ContentItem).filter(
+    # Query approved syllabus items matching grade, board, and tenant scope
+    base_query = TenantScope.content(db, student_profile.user).filter(
         ContentItem.is_approved == True,
         ContentItem.grade_level == grade,
-        ContentItem.board == board,
         ~ContentItem.id.in_(completed_ids) if completed_ids else True
-    ).all()
+    )
 
-    # Fallback 1: match grade across any board if count is low
-    if len(items) < 3:
-        existing_ids = {i.id for i in items}
-        more_grade_items = db.query(ContentItem).filter(
-            ContentItem.is_approved == True,
-            ContentItem.grade_level == grade,
-            ~ContentItem.id.in_(completed_ids | existing_ids) if (completed_ids or existing_ids) else True
-        ).all()
-        items.extend(more_grade_items)
-
-    # Fallback 2: general approved educational items across all grades/boards
-    if len(items) < 3:
-        existing_ids = {i.id for i in items}
-        general_items = db.query(ContentItem).filter(
-            ContentItem.is_approved == True,
-            ~ContentItem.id.in_(completed_ids | existing_ids) if (completed_ids or existing_ids) else True
-        ).all()
-        items.extend(general_items)
+    items = base_query.filter(ContentItem.board == board).all()
+    if not items:
+        # Allow curriculum with global/general board if same grade & school scope
+        items = base_query.all()
 
     # Generate student profile semantic embedding vector
     student_vec = embed_student(

@@ -28,7 +28,7 @@ class HybridRecommender:
         if not profile:
             return {"items": [], "total_candidates_evaluated": 0}
 
-        grade = profile.school_class.grade_level if profile.school_class else 10
+        grade = profile.school_class.grade_level if profile.school_class else (profile.grade_level or 10)
         board = profile.board or "CBSE"
         interests = profile.interests or []
 
@@ -40,23 +40,24 @@ class HybridRecommender:
         )
         behavioral_profile = get_user_behavioral_profile(db, student_id)
 
-        # 2. Multi-Source Candidate Generation
+        # 2. Multi-Source Candidate Generation strictly within Tenant Scope
+        from app.core.tenant_scope import TenantScope
         candidate_pool: Dict[str, Dict[str, Any]] = {}
 
-        # Source A: Spaced Repetition items due today
+        # Source A: Spaced Repetition items due today (multi-item retrieval up to 15)
         today = datetime.date.today()
-        due_schedule = db.query(SpacedRepetitionSchedule).filter(
+        due_schedules = db.query(SpacedRepetitionSchedule).filter(
             SpacedRepetitionSchedule.student_user_id == student_id,
             SpacedRepetitionSchedule.next_review_date <= today
-        ).first()
+        ).order_by(SpacedRepetitionSchedule.next_review_date.asc()).limit(15).all()
 
-        if due_schedule:
-            review_item = db.query(ContentItem).filter(
-                ContentItem.subject.ilike(f"%{due_schedule.subject}%"),
-                ContentItem.topic.ilike(f"%{due_schedule.topic}%"),
+        for schedule in due_schedules:
+            review_item = TenantScope.content(db, profile.user).filter(
+                ContentItem.subject.ilike(f"%{schedule.subject}%"),
+                ContentItem.topic.ilike(f"%{schedule.topic}%"),
                 ContentItem.is_approved == True
             ).first()
-            if review_item:
+            if review_item and review_item.id not in candidate_pool:
                 candidate_pool[review_item.id] = {
                     "item": review_item,
                     "source": "spaced_repetition"
@@ -90,7 +91,7 @@ class HybridRecommender:
         ).order_by(TopicMastery.mastery_score.asc()).limit(3).all()
 
         for wm in weak_masteries:
-            weak_items = db.query(ContentItem).filter(
+            weak_items = TenantScope.content(db, profile.user).filter(
                 ContentItem.subject == wm.subject,
                 ContentItem.topic.ilike(f"%{wm.topic}%"),
                 ContentItem.is_approved == True
@@ -102,17 +103,13 @@ class HybridRecommender:
                         "source": "weak_topic_remedy"
                     }
 
-        # Source E: Trending / High-Quality fallback padding
+        # Source E: Syllabus candidates strictly within tenant scope (no random cross-tenant padding)
         if len(candidate_pool) < limit:
-            padding = db.query(ContentItem).filter(
+            padding = TenantScope.content(db, profile.user).filter(
                 ContentItem.is_approved == True,
                 ContentItem.grade_level == grade,
                 ~ContentItem.id.in_(list(candidate_pool.keys())) if candidate_pool else True
             ).limit(limit - len(candidate_pool)).all()
-            if not padding and len(candidate_pool) == 0:
-                padding = db.query(ContentItem).filter(
-                    ContentItem.is_approved == True
-                ).limit(limit).all()
             for p in padding:
                 if p.id not in candidate_pool:
                     candidate_pool[p.id] = {
@@ -124,19 +121,28 @@ class HybridRecommender:
 
         # Determine student target age dynamically via centralized Age Policy
         target_age = StudentAgePolicy.get_student_age(profile)
+        allowed_policy = StudentAgePolicy.get_allowed_content_policy(target_age)
+        min_safety = allowed_policy.get("min_safety_score", 80)
 
-        # 3. Layer 1 Safety Hard Gate Evaluation
+        # 3. Layer 1 Safety Hard Gate Evaluation — Strict Null and Score Verification
         safe_candidates = []
         for cid, data in candidate_pool.items():
             item = data["item"]
-            # Safety Gate: Hard exclusion for unsafe items
+            
+            # Reject candidates with missing safety scores or scores below threshold
+            if item.safety_score is None or item.safety_score < min_safety:
+                continue
+            if item.edu_score is not None and item.edu_score < 0.35:
+                continue
+
+            # Textual and semantic content safety audit
             is_safe = SafetyEngine.is_safe_for_students(
                 title=item.title,
                 description=item.description or "",
                 tags=item.tags,
                 target_age=target_age
             )
-            if is_safe and (item.safety_score is None or item.safety_score >= 80):
+            if is_safe:
                 safe_candidates.append(data)
 
         # 4. Layer 4 Multi-Feature Hybrid Ranking

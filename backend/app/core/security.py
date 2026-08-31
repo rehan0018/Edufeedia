@@ -24,13 +24,18 @@ def get_password_hash(password: str) -> str:
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
-def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None, token_version: Optional[int] = None) -> str:
     to_encode = data.copy()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
     if expires_delta:
-        expire = datetime.datetime.now(datetime.timezone.utc) + expires_delta
+        expire = now_utc + expires_delta
     else:
-        expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+        expire = now_utc + datetime.timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({
+        "exp": expire,
+        "iat": int(now_utc.timestamp()),
+        "token_version": token_version if token_version is not None else 1
+    })
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -67,7 +72,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # Verify token is not revoked
+    # Verify token is not revoked in Redis
     if is_token_revoked(token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -93,6 +98,32 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is not active."
         )
+
+    # Verify token version matches user's current token version (invalidates tokens on password reset)
+    token_version = payload.get("token_version")
+    if token_version is not None and user.token_version and token_version < user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked due to a password reset. Please log in with your new credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verify token was issued after any password change
+    if user.password_changed_at:
+        token_iat = payload.get("iat")
+        if token_iat:
+            token_issued_at = datetime.datetime.fromtimestamp(token_iat, tz=datetime.timezone.utc)
+            pwd_changed_at = user.password_changed_at
+            if pwd_changed_at.tzinfo is None:
+                pwd_changed_at = pwd_changed_at.replace(tzinfo=datetime.timezone.utc)
+            pwd_changed_at = pwd_changed_at.replace(microsecond=0)
+            if token_issued_at < pwd_changed_at:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session has been revoked due to a password reset. Please log in with your new credentials.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
     return user
 
 class RoleChecker:

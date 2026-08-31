@@ -29,12 +29,12 @@ class TestAgeGatingSafety(unittest.TestCase):
         self.assertTrue(res_13["requires_guardian_consent"])
         self.assertEqual(AgePolicy.get_age_band(13), "BAND_13_15")
 
-        # Age 17: Eligible, does not require minor guardian consent (if >= 16 threshold)
+        # Age 17: Eligible, requires statutory guardian consent under DPDP Act 2023 (under 18)
         dob_17 = datetime.date(today.year - 17, today.month, today.day)
         res_17 = AgePolicy.validate_student_age(dob_17)
         self.assertTrue(res_17["is_eligible"])
-        self.assertFalse(res_17["requires_guardian_consent"])
-        self.assertEqual(AgePolicy.get_age_band(17), "BAND_16_18")
+        self.assertTrue(res_17["requires_guardian_consent"])
+        self.assertEqual(AgePolicy.get_age_band(17), "BAND_16_17")
 
         # Age 8: Ineligible (under minimum platform age)
         dob_8 = datetime.date(today.year - 8, today.month, today.day)

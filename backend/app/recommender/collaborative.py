@@ -12,7 +12,8 @@ def generate_collaborative_candidates(
     Finds content positively engaged with by students with similar learning behaviors in the same grade.
     """
     user_id = student_profile.user_id
-    grade = student_profile.school_class.grade_level if student_profile.school_class else 10
+    grade = student_profile.school_class.grade_level if student_profile.school_class else (student_profile.grade_level or 10)
+    school_id = student_profile.school_id or (student_profile.user.school_id if student_profile.user else None)
 
     # Get items the current student has already completed
     completed_logs = db.query(StudentProgress.content_item_id).filter(
@@ -21,9 +22,12 @@ def generate_collaborative_candidates(
     ).all()
     completed_ids = {log[0] for log in completed_logs}
 
-    # Query interactions from other peers in the same class or grade
+    # Query interactions from other peers strictly within the same school/tenant or global
+    school_filter = (ContentItem.school_id == school_id) | (ContentItem.school_id.is_(None)) if school_id else ContentItem.school_id.is_(None)
+
     peer_interactions = db.query(UserInteraction).join(ContentItem).filter(
         UserInteraction.user_id != user_id,
+        school_filter,
         ContentItem.grade_level == grade,
         ContentItem.is_approved == True,
         ~ContentItem.id.in_(completed_ids) if completed_ids else True,

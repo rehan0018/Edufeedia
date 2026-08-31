@@ -100,6 +100,24 @@ class RAGEngine:
             top_k=3
         )
 
+        # Gate 1.5: Minimum Grounding Gate (Fail-Closed when ungrounded in curriculum)
+        if not top_chunks and not current_lesson:
+            logger.info("[RAG Grounding Gate]: No approved curriculum chunks found for query: %s", question[:60])
+            return {
+                "socratic_guidance": "I could not find information on this topic in your school's approved curriculum. Let's focus our study on topics in your course syllabus.",
+                "answer": "I could not find information on this topic in your school's approved curriculum. Let's focus our study on topics in your course syllabus.",
+                "socratic_cue": "Which subject or chapter from your syllabus would you like to explore?",
+                "follow_up_questions": [
+                    "Would you like to search the approved catalog for related topics?",
+                    "Can you tell me which chapter you are currently studying?"
+                ],
+                "citations": [],
+                "retrieved_chunks": [],
+                "provenance": "Edufeedia Curriculum Boundary",
+                "groundedness_score": 0.0,
+                "is_safe": True
+            }
+
         # 5. Determine Dynamic Topic & Scope Context
         subject_name = subject or "General Science"
         if is_lesson_related and current_lesson:

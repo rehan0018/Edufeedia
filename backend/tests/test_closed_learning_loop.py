@@ -27,10 +27,16 @@ from app.core.lifecycle_service import StudentLifecycleService
 from app.core.age_policy import StudentAgePolicy
 from app.ai.socratic_policy import SocraticPolicy
 
+from sqlalchemy.pool import StaticPool
+
 class TestClosedLearningLoop(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine("sqlite:///:memory:")
+        cls.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool
+        )
         Base.metadata.create_all(bind=cls.engine)
         cls.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=cls.engine)
 

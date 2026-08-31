@@ -3,12 +3,14 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from app.database import get_db
-from app.models.models import User, StudentProfile
+from app.models.models import User, StudentProfile, ContentItem
 from app.schemas.schemas import (
     RecommendationFeedOut, InteractionCreate, InteractionOut,
     SafetyCheckRequest, SafetyReportOut
 )
 from app.core.security import RoleChecker
+from app.core.tenant_scope import TenantScope
+from app.core.age_policy import StudentAgePolicy
 from app.safety.engine import SafetyEngine
 from app.learning.feedback import log_interaction
 from app.recommender.hybrid import recommender_instance
@@ -39,8 +41,7 @@ def record_interaction(
     """
     Records an implicit interaction (view, click, like, bookmark, dwell time, skip) to train collaborative feedback.
     """
-    from app.models.models import ContentItem
-    item = db.query(ContentItem).filter(
+    item = TenantScope.content(db, current_user).filter(
         ContentItem.id == interaction_in.content_item_id,
         ContentItem.is_approved == True
     ).first()
@@ -67,11 +68,16 @@ def inspect_content_safety(
     db: Session = Depends(get_db)
 ):
     """
-    Evaluates arbitrary content against the Safety Engine (Rules, Transformer Heuristics, Under-18 Policy).
+    Evaluates arbitrary content against the Safety Engine.
+    For students, derives target age authoritatively from StudentProfile.
     """
+    target_age = request.target_age_group or 15
+    if current_user.role == "student":
+        target_age = StudentAgePolicy.get_student_age(current_user.student_profile)
+
     audit = SafetyEngine.audit_content(
         title=request.title,
         description=request.description or "",
-        target_age=request.target_age_group or 16
+        target_age=target_age
     )
     return audit

@@ -4,11 +4,15 @@ import datetime
 from typing import Optional, List, Dict, Any
 
 from app.database import get_db
-from app.models.models import User, ContentItem, StudentProgress, StudentProfile, SpacedRepetitionSchedule, ContentReport
+from app.models.models import (
+    User, ContentItem, StudentProgress, StudentProfile, SpacedRepetitionSchedule,
+    ContentReport, LearningEvent, RewardLedger
+)
 from app.schemas.schemas import ContentItemOut, ProgressUpdate, ProgressResponse, ContentReportCreate, ContentReportOut
 from app.core.security import get_current_user, RoleChecker
-from app.core.access_policy import require_learning_access, require_authenticated_user
+from app.core.access_policy import require_learning_access, require_authenticated_user, AccessPolicy
 from app.core.age_policy import StudentAgePolicy
+from app.core.tenant_scope import TenantScope
 from app.safety.engine import SafetyEngine
 from app.embeddings.embedder import embed_query, embed_content, cosine_similarity
 
@@ -27,7 +31,7 @@ def explore_content(
     current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
-    q = db.query(ContentItem).filter(ContentItem.is_approved == True)
+    q = TenantScope.content(db, current_user).filter(ContentItem.is_approved == True)
 
     if query:
         search = f"%{query}%"
@@ -52,7 +56,7 @@ def explore_content(
 
     # Get student progress and apply age safety filtering if student
     completed_ids = set()
-    target_age = 15
+    target_age = 10
     if current_user.role == "student":
         target_age = StudentAgePolicy.get_student_age(current_user.student_profile)
         completed_logs = db.query(StudentProgress.content_item_id).filter(
@@ -60,6 +64,9 @@ def explore_content(
             StudentProgress.progress_percentage == 100
         ).all()
         completed_ids = {log[0] for log in completed_logs}
+
+    allowed_policy = StudentAgePolicy.get_allowed_content_policy(target_age)
+    min_safety = allowed_policy.get("min_safety_score", 80)
 
     results = []
     for item in items:
@@ -70,7 +77,7 @@ def explore_content(
                 tags=item.tags,
                 target_age=target_age
             )
-            if not is_safe or (item.safety_score is not None and item.safety_score < 80):
+            if not is_safe or (item.safety_score is not None and item.safety_score < min_safety):
                 continue
 
         results.append({
@@ -102,18 +109,21 @@ def semantic_search_catalog(
     db: Session = Depends(get_db)
 ):
     """
-    Performs 384-dimensional dense vector embedding semantic search over the approved educational catalog.
+    Performs 384-dimensional dense vector embedding semantic search over the tenant-scoped catalog.
     Matches semantic intent, concepts, and synonyms rather than simple substring matching.
     """
     if not q or not q.strip():
         return {"query": q, "total_results": 0, "results": []}
 
-    target_age = 15
+    target_age = 10
     if current_user.role == "student":
         target_age = StudentAgePolicy.get_student_age(current_user.student_profile)
 
+    allowed_policy = StudentAgePolicy.get_allowed_content_policy(target_age)
+    min_safety = allowed_policy.get("min_safety_score", 80)
+
     query_vec = embed_query(q.strip())
-    approved_items = db.query(ContentItem).filter(ContentItem.is_approved == True).all()
+    approved_items = TenantScope.content(db, current_user).filter(ContentItem.is_approved == True).all()
 
     scored_items = []
     for item in approved_items:
@@ -124,7 +134,7 @@ def semantic_search_catalog(
                 tags=item.tags,
                 target_age=target_age
             )
-            if not is_safe or (item.safety_score is not None and item.safety_score < 80):
+            if not is_safe or (item.safety_score is not None and item.safety_score < min_safety):
                 continue
 
         item_vec = item.embedding
@@ -172,9 +182,11 @@ def get_content_item(
     current_user: User = Depends(require_learning_access),
     db: Session = Depends(get_db)
 ):
-    item = db.query(ContentItem).filter(ContentItem.id == content_id).first()
+    item = TenantScope.content(db, current_user).filter(ContentItem.id == content_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Content item not found")
+    if not AccessPolicy.can_access_content_item(current_user, item, db):
+        raise HTTPException(status_code=404, detail="Content item not found or restricted")
     if current_user.role == "student" and not item.is_approved:
         raise HTTPException(status_code=404, detail="Content item not found or pending administrative approval")
     return item
@@ -187,11 +199,11 @@ def update_progress(
 ):
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can track personal progress")
-    item = db.query(ContentItem).filter(
+    item = TenantScope.content(db, current_user).filter(
         ContentItem.id == progress_data.content_item_id,
         ContentItem.is_approved == True
     ).first()
-    if not item:
+    if not item or not AccessPolicy.can_access_content_item(current_user, item, db):
         raise HTTPException(status_code=404, detail="Content item not found or not approved for students")
         
     progress = db.query(StudentProgress).filter(
@@ -202,6 +214,17 @@ def update_progress(
     xp_earned = 0
     newly_completed = False
     
+    # 1. Authoritative Server Learning Event Log
+    learning_event = LearningEvent(
+        student_user_id=current_user.id,
+        content_item_id=item.id,
+        event_type="progress_checkpoint" if progress_data.progress_percentage < 100 else "completion_verified",
+        progress_percentage=progress_data.progress_percentage,
+        verified_seconds=int(progress_data.progress_percentage * (item.duration_minutes or 5) * 0.6)
+    )
+    db.add(learning_event)
+    db.flush()
+
     if not progress:
         progress = StudentProgress(
             student_user_id=current_user.id,
@@ -220,11 +243,23 @@ def update_progress(
             progress.completed_at = datetime.datetime.now(datetime.timezone.utc)
             newly_completed = True
             
+    # 2. Idempotent XP Disbursement via unique RewardLedger key
     if newly_completed:
-        profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
-        if profile:
-            profile.xp_score += 15
-            xp_earned = 15
+        reward_key = f"xp:completion:{current_user.id}:{item.id}"
+        existing_reward = db.query(RewardLedger).filter(RewardLedger.unique_reward_key == reward_key).first()
+        if not existing_reward:
+            reward = RewardLedger(
+                student_user_id=current_user.id,
+                event_id=learning_event.id,
+                reward_type="CONTENT_COMPLETION_XP",
+                xp_amount=15,
+                unique_reward_key=reward_key
+            )
+            db.add(reward)
+            profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+            if profile:
+                profile.xp_score += 15
+                xp_earned = 15
             
         existing_schedule = db.query(SpacedRepetitionSchedule).filter(
             SpacedRepetitionSchedule.student_user_id == current_user.id,
@@ -244,6 +279,7 @@ def update_progress(
                 next_review_date=tomorrow
             )
             db.add(schedule)
+
     try:
         db.commit()
     except Exception:
@@ -275,7 +311,7 @@ def report_content(
     Submits a content report from student or parent into the moderation queue.
     Closes the feedback loop for unsafe, inaccurate, or developmentally inappropriate material.
     """
-    content_item = db.query(ContentItem).filter(ContentItem.id == report_data.content_item_id).first()
+    content_item = TenantScope.content(db, current_user).filter(ContentItem.id == report_data.content_item_id).first()
     if not content_item:
         raise HTTPException(status_code=404, detail="Content item not found")
 

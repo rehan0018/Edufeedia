@@ -13,5 +13,13 @@ from app.models.models import (
     teacher_classes,
     CurriculumChunk,
     IngestedSource,
-    ParentalConsentLog
+    ParentalConsentLog,
+    ContentReport,
+    PendingGuardianInvitation,
+    StaffInvitation,
+    LearningEvent,
+    RewardLedger,
+    ConceptNode,
+    PrerequisiteEdge,
+    MisconceptionLog
 )

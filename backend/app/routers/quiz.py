@@ -82,7 +82,7 @@ def submit_quiz(
         
     accuracy = (correct_count / total_questions) * 100.0
     
-    # Anti-Farming XP Protection & Concurrency Idempotency:
+    # Anti-Farming XP Protection & Concurrency Idempotency via RewardLedger:
     prior_attempts_count = db.query(QuizAttempt).filter(
         QuizAttempt.student_user_id == current_user.id,
         QuizAttempt.quiz_id == quiz.id
@@ -96,9 +96,20 @@ def submit_quiz(
         if accuracy == 100.0:
             xp_gained += 25 # 25 XP bonus for 100% score
             
-        profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
-        if profile:
-            profile.xp_score += xp_gained
+        reward_key = f"xp:quiz:{current_user.id}:{quiz.id}:attempt:1"
+        from app.models.models import RewardLedger
+        existing_reward = db.query(RewardLedger).filter(RewardLedger.unique_reward_key == reward_key).first()
+        if not existing_reward and xp_gained > 0:
+            reward = RewardLedger(
+                student_user_id=current_user.id,
+                reward_type="QUIZ_MASTERY_XP",
+                xp_amount=xp_gained,
+                unique_reward_key=reward_key
+            )
+            db.add(reward)
+            profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+            if profile:
+                profile.xp_score += xp_gained
 
     # Store attempt
     attempt = QuizAttempt(
