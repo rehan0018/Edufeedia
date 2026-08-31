@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import datetime
+from typing import Optional, List, Dict, Any
 
 from app.database import get_db
 from app.models.models import User, ContentItem, StudentProgress, StudentProfile, SpacedRepetitionSchedule, ContentReport
@@ -299,3 +300,21 @@ def report_content(
         status=report.status,
         created_at=report.created_at
     )
+
+@router.post("/{content_id}/report", response_model=ContentReportOut)
+def report_content_by_id(
+    content_id: str,
+    reason: str = "Other",
+    details: Optional[str] = None,
+    current_user: User = Depends(require_authenticated_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Direct resource endpoint for reporting a specific content item by path parameter.
+    """
+    report_data = ContentReportCreate(
+        content_item_id=content_id,
+        reason=reason if reason in ["Unsafe", "Incorrect", "Not age appropriate", "Not educational", "Broken", "Other"] else "Other",
+        details=details
+    )
+    return report_content(report_data=report_data, current_user=current_user, db=db)

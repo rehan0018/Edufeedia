@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
-import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User } from 'lucide-react';
-import { apiLogin, apiRegister } from '../services/api';
+import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User, KeyRound, CheckCircle2 } from 'lucide-react';
+import { apiLogin, apiRegister, apiForgotPassword, apiResetPassword } from '../services/api';
 
 export default function AuthScreen({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1); // 1: enter email, 2: enter token & new password
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotToken, setForgotToken] = useState('');
+  const [newResetPassword, setNewResetPassword] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -38,6 +44,45 @@ export default function AuthScreen({ onLoginSuccess }) {
       onLoginSuccess(data.user);
     } catch (err) {
       setError(err?.message || 'Invalid email or password. Please verify credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPasswordRequest = async (e) => {
+    e?.preventDefault();
+    setLoading(true);
+    setError('');
+    setForgotSuccess('');
+
+    try {
+      const res = await apiForgotPassword(forgotEmail);
+      setForgotSuccess(res.message || 'If an account exists, a reset link has been dispatched.');
+      setForgotStep(2);
+    } catch (err) {
+      setError(err?.message || 'Password reset request failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e?.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await apiResetPassword(forgotToken, newResetPassword);
+      setForgotSuccess(res.message || 'Password successfully reset! Please sign in.');
+      setEmail(forgotEmail);
+      setPassword(newResetPassword);
+      setTimeout(() => {
+        setIsForgotPassword(false);
+        setForgotStep(1);
+        setForgotSuccess('');
+      }, 2000);
+    } catch (err) {
+      setError(err?.message || 'Password reset failed. Invalid or expired token.');
     } finally {
       setLoading(false);
     }
@@ -192,8 +237,165 @@ export default function AuthScreen({ onLoginSuccess }) {
           </div>
         )}
 
-        {/* Sign In Form */}
-        {!isRegister ? (
+        {/* Password Reset Modal / View */}
+        {isForgotPassword ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                background: 'var(--accent-blue-subtle)',
+                color: 'var(--accent-blue)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 8px auto'
+              }}>
+                <KeyRound size={22} />
+              </div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600 }}>Reset Your Password</h3>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                {forgotStep === 1 
+                  ? "Enter your email address and we'll send a 15-minute secure reset token."
+                  : "Enter the reset token sent to your email and your new password."}
+              </p>
+            </div>
+
+            {forgotSuccess && (
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'hsla(142, 71%, 45%, 0.15)',
+                border: '1px solid var(--accent-emerald)',
+                color: 'var(--accent-emerald)',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <CheckCircle2 size={16} />
+                <span>{forgotSuccess}</span>
+              </div>
+            )}
+
+            {forgotStep === 1 ? (
+              <form onSubmit={handleForgotPasswordRequest} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    Registered Email Address
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="name@school.edu"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '12px 14px 12px 42px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-space)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.95rem',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '12px', marginTop: '6px' }}
+                >
+                  {loading ? 'Sending Reset Token...' : 'Send Password Reset Token'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    Reset Token (from email)
+                  </label>
+                  <input
+                    type="text"
+                    value={forgotToken}
+                    onChange={(e) => setForgotToken(e.target.value)}
+                    placeholder="Enter 32-character token"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--bg-space)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.95rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    New Password
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
+                    <input
+                      type="password"
+                      value={newResetPassword}
+                      onChange={(e) => setNewResetPassword(e.target.value)}
+                      placeholder="Min 8 chars, 1 uppercase, 1 number"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '12px 14px 12px 42px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--bg-space)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.95rem',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn btn-primary"
+                  style={{ width: '100%', padding: '12px', marginTop: '6px' }}
+                >
+                  {loading ? 'Updating Password...' : 'Save New Password & Log In'}
+                </button>
+              </form>
+            )}
+
+            <button
+              type="button"
+              onClick={() => { setIsForgotPassword(false); setForgotStep(1); setError(''); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                textAlign: 'center',
+                marginTop: '4px'
+              }}
+            >
+              ← Back to Sign In
+            </button>
+          </div>
+        ) : !isRegister ? (
+          /* Sign In Form */
           <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
@@ -222,9 +424,25 @@ export default function AuthScreen({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Password
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setIsForgotPassword(true); setForgotEmail(email); setError(''); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent-cyan)',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                 <input

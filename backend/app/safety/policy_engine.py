@@ -69,13 +69,20 @@ class PolicyEngine:
         educational_keywords = [
             "concept", "theorem", "principle", "formula", "experiment", "algorithm",
             "definition", "function", "hypothesis", "analysis", "evidence", "equation",
-            "mechanism", "process", "structure", "classification", "diagram", "example"
+            "mechanism", "process", "structure", "classification", "diagram", "example",
+            "cell", "reaction", "energy", "system", "law", "theory", "element", "property",
+            "state", "organism", "force", "model", "method", "solution", "calculate",
+            "derive", "factor", "graph", "chapter", "lesson", "science", "math",
+            "physics", "chemistry", "biology", "history", "geography", "literature",
+            "learn", "study", "student", "teacher", "curriculum", "syllabus", "unit",
+            "topic", "grade", "photosynthesis", "chloroplast", "chlorophyll", "glucose",
+            "differentiation", "integration", "calculus", "algebra", "geometry", "respiration"
         ]
         words = text.lower().split()
         if not words:
             return 0.0
         hits = sum(1 for w in words if any(k in w for k in educational_keywords))
         density = min(1.0, (hits / max(1, len(words))) * 15.0)
-        return round(max(0.40, density), 2)
+        return round(density, 2)
 
 policy_engine = PolicyEngine()

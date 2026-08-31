@@ -159,6 +159,7 @@ class SourceVerifier:
         if not url or not url.strip():
             return {
                 "is_verified": False,
+                "is_trusted": False,
                 "domain": None,
                 "platform": "Unknown",
                 "is_trusted_domain": False,
@@ -173,6 +174,7 @@ class SourceVerifier:
         if not cls.is_ssrf_safe_url(url):
             return {
                 "is_verified": False,
+                "is_trusted": False,
                 "domain": "Blocked Host / Network",
                 "platform": "SSRF Security Filter",
                 "is_trusted_domain": False,
@@ -191,6 +193,7 @@ class SourceVerifier:
             if re.search(pattern, url, re.IGNORECASE):
                 return {
                     "is_verified": False,
+                    "is_trusted": False,
                     "domain": netloc,
                     "platform": "Blocked Entertainment / Social Platform",
                     "is_trusted_domain": False,

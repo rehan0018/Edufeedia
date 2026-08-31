@@ -9,7 +9,7 @@ from app.models.models import StudentProfile
 
 class StudentAgePolicy:
     MIN_STUDENT_AGE = 10
-    MAX_STUDENT_AGE = 19
+    MAX_STUDENT_AGE = 18
     GUARDIAN_CONSENT_AGE_THRESHOLD = 16  # Under 16 requires parental verification under DPDP/COPPA
 
     @staticmethod
@@ -21,6 +21,25 @@ class StudentAgePolicy:
             - date_of_birth.year
             - ((today.month, today.day) < (date_of_birth.month, date_of_birth.day))
         )
+
+    @classmethod
+    def validate_student_age(cls, dob: datetime.date) -> Dict[str, Any]:
+        """Evaluates whether a student's age fits platform eligibility (10 to 17 / under 18)."""
+        age = cls.calculate_age(dob)
+        if age < cls.MIN_STUDENT_AGE or age >= 18:
+            return {
+                "is_eligible": False,
+                "age": age,
+                "reason": f"Student age {age} not supported. Edufeedia is designed specifically for students aged 10 to 17."
+            }
+        
+        requires_guardian_consent = (age < cls.GUARDIAN_CONSENT_AGE_THRESHOLD)
+        return {
+            "is_eligible": True,
+            "age": age,
+            "requires_guardian_consent": requires_guardian_consent,
+            "consent_version": "2026.1-DPDP-COPPA"
+        }
 
     @classmethod
     def get_student_age(cls, profile: Optional[StudentProfile]) -> int:

@@ -6,6 +6,8 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, List, Optional
 
+from app.safety.prompt_injection import PromptInjectionDetector
+
 logger = logging.getLogger(__name__)
 
 STUDENT_SYSTEM_PROMPT = """You are Edufeedia Tutor, an encouraging, safe, and pedagogical AI tutor designed for students under 18 (Grades 6–12).
@@ -213,24 +215,7 @@ class LLMClient:
 
     @staticmethod
     def sanitize_prompt(prompt: str) -> str:
-        blocked = [
-            r"ignore (all )?(previous )?(system )?instructions",
-            r"system override",
-            r"print secret_key",
-            r"you are now in developer mode",
-            r"disregard safety guidelines",
-            r"disable safety.*",
-            r"jailbreak",
-            r"reveal the hidden system prompt",
-            r"reveal system prompt",
-            r"act as an unrestricted assistant",
-            r"override moderation",
-            r"tell me something unrelated"
-        ]
-        clean = prompt
-        for b in blocked:
-            clean = re.sub(b, "[redacted curriculum inquiry]", clean, flags=re.IGNORECASE)
-        return clean.strip()
+        return PromptInjectionDetector.sanitize_prompt(prompt)
 
     _sanitize_prompt = sanitize_prompt
 

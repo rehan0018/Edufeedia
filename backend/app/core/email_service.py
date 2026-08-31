@@ -190,4 +190,45 @@ class EmailService:
             "provider": "development_mock"
         }
 
+    def send_password_reset_email(
+        self,
+        recipient_email: str,
+        recipient_name: str,
+        reset_token: str
+    ) -> Dict[str, Any]:
+        """
+        Dispatches a 15-minute time-limited password reset link to user.
+        """
+        reset_link = f"https://edufeedia.com/reset-password?token={reset_token}"
+        subject = "Edufeedia Account Password Reset Request"
+        plain_body = (
+            f"Hello {recipient_name},\n\n"
+            f"A password reset request was received for your Edufeedia account.\n\n"
+            f"To reset your password, click the link below (valid for 15 minutes):\n"
+            f"{reset_link}\n\n"
+            f"If you did not request this password reset, please ignore this email. Your password will remain unchanged."
+        )
+        html_body = (
+            f"<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;'>"
+            f"<h2 style='color: #0f172a;'>Edufeedia Password Reset</h2>"
+            f"<p>Hello {recipient_name},</p>"
+            f"<p>We received a request to reset your Edufeedia account password. Click the button below to proceed:</p>"
+            f"<div style='text-align: center; margin: 25px 0;'>"
+            f"<a href='{reset_link}' style='background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Reset Password</a>"
+            f"</div>"
+            f"<p style='color: #64748b; font-size: 13px;'>This link is valid for 15 minutes and can only be used once. If you did not request a password reset, no action is required.</p>"
+            f"</div>"
+        )
+
+        if self.is_live_configured:
+            return self._send_real_smtp_email(recipient_email, subject, plain_body, html_body)
+
+        logger.info(f"[Password Reset Dispatch (Dev Mode)] To: {recipient_email} | Mode: simulated_local_dev")
+        return {
+            "status": "simulated_local_dev",
+            "recipient": recipient_email,
+            "reset_link": reset_link,
+            "provider": "development_mock"
+        }
+
 email_service = EmailService()

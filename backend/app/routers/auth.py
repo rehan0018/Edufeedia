@@ -3,8 +3,8 @@ import hashlib
 import datetime
 from datetime import timedelta, date, timezone
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -17,6 +17,7 @@ from app.core.security import (
 )
 from app.core.redis_client import redis_client
 from app.core.email_service import email_service
+from app.core.age_policy import StudentAgePolicy
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -26,13 +27,27 @@ class InviteActivationRequest(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(user_in: UserRegister, db: Session = Depends(get_db)):
+def register(user_in: UserRegister, request: Request, db: Session = Depends(get_db)):
     """
     Public Registration Endpoint: Strictly restricted to Student accounts only.
     Teachers and School Administrators must be invited by authorized school administrators.
     School affiliation is not trusted from public payload and starts unassigned until verified.
     """
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    if not redis_client.check_rate_limit(f"register_ip:{client_ip}", max_requests=10, window_seconds=3600):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registration attempts. Please try again later."
+        )
+
     # Validate password complexity
     validate_password_complexity(user_in.password)
 
@@ -50,14 +65,12 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
             detail="Date of birth is required for student registration"
         )
 
-    # Validate age is strictly within the K-12 student range: 10 to 17
-    today = datetime.date.today()
-    dob = user_in.date_of_birth
-    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-    if age < 10 or age >= 18:
+    # Validate age using canonical StudentAgePolicy (Grades 6–12 / Ages 10–17)
+    age_res = StudentAgePolicy.validate_student_age(user_in.date_of_birth)
+    if not age_res["is_eligible"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Student age {age} not supported. Edufeedia is designed specifically for students aged 10 to 17."
+            detail=age_res["reason"]
         )
 
     # Public registration is strictly locked to student role
@@ -134,7 +147,11 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     ).first()
 
     if guardian_inv:
-        if guardian_inv.expires_at < datetime.datetime.now(datetime.timezone.utc):
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        exp = guardian_inv.expires_at
+        if exp and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=datetime.timezone.utc)
+        if exp and exp < now_utc:
             guardian_inv.status = "expired"
             db.commit()
             raise HTTPException(status_code=400, detail="Guardian invitation has expired. Please request a new invite.")
@@ -153,10 +170,10 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
             db.add(parent)
             db.flush()
         else:
-            parent.password_hash = get_password_hash(req.password)
-            if req.first_name:
+            # Protect existing parent accounts: do NOT overwrite their password
+            if req.first_name and not parent.first_name:
                 parent.first_name = req.first_name
-            if req.last_name:
+            if req.last_name and not parent.last_name:
                 parent.last_name = req.last_name
 
         # Link parent to student if not linked
@@ -262,9 +279,19 @@ def activate_invitation(req: InviteActivationRequest, db: Session = Depends(get_
     }
 
 @router.post("/login", response_model=Token)
-def login(credentials: UserLogin, db: Session = Depends(get_db)):
+def login(credentials: UserLogin, request: Request, db: Session = Depends(get_db)):
+    email_key = credentials.email.lower().strip()
+    rate_key = f"login_rate_limit:{email_key}"
+    attempts = redis_client.get(rate_key)
+    if attempts and int(attempts) >= 8:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Account temporarily locked for 15 minutes."
+        )
+
     user = db.query(User).filter(User.email == credentials.email).first()
     if not user:
+        redis_client.set(rate_key, str(int(attempts or 0) + 1), ex=900)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -279,11 +306,15 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         )
 
     if not verify_password(credentials.password, user.password_hash):
+        redis_client.set(rate_key, str(int(attempts or 0) + 1), ex=900)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Clear rate limit counter upon successful credentials verification
+    redis_client.delete(rate_key)
 
     # Check staff verification status
     if user.role in ["teacher", "school_admin"] and not user.is_verified:
@@ -307,6 +338,73 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "role": user.role,
         "user_id": user.id,
         "user": user
+    }
+
+@router.post("/forgot-password")
+def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Dispatches a 15-minute password reset token to the requested email address.
+    Fails silently to prevent user account enumeration attacks.
+    """
+    email_clean = req.email.lower().strip()
+    rate_key = f"forgot_pwd_rate:{email_clean}"
+    if not redis_client.check_rate_limit(rate_key, max_requests=5, window_seconds=900):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password reset requests. Please try again in 15 minutes."
+        )
+
+    user = db.query(User).filter(User.email == email_clean).first()
+    if user:
+        reset_token = secrets.token_urlsafe(32)
+        redis_client.set(f"pwd_reset:{reset_token}", user.id, ex=900)
+        token_hash = hashlib.sha256(reset_token.encode("utf-8")).hexdigest()
+        redis_client.set(f"pwd_reset_hash:{token_hash}", user.id, ex=900)
+
+        email_service.send_password_reset_email(
+            recipient_email=user.email,
+            recipient_name=user.first_name or "Student/Educator",
+            reset_token=reset_token
+        )
+
+    return {
+        "status": "request_processed",
+        "message": "If an account with this email exists, a password reset link has been dispatched to your inbox."
+    }
+
+@router.post("/reset-password")
+def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Redeems a valid password reset token and updates the user's password.
+    """
+    validate_password_complexity(req.new_password)
+
+    user_id = redis_client.get(f"pwd_reset:{req.token}")
+    if not user_id:
+        token_hash = hashlib.sha256(req.token.encode("utf-8")).hexdigest()
+        user_id = redis_client.get(f"pwd_reset_hash:{token_hash}")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token."
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User account not found.")
+
+    user.password_hash = get_password_hash(req.new_password)
+    db.commit()
+
+    redis_client.delete(f"pwd_reset:{req.token}")
+    token_hash = hashlib.sha256(req.token.encode("utf-8")).hexdigest()
+    redis_client.delete(f"pwd_reset_hash:{token_hash}")
+    redis_client.delete(f"login_rate_limit:{user.email.lower()}")
+
+    return {
+        "status": "password_reset_success",
+        "message": "Your password has been successfully reset. Please log in with your new password."
     }
 
 @router.post("/logout")

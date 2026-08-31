@@ -119,6 +119,32 @@ export const apiRegister = async (registerData) => {
   return await apiLogin(registerData.email, registerData.password);
 };
 
+export const apiForgotPassword = async (email) => {
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Password reset request failed' }));
+    throw new Error(errData.detail || 'Password reset request failed');
+  }
+  return await res.json();
+};
+
+export const apiResetPassword = async (token, newPassword) => {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, new_password: newPassword })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Password reset failed' }));
+    throw new Error(errData.detail || 'Password reset failed');
+  }
+  return await res.json();
+};
+
 // 2. Student Daily Learning Plan Feed
 export const fetchDailyPlanFeed = async () => {
   const res = await fetch(`${API_BASE_URL}/recommendations/feed`, {

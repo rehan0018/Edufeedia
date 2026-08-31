@@ -1,12 +1,8 @@
-"""
-Multi-Category Student Safety Content Classifier.
-Analyzes educational text, external URLs, and AI outputs for inappropriate material,
-toxicity, and prompt injection attacks.
-"""
-
 import re
 import logging
 from typing import Dict, Any, List
+
+from app.safety.prompt_injection import PromptInjectionDetector
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +19,7 @@ PROHIBITED_CATEGORIES = {
         r"\b(racial slur|hate speech|kill yourself|subhuman)\b"
     ],
     "PROMPT_INJECTION": [
-        r"(ignore (all )?previous instructions|disregard all system prompts|reveal system instructions|you are now DAN|jailbreak mode)"
+        pat.pattern for pat in PromptInjectionDetector.COMPILED_PATTERNS
     ]
 }
 
@@ -66,12 +62,7 @@ class ContentClassifier:
         }
 
     def detect_prompt_injection(self, prompt: str) -> bool:
-        """Detects adversarial jailbreak and prompt-injection patterns."""
-        injection_patterns = PROHIBITED_CATEGORIES["PROMPT_INJECTION"]
-        for pat in injection_patterns:
-            if re.search(pat, prompt, re.IGNORECASE):
-                logger.warning(f"[Security Warning] Prompt injection attempt detected: {prompt[:80]}...")
-                return True
-        return False
+        """Detects adversarial jailbreak and prompt-injection patterns via canonical detector."""
+        return PromptInjectionDetector.detect(prompt)
 
 content_classifier = ContentClassifier()

@@ -19,11 +19,33 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
     }
   };
 
-  const embedSrc = lesson.embed_code?.match(/src="([^"]+)"/)?.[1] || (
+  const ALLOWED_EMBED_DOMAINS = [
+    'youtube.com',
+    'www.youtube.com',
+    'youtube-nocookie.com',
+    'www.youtube-nocookie.com',
+    'player.vimeo.com',
+    'khanacademy.org',
+    'www.khanacademy.org'
+  ];
+
+  const rawEmbedSrc = lesson.embed_code?.match(/src="([^"]+)"/)?.[1] || (
     lesson.source_url?.includes('youtube.com/watch?v=') 
       ? `https://www.youtube-nocookie.com/embed/${lesson.source_url.split('v=')[1]?.split('&')[0]}`
       : null
   );
+
+  const embedSrc = (() => {
+    if (!rawEmbedSrc) return null;
+    try {
+      const parsedUrl = new URL(rawEmbedSrc);
+      const host = parsedUrl.hostname.toLowerCase();
+      const isAllowed = ALLOWED_EMBED_DOMAINS.some(d => host === d || host.endsWith('.' + d));
+      return isAllowed ? parsedUrl.toString() : null;
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className="modal-overlay">
@@ -69,6 +91,7 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
               src={embedSrc}
               title={lesson.title}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              sandbox="allow-scripts allow-same-origin allow-presentation"
               allowFullScreen
             ></iframe>
           </div>

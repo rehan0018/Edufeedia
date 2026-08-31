@@ -12,6 +12,7 @@ from app.models.models import (
     StaffInvitation
 )
 from app.core.security import get_password_hash, RoleChecker
+from app.core.tenant_scope import TenantScope
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -24,13 +25,8 @@ def get_all_database_records(
     Returns live database records scoped strictly to the authenticated administrator's school tenant.
     Super-admins may inspect cross-school records.
     """
-    school_id = current_user.school_id if current_user.role == "school_admin" else None
-
-    # 1. Users (scoped)
-    user_query = db.query(User)
-    if school_id:
-        user_query = user_query.filter(User.school_id == school_id)
-    users_db = user_query.all()
+    # 1. Users (scoped via TenantScope)
+    users_db = TenantScope.apply(db.query(User), User, current_user).all()
     users_list = []
     for u in users_db:
         users_list.append({
@@ -43,11 +39,8 @@ def get_all_database_records(
             "created_at": u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "Recent"
         })
 
-    # 2. Student Profiles & XP (scoped)
-    profile_query = db.query(StudentProfile).join(User, StudentProfile.user_id == User.id)
-    if school_id:
-        profile_query = profile_query.filter(User.school_id == school_id)
-    profiles_db = profile_query.all()
+    # 2. Student Profiles & XP (scoped via TenantScope)
+    profiles_db = TenantScope.apply(db.query(StudentProfile), StudentProfile, current_user).all()
     student_records = []
     for sp in profiles_db:
         grade = sp.school_class.grade_level if sp.school_class else (sp.grade_level or 10)
@@ -64,11 +57,8 @@ def get_all_database_records(
             "interests": sp.interests or []
         })
 
-    # 3. Content Items & Safety Scores (scoped)
-    content_query = db.query(ContentItem)
-    if school_id:
-        content_query = content_query.filter((ContentItem.school_id == school_id) | (ContentItem.school_id == None))
-    content_db = content_query.all()
+    # 3. Content Items & Safety Scores (scoped via TenantScope)
+    content_db = TenantScope.apply(db.query(ContentItem), ContentItem, current_user).all()
     content_list = []
     for c in content_db:
         content_list.append({
@@ -85,11 +75,10 @@ def get_all_database_records(
             "likes": c.like_count
         })
 
-    # 4. Quiz Attempts (scoped)
-    quiz_query = db.query(QuizAttempt).join(User, QuizAttempt.student_user_id == User.id)
-    if school_id:
-        quiz_query = quiz_query.filter(User.school_id == school_id)
-    quiz_attempts_db = quiz_query.order_by(QuizAttempt.completed_at.desc()).limit(50).all()
+    # 4. Quiz Attempts (scoped via TenantScope)
+    quiz_attempts_db = TenantScope.apply(
+        db.query(QuizAttempt), QuizAttempt, current_user
+    ).order_by(QuizAttempt.completed_at.desc()).limit(50).all()
     quiz_records = []
     for qa in quiz_attempts_db:
         quiz_records.append({
@@ -100,11 +89,10 @@ def get_all_database_records(
             "date": qa.completed_at.strftime("%Y-%m-%d %H:%M") if qa.completed_at else "Recent"
         })
 
-    # 5. User Interactions (Recommendation Feedback, scoped)
-    inter_query = db.query(UserInteraction).join(User, UserInteraction.user_id == User.id)
-    if school_id:
-        inter_query = inter_query.filter(User.school_id == school_id)
-    interactions_db = inter_query.order_by(UserInteraction.created_at.desc()).limit(50).all()
+    # 5. User Interactions (Recommendation Feedback, scoped via TenantScope)
+    interactions_db = TenantScope.apply(
+        db.query(UserInteraction), UserInteraction, current_user
+    ).order_by(UserInteraction.created_at.desc()).limit(50).all()
     interaction_records = []
     for inter in interactions_db:
         interaction_records.append({
