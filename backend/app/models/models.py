@@ -524,6 +524,7 @@ class RewardLedger(Base):
 class ConceptNode(Base):
     """
     Represents a discrete pedagogical concept in the K-12 curriculum knowledge graph.
+    Supports curriculum versioning and temporal validity.
     """
     __tablename__ = "concept_nodes"
     id = Column(String, primary_key=True, default=generate_uuid)
@@ -534,12 +535,16 @@ class ConceptNode(Base):
     description = Column(Text, nullable=True)
     grade_level = Column(Integer, nullable=False)
     board = Column(String, default="CBSE")
+    curriculum_version = Column(String, default="2026.1", index=True)
+    effective_from = Column(Date, nullable=True)
+    effective_until = Column(Date, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 
 class PrerequisiteEdge(Base):
     """
     Directed prerequisite relationship between concepts: concept_id requires prerequisite_concept_id.
+    Tracks provenance source authority and confidence score.
     """
     __tablename__ = "prerequisite_edges"
     __table_args__ = (
@@ -549,6 +554,8 @@ class PrerequisiteEdge(Base):
     concept_id = Column(String, ForeignKey("concept_nodes.id", ondelete="CASCADE"), nullable=False)
     prerequisite_concept_id = Column(String, ForeignKey("concept_nodes.id", ondelete="CASCADE"), nullable=False)
     weight = Column(Numeric(3, 2), default=1.0)
+    source = Column(String, default="CURRICULUM_OFFICIAL")  # 'CURRICULUM_OFFICIAL', 'TEACHER_AUTHORED', 'AI_INFERRED'
+    confidence = Column(Numeric(3, 2), default=0.95)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     concept = relationship("ConceptNode", foreign_keys=[concept_id])
@@ -579,7 +586,8 @@ class MisconceptionLog(Base):
 class AuditEvent(Base):
     """
     Immutable audit log tracking all sensitive resource access, authentication events,
-    and cross-tenant authorization checks for compliance and safety investigations.
+    and cross-tenant authorization checks.
+    Employs cryptographic hash-chaining (previous_event_hash) to make database alterations detectable.
     """
     __tablename__ = "audit_events"
     __table_args__ = (
@@ -588,6 +596,8 @@ class AuditEvent(Base):
         Index("ix_audit_events_school", "school_id", "timestamp"),
     )
     id = Column(String, primary_key=True, default=generate_uuid)
+    previous_event_hash = Column(String, nullable=True)
+    event_hash = Column(String, nullable=False, index=True)
     actor_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     actor_role = Column(String, nullable=True)
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
@@ -601,3 +611,28 @@ class AuditEvent(Base):
 
     actor = relationship("User", foreign_keys=[actor_id])
     school = relationship("School", foreign_keys=[school_id])
+
+
+class ConsentRecord(Base):
+    """
+    Enforceable database consent registry tracking verified guardian and statutory consent decisions
+    per processing purpose under the DPDP Act 2023.
+    """
+    __tablename__ = "consent_records"
+    __table_args__ = (
+        UniqueConstraint("student_user_id", "processing_purpose", name="uq_student_consent_purpose"),
+        Index("ix_consent_records_student_status", "student_user_id", "status"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    guardian_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    processing_purpose = Column(String, nullable=False)  # 'ai_socratic_tutor', 'personalized_recommendations', etc.
+    consent_scope = Column(String, nullable=False)
+    status = Column(String, default="ACTIVE")  # 'ACTIVE', 'REVOKED', 'EXPIRED'
+    policy_version = Column(String, default="2026.2-DPDP")
+    verification_method = Column(String, default="GUARDIAN_EMAIL_OTP")
+    granted_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    revoked_at = Column(DateTime, nullable=True)
+
+    student = relationship("User", foreign_keys=[student_user_id])
+    guardian = relationship("User", foreign_keys=[guardian_user_id])

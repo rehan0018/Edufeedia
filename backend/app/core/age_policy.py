@@ -56,40 +56,40 @@ class ChildConsentPolicy:
     """
     DPDP_CHILD_AGE_THRESHOLD = 18
 
-    # Purpose-to-Legal-Basis and Consent Mapping
+    # Purpose-to-Policy-Basis and Consent Mapping
     PURPOSE_RULES: Dict[str, Dict[str, Any]] = {
         ProcessingPurpose.AI_SOCRATIC_TUTOR.value: {
-            "legal_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
+            "policy_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
             "requires_explicit_consent": True,
             "consent_scope": "ai_socratic_tutoring",
             "description": "Interactive AI tutoring and real-time conceptual guidance"
         },
         ProcessingPurpose.PERSONALIZED_RECOMMENDATIONS.value: {
-            "legal_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
+            "policy_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
             "requires_explicit_consent": True,
             "consent_scope": "personalized_curriculum_recommendations",
             "description": "Algorithmic adaptation and personalized learning feed"
         },
         ProcessingPurpose.FORMATIVE_PROGRESS_TRACKING.value: {
-            "legal_basis": "CORE_EDUCATIONAL_SERVICE",
+            "policy_basis": "CORE_EDUCATIONAL_SERVICE",
             "requires_explicit_consent": True,
             "consent_scope": "formative_progress_and_mastery_tracking",
             "description": "Diagnostic mastery scoring, quiz assessments, and learning streaks"
         },
         ProcessingPurpose.SAFETY_MONITORING.value: {
-            "legal_basis": "LEGITIMATE_USE_CHILD_SAFETY",
+            "policy_basis": "CHILD_SAFETY_PROTECTION",
             "requires_explicit_consent": False,
             "consent_scope": "child_safety_and_prompt_injection_monitoring",
             "description": "Automated harm prevention, prompt injection filtering, and threat detection"
         },
         ProcessingPurpose.SCHOOL_ADMINISTRATION.value: {
-            "legal_basis": "EDUCATIONAL_INSTITUTION_PROVISION",
+            "policy_basis": "EDUCATIONAL_INSTITUTION_PROVISION",
             "requires_explicit_consent": False,
             "consent_scope": "institutional_class_management",
             "description": "Roster management, school enrollment, and attendance records"
         },
         ProcessingPurpose.ANALYTICS_AGGREGATION.value: {
-            "legal_basis": "ANONYMIZED_AGGREGATE_RESEARCH",
+            "policy_basis": "ANONYMIZED_AGGREGATE_RESEARCH",
             "requires_explicit_consent": False,
             "consent_scope": "deidentified_pedagogical_analytics",
             "description": "Aggregated, non-PII curriculum effectiveness analysis"
@@ -115,25 +115,31 @@ class ChildConsentPolicy:
         rule = cls.PURPOSE_RULES.get(
             processing_purpose,
             {
-                "legal_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
+                "policy_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
                 "requires_explicit_consent": True,
                 "consent_scope": processing_purpose,
                 "description": "General student data processing"
             }
         )
 
-        # Non-children (>=18) can self-consent; children require guardian consent for non-exempt purposes
-        requires_guardian_consent = child_status and rule["requires_explicit_consent"]
+        requires_explicit = rule["requires_explicit_consent"]
+        # School administration exemption applies only if student is actively school-enrolled
+        if processing_purpose == ProcessingPurpose.SCHOOL_ADMINISTRATION.value and not is_school_enrolled:
+            requires_explicit = True
+
+        requires_guardian_consent = child_status and requires_explicit
 
         return {
             "is_child": child_status,
             "age": age,
+            "is_school_enrolled": is_school_enrolled,
             "processing_purpose": processing_purpose,
-            "legal_basis": rule["legal_basis"],
+            "policy_basis": rule["policy_basis"],
+            "legal_basis": rule["policy_basis"],
             "requires_guardian_consent": requires_guardian_consent,
             "consent_scope": rule["consent_scope"],
             "statutory_basis": "DPDP_Act_2023_Section_9",
-            "consent_version": "2026.2-DPDP-COPPA",
+            "consent_version": "2026.2-DPDP",
             "prohibited_activities": [
                 "behavioral_monitoring_for_targeted_advertising",
                 "unvetted_cross_tenant_data_sharing",

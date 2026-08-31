@@ -160,16 +160,16 @@ class TestKnowledgeGraphAndAuditSecurity(unittest.TestCase):
         )
         self.assertTrue(ai_eval["is_child"])
         self.assertTrue(ai_eval["requires_guardian_consent"])
-        self.assertEqual(ai_eval["legal_basis"], "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT")
+        self.assertEqual(ai_eval["policy_basis"], "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT")
 
-        # Age 14: Safety Monitoring -> Exempt from explicit opt-in (legitimate interest for child protection)
+        # Age 14: Safety Monitoring -> Exempt from explicit opt-in (active child safety protection)
         safety_eval = ChildConsentPolicy.evaluate_consent_requirement(
             age=14,
             processing_purpose=ProcessingPurpose.SAFETY_MONITORING.value
         )
         self.assertTrue(safety_eval["is_child"])
         self.assertFalse(safety_eval["requires_guardian_consent"])
-        self.assertEqual(safety_eval["legal_basis"], "LEGITIMATE_USE_CHILD_SAFETY")
+        self.assertEqual(safety_eval["policy_basis"], "CHILD_SAFETY_PROTECTION")
 
         # Age 14: School Administration -> Institutional enrolment basis
         admin_eval = ChildConsentPolicy.evaluate_consent_requirement(

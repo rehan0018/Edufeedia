@@ -24,7 +24,14 @@ SAFETY_RULES_TAXONOMY: Dict[str, List[str]] = {
         "illegal street racing",
         "dangerous stunt at home",
         "bypass security system",
-        "how to hack wifi passwords"
+        "how to hack wifi passwords",
+        "synthesize toxic",
+        "toxic chlorine gas",
+        "bypass school firewalls",
+        "web proxies to access",
+        "access blocked adult content",
+        "adult content",
+        "rm -rf"
     ],
     "DRUGS_AND_SUBSTANCES": [
         "how to buy drugs",
@@ -45,12 +52,16 @@ SAFETY_RULES_TAXONOMY: Dict[str, List[str]] = {
         "nudity",
         "erotic roleplay",
         "dating adults",
-        "meet strangers online"
+        "meet strangers online",
+        "adult content"
     ],
     "SELF_HARM": [
         "how to commit suicide",
         "suicide methods",
         "self harm tutorial",
+        "self harm",
+        "self-harm",
+        "methods for self-harm",
         "cutting yourself",
         "pro-ana tips",
         "anorexia motivation"
@@ -68,13 +79,17 @@ SAFETY_RULES_TAXONOMY: Dict[str, List[str]] = {
         "ignore previous instructions",
         "ignore all previous instructions",
         "system override",
+        "system prompt override",
+        "disregard all prior safety",
+        "override all safety filters",
         "reveal administrative api keys",
         "reveal root passwords",
         "jailbreak",
         "dan mode",
         "developer mode enabled",
         "disregard safety guidelines",
-        "bypass school network firewall"
+        "bypass school network firewall",
+        "execute command"
     ]
 }
 

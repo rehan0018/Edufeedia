@@ -100,20 +100,17 @@ class RAGEngine:
             top_k=3
         )
 
-        # Gate 1.5: Multi-Tiered Grounding & Evidence Gating
-        # Compute evidence score from chunk overlap and lesson context
-        evidence_score = 0.0
-        if is_lesson_related and current_lesson:
-            evidence_score = 0.90
-        elif top_chunks:
-            # Measure keyword and semantic evidence overlap
-            q_words = set(w.lower() for w in question.split() if len(w) > 3)
-            best_chunk_text = top_chunks[0][0]["text"].lower()
-            overlap_hits = sum(1 for w in q_words if w in best_chunk_text)
-            evidence_score = min(1.0, (overlap_hits / max(1, len(q_words))) * 0.70 + 0.30)
+        # Gate 1.5: Multi-Tiered Grounding & Calibrated Evidence Gating
+        evidence_score = cls._calculate_evidence_score(
+            question=question,
+            top_chunks=top_chunks,
+            current_lesson=current_lesson,
+            student_grade=student_grade,
+            subject=subject
+        )
 
         # Tier 3: Low evidence (< 0.45) -> Fail-closed boundary redirect
-        if evidence_score < 0.45 and not current_lesson:
+        if evidence_score < 0.45:
             logger.info("[RAG Grounding Gate]: Evidence score (%.2f) below 0.45 threshold for query: %s", evidence_score, question[:60])
             return {
                 "socratic_guidance": "I could not find information on this topic in your school's approved curriculum. Let's focus our study on topics in your course syllabus.",
@@ -126,13 +123,16 @@ class RAGEngine:
                 "citations": [],
                 "retrieved_chunks": [],
                 "provenance": "Edufeedia Curriculum Boundary",
+                "grounding_source": "Edufeedia Curriculum Boundary",
+                "subject": subject or "General Curriculum",
+                "topic": "General Curriculum",
                 "groundedness_score": evidence_score,
                 "confidence_tier": "LOW_EVIDENCE_REFUSAL",
                 "is_safe": True
             }
 
         # Tier 2: Moderate evidence (0.45 <= score < 0.65) -> Cautious guided clarification prompt
-        if 0.45 <= evidence_score < 0.65 and not is_lesson_related and top_chunks:
+        if 0.45 <= evidence_score < 0.65 and top_chunks:
             best_chunk = top_chunks[0][0]
             logger.info("[RAG Grounding Gate]: Moderate evidence (%.2f) -> Asking for clarification", evidence_score)
             return {
@@ -152,6 +152,9 @@ class RAGEngine:
                 }],
                 "retrieved_chunks": [best_chunk],
                 "provenance": f"{best_chunk['subject']} Syllabus",
+                "grounding_source": f"{best_chunk['subject']} Syllabus",
+                "subject": best_chunk["subject"],
+                "topic": best_chunk["topic"],
                 "groundedness_score": evidence_score,
                 "confidence_tier": "MODERATE_EVIDENCE_CLARIFICATION",
                 "is_safe": True
@@ -239,6 +242,72 @@ class RAGEngine:
         response["grounding_source"] = provenance_str
 
         return response
+
+    @classmethod
+    def _calculate_evidence_score(
+        cls,
+        question: str,
+        top_chunks: List[Tuple[Dict[str, Any], float]],
+        current_lesson: Optional[ContentItem],
+        student_grade: int,
+        subject: Optional[str]
+    ) -> float:
+        """
+        Calibrated multi-signal evidence scoring function:
+        Evidence = 0.40 * semantic_similarity
+                 + 0.25 * reranker_score
+                 + 0.15 * keyword_overlap
+                 + 0.10 * curriculum_alignment
+                 + 0.10 * lesson_semantic_similarity
+        """
+        if not top_chunks and not current_lesson:
+            return 0.0
+
+        q_vec = embed_query(question)
+        semantic_sim = 0.0
+        rerank_score = 0.0
+        keyword_overlap = 0.0
+        curriculum_alignment = 0.50
+
+        if top_chunks:
+            best_chunk, rrf_raw = top_chunks[0]
+            chunk_text = best_chunk.get("text", "")
+            chunk_vec = embed_content(best_chunk.get("topic", ""), chunk_text[:400], best_chunk.get("subject", ""), best_chunk.get("section", ""))
+            sim = cosine_similarity(q_vec, chunk_vec)
+            semantic_sim = max(0.0, min(1.0, (sim + 1.0) / 2.0 if sim < 0 else sim))
+            
+            # Normalize RRF score (typical range 0.01 to 0.035 in top rank)
+            rerank_score = min(1.0, rrf_raw * 30.0)
+
+            # Keyword lexical overlap
+            q_words = set(w.lower() for w in re.findall(r'\b[a-zA-Z]{3,}\b', question))
+            chunk_words = set(w.lower() for w in re.findall(r'\b[a-zA-Z]{3,}\b', chunk_text))
+            if q_words:
+                overlap_hits = len(q_words.intersection(chunk_words))
+                keyword_overlap = min(1.0, overlap_hits / len(q_words))
+
+            # Curriculum alignment
+            if best_chunk.get("grade") == student_grade:
+                curriculum_alignment += 0.25
+            if subject and best_chunk.get("subject", "").lower() == subject.lower():
+                curriculum_alignment += 0.25
+
+        # Dynamic semantic lesson similarity (rather than binary 0.90)
+        lesson_sim = 0.0
+        if current_lesson:
+            lesson_text = f"{current_lesson.title} {current_lesson.topic} {current_lesson.description or ''}"
+            lesson_vec = embed_content(current_lesson.title, lesson_text[:400], current_lesson.subject or "", current_lesson.topic or "")
+            raw_l_sim = cosine_similarity(q_vec, lesson_vec)
+            lesson_sim = max(0.0, min(1.0, raw_l_sim))
+
+        total_evidence = (
+            0.40 * semantic_sim
+            + 0.25 * rerank_score
+            + 0.15 * keyword_overlap
+            + 0.10 * curriculum_alignment
+            + 0.10 * lesson_sim
+        )
+        return round(min(1.0, max(0.0, total_evidence)), 3)
 
     @classmethod
     def _is_query_related_to_lesson(cls, query: str, lesson: ContentItem) -> bool:

@@ -22,5 +22,6 @@ from app.models.models import (
     ConceptNode,
     PrerequisiteEdge,
     MisconceptionLog,
-    AuditEvent
+    AuditEvent,
+    ConsentRecord
 )
