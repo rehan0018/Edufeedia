@@ -1,6 +1,6 @@
 """
 Recommendation System Evaluation Suite.
-Measures Precision@K, Recall@K, NDCG@K, Topic Diversity, and Learning Gain per Minute (LGpM).
+Measures Precision@K, Recall@K, NDCG@K, Topic Diversity, and Activity-Weighted Learning Gain per Minute (LGpM).
 """
 
 import json
@@ -38,6 +38,20 @@ def ndcg_at_k(relevance_scores: List[float], k: int = 5) -> float:
     return actual_dcg / ideal_dcg
 
 
+def calculate_verified_learning_minutes(raw_duration_minutes: float, item_type: str) -> float:
+    """
+    Computes activity-weighted learning minutes to prevent passive watch-time inflation:
+    - Interactive Practice / Quiz = 1.0x weight
+    - Socratic Tutoring / Guided Exploration = 1.2x weight
+    - Passive Reading / Video Watching = 0.5x weight
+    """
+    if item_type in ("interactive", "quiz", "practice"):
+        return raw_duration_minutes * 1.0
+    elif item_type == "socratic_tutor":
+        return raw_duration_minutes * 1.2
+    return raw_duration_minutes * 0.5
+
+
 def evaluate_recommendations(dataset_path: Path) -> Dict[str, Any]:
     with open(dataset_path, "r", encoding="utf-8") as f:
         scenarios = json.load(f)
@@ -48,7 +62,7 @@ def evaluate_recommendations(dataset_path: Path) -> Dict[str, Any]:
     precision_list = []
     recall_list = []
     ndcg_list = []
-    lgpm_list = []  # Learning Gain per Minute list
+    lgpm_list = []  # Learning Gain per Verified Learning Minute
     safety_violations = 0
 
     try:
@@ -75,7 +89,6 @@ def evaluate_recommendations(dataset_path: Path) -> Dict[str, Any]:
 
             # Seed Scenario 1 Prerequisite DAG and Weak Topic Mastery
             if scen.get("prerequisite_gap"):
-                # Prereq Node & Target Node
                 prereq_id = f"prereq-node-{scen['student_scenario_id']}"
                 target_id = f"target-node-{scen['student_scenario_id']}"
                 if not db.query(ConceptNode).filter(ConceptNode.id == prereq_id).first():
@@ -87,7 +100,6 @@ def evaluate_recommendations(dataset_path: Path) -> Dict[str, Any]:
                     db.add(edge)
                     db.commit()
 
-                # Add weak mastery on target topic
                 if not db.query(TopicMastery).filter(TopicMastery.student_user_id == student_id, TopicMastery.topic == scen["target_topic"]).first():
                     tm = TopicMastery(student_user_id=student_id, subject=scen["subject"], topic=scen["target_topic"], mastery_score=45.0, trend="declining")
                     db.add(tm)
@@ -164,10 +176,13 @@ def evaluate_recommendations(dataset_path: Path) -> Dict[str, Any]:
             recall_list.append(recall_at_k)
             ndcg_list.append(ndcg_k)
 
-            # Compute Learning Gain per Minute (LGpM)
+            # Compute Activity-Weighted Verified Learning Gain per Minute (LGpM)
             simulated_mastery_gain = (matched_count * 5.2) + 4.0
-            total_duration = sum(rec.get("duration_minutes", 15) for rec in recommendations)
-            lgpm = simulated_mastery_gain / max(1.0, float(total_duration))
+            total_verified_minutes = sum(
+                calculate_verified_learning_minutes(rec.get("duration_minutes", 15), rec.get("type", "reading"))
+                for rec in recommendations
+            )
+            lgpm = simulated_mastery_gain / max(1.0, float(total_verified_minutes))
             lgpm_list.append(lgpm)
 
     finally:
@@ -184,7 +199,7 @@ def evaluate_recommendations(dataset_path: Path) -> Dict[str, Any]:
             "mean_precision_at_5": round(mean_precision, 4),
             "mean_recall_at_5": round(mean_recall, 4),
             "mean_ndcg_at_5": round(mean_ndcg, 4),
-            "learning_gain_per_minute_lgpm": round(mean_lgpm, 4),
+            "verified_learning_gain_per_minute_lgpm": round(mean_lgpm, 4),
             "safety_violations_count": safety_violations
         }
     }

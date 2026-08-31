@@ -8,6 +8,8 @@ SAFETY_RULES_TAXONOMY: Dict[str, List[str]] = {
         "homemade bomb",
         "pipe bomb",
         "make explosives",
+        "chemical explosives",
+        "explosives",
         "gun making",
         "mass shooting",
         "assault tutorial",

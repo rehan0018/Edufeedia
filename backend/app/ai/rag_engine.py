@@ -2,6 +2,7 @@ import logging
 import math
 import re
 import time
+import hashlib
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -243,6 +244,8 @@ class RAGEngine:
 
         return response
 
+    _chunk_embedding_cache: Dict[str, Any] = {}
+
     @classmethod
     def _calculate_evidence_score(
         cls,
@@ -272,12 +275,22 @@ class RAGEngine:
         if top_chunks:
             best_chunk, rrf_raw = top_chunks[0]
             chunk_text = best_chunk.get("text", "")
-            chunk_vec = embed_content(best_chunk.get("topic", ""), chunk_text[:400], best_chunk.get("subject", ""), best_chunk.get("section", ""))
+            
+            # Efficient chunk embedding reuse via content hash caching
+            chunk_hash = hashlib.sha256(f"{best_chunk.get('doc_id')}|{chunk_text[:400]}".encode()).hexdigest()
+            if chunk_hash in cls._chunk_embedding_cache:
+                chunk_vec = cls._chunk_embedding_cache[chunk_hash]
+            else:
+                chunk_vec = embed_content(best_chunk.get("topic", ""), chunk_text[:400], best_chunk.get("subject", ""), best_chunk.get("section", ""))
+                cls._chunk_embedding_cache[chunk_hash] = chunk_vec
+
             sim = cosine_similarity(q_vec, chunk_vec)
             semantic_sim = max(0.0, min(1.0, (sim + 1.0) / 2.0 if sim < 0 else sim))
             
-            # Normalize RRF score (typical range 0.01 to 0.035 in top rank)
-            rerank_score = min(1.0, rrf_raw * 30.0)
+            # Calibrate RRF score against theoretical maximum for dual-retrieval rank 1: (2 / (60 + 1))
+            k_const = 60.0
+            max_theoretical_rrf = 2.0 / (k_const + 1.0)
+            rerank_score = min(1.0, rrf_raw / max_theoretical_rrf)
 
             # Keyword lexical overlap
             q_words = set(w.lower() for w in re.findall(r'\b[a-zA-Z]{3,}\b', question))
@@ -292,11 +305,16 @@ class RAGEngine:
             if subject and best_chunk.get("subject", "").lower() == subject.lower():
                 curriculum_alignment += 0.25
 
-        # Dynamic semantic lesson similarity (rather than binary 0.90)
+        # Dynamic semantic lesson similarity
         lesson_sim = 0.0
         if current_lesson:
             lesson_text = f"{current_lesson.title} {current_lesson.topic} {current_lesson.description or ''}"
-            lesson_vec = embed_content(current_lesson.title, lesson_text[:400], current_lesson.subject or "", current_lesson.topic or "")
+            lesson_hash = hashlib.sha256(f"{current_lesson.id}|{lesson_text[:400]}".encode()).hexdigest()
+            if lesson_hash in cls._chunk_embedding_cache:
+                lesson_vec = cls._chunk_embedding_cache[lesson_hash]
+            else:
+                lesson_vec = embed_content(current_lesson.title, lesson_text[:400], current_lesson.subject or "", current_lesson.topic or "")
+                cls._chunk_embedding_cache[lesson_hash] = lesson_vec
             raw_l_sim = cosine_similarity(q_vec, lesson_vec)
             lesson_sim = max(0.0, min(1.0, raw_l_sim))
 

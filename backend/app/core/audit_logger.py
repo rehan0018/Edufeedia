@@ -7,6 +7,8 @@ Enforces cryptographic hash chaining to guarantee tamper-evident audit trails.
 import hashlib
 import logging
 import datetime
+import threading
+import time
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from fastapi import Request
@@ -65,6 +67,8 @@ class AuditLogger:
         payload = f"{previous_hash}|{sequence_number}|{actor_id or ''}|{action}|{resource_type}|{resource_id or ''}|{status}|{timestamp_iso}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
+    _write_lock = threading.Lock()
+
     @classmethod
     def log(
         cls,
@@ -80,6 +84,7 @@ class AuditLogger:
     ) -> AuditEvent:
         """
         Creates and persists an AuditEvent record chained to the last recorded event with sequential ordering.
+        Thread-safe concurrency protection prevents sequence number collision.
         """
         raw_ip = cls._extract_safe_ip(request)
         ip_hash = cls._hash_ip(raw_ip)
@@ -90,50 +95,55 @@ class AuditLogger:
         now = datetime.datetime.now(datetime.timezone.utc)
         now_ts = cls._format_timestamp_utc(now)
 
-        # Retrieve previous event for sequence and block chaining
-        last_event = db.query(AuditEvent).order_by(AuditEvent.sequence_number.desc(), AuditEvent.id.desc()).first()
-        prev_hash = last_event.event_hash if (last_event and last_event.event_hash) else GENESIS_HASH
-        seq_num = (last_event.sequence_number + 1) if (last_event and last_event.sequence_number) else 1
+        max_retries = 5
+        for attempt in range(max_retries):
+            with cls._write_lock:
+                # Retrieve previous event for sequence and block chaining
+                last_event = db.query(AuditEvent).order_by(AuditEvent.sequence_number.desc(), AuditEvent.id.desc()).first()
+                prev_hash = last_event.event_hash if (last_event and last_event.event_hash) else GENESIS_HASH
+                seq_num = (last_event.sequence_number + 1) if (last_event and last_event.sequence_number) else 1
 
-        event_hash = cls.compute_event_hash(
-            previous_hash=prev_hash,
-            sequence_number=seq_num,
-            actor_id=actor_id,
-            action=action,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            status=status,
-            timestamp_iso=now_ts
-        )
+                event_hash = cls.compute_event_hash(
+                    previous_hash=prev_hash,
+                    sequence_number=seq_num,
+                    actor_id=actor_id,
+                    action=action,
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    status=status,
+                    timestamp_iso=now_ts
+                )
 
-        event = AuditEvent(
-            sequence_number=seq_num,
-            previous_event_hash=prev_hash,
-            event_hash=event_hash,
-            actor_id=actor_id,
-            actor_role=actor_role,
-            school_id=resolved_school_id,
-            action=action,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            status=status,
-            reason=reason,
-            ip_hash=ip_hash,
-            timestamp=now
-        )
-        try:
-            db.add(event)
-            db.commit()
-            db.refresh(event)
-        except Exception as e:
-            logger.error(f"[AUDIT LOGGING FAILURE] Could not persist audit event: {e}")
-            db.rollback()
-
-        logger.info(
-            f"[AUDIT] Seq: {seq_num} | Action: {action} | Status: {status} | Actor: {actor_id} ({actor_role}) | "
-            f"Resource: {resource_type}/{resource_id} | Hash: {event_hash[:12]}..."
-        )
-        return event
+                event = AuditEvent(
+                    sequence_number=seq_num,
+                    previous_event_hash=prev_hash,
+                    event_hash=event_hash,
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    school_id=resolved_school_id,
+                    action=action,
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    status=status,
+                    reason=reason,
+                    ip_hash=ip_hash,
+                    timestamp=now
+                )
+                try:
+                    db.add(event)
+                    db.commit()
+                    db.refresh(event)
+                    logger.info(
+                        f"[AUDIT] Seq: {seq_num} | Action: {action} | Status: {status} | Actor: {actor_id} ({actor_role}) | "
+                        f"Resource: {resource_type}/{resource_id} | Hash: {event_hash[:12]}..."
+                    )
+                    return event
+                except Exception as e:
+                    db.rollback()
+                    if attempt == max_retries - 1:
+                        logger.error(f"[AUDIT LOGGING FAILURE] Could not persist audit event after {max_retries} attempts: {e}")
+                        raise e
+            time.sleep(0.01 * (attempt + 1))
 
     @classmethod
     def verify_chain_integrity(cls, db: Session) -> Dict[str, Any]:

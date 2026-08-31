@@ -16,6 +16,9 @@ from app.core.audit_logger import AuditLogger
 from app.safety.ingestion_pipeline import IngestionPipeline
 
 
+from app.core.redis_client import redis_client
+
+
 class TestConsentQuarantineAndRCT(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -43,6 +46,7 @@ class TestConsentQuarantineAndRCT(unittest.TestCase):
 
     def setUp(self):
         self.db = self.SessionLocal()
+        redis_client.clear_all()
 
     def tearDown(self):
         self.db.close()
@@ -66,18 +70,23 @@ class TestConsentQuarantineAndRCT(unittest.TestCase):
             grade_level=10,
             board="CBSE",
             date_of_birth=datetime.date(2012, 5, 10),
-            parental_consent_status="GRANTED",
-            learning_access_status="ACTIVE",
-            onboarding_status="COMPLETED"
+            parental_consent_status="GRANTED"
         )
-        self.db.add_all([student, profile])
+        guardian = User(
+            id="guard-01",
+            email="guard01@alpha.edu",
+            role="parent",
+            first_name="Guardian",
+            last_name="Roy"
+        )
+        self.db.add_all([guardian, student, profile])
         self.db.commit()
 
         # Grant initial consent
         ConsentService.grant_consent(
             db=self.db,
             student_id=student.id,
-            guardian_id="guard-01",
+            guardian_id=guardian.id,
             purpose=ProcessingPurpose.AI_SOCRATIC_TUTOR.value,
             scope="ai_socratic_tutoring"
         )
@@ -113,23 +122,21 @@ class TestConsentQuarantineAndRCT(unittest.TestCase):
         """Exceeding daily token limit raises HTTP 429 Too Many Requests."""
         student_id = "quota-test-student"
         
-        # Under limit: 500 tokens
-        b1 = AIBudgetManager.check_and_consume_budget(
+        # 1. Under limit: reserve 500 tokens
+        b1 = AIBudgetManager.reserve_budget(
             student_id=student_id,
-            prompt_tokens=200,
-            estimated_completion_tokens=300,
-            token_limit=1000
+            estimated_tokens=500,
+            student_limit=1000
         )
-        self.assertTrue(b1["is_allowed"])
+        self.assertEqual(b1["reserved_tokens"], 500)
 
-        # Exceed remaining 500 tokens limit with request of 600 tokens
+        # 2. Exceed remaining 500 tokens limit with request of 600 tokens
         from fastapi import HTTPException
         with self.assertRaises(HTTPException) as ctx:
-            AIBudgetManager.check_and_consume_budget(
+            AIBudgetManager.reserve_budget(
                 student_id=student_id,
-                prompt_tokens=300,
-                estimated_completion_tokens=300,
-                token_limit=1000
+                estimated_tokens=600,
+                student_limit=1000
             )
         self.assertEqual(ctx.exception.status_code, 429)
 

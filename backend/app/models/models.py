@@ -150,6 +150,12 @@ class ContentItem(Base):
     is_approved = Column(Boolean, default=False)
     moderation_status = Column(String, default="APPROVED")  # 'DISCOVERED', 'QUARANTINED', 'AUTOMATED_SCREENING', 'APPROVED', 'NEEDS_HUMAN_REVIEW', 'REJECTED'
     transcript_text = Column(Text, nullable=True)
+    content_hash = Column(String, nullable=True)
+    transcript_hash = Column(String, nullable=True)
+    policy_version = Column(String, default="2026.2")
+    source_id = Column(String, nullable=True)
+    provenance_metadata = Column(JSON, default=dict)
+    checked_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
@@ -635,6 +641,7 @@ class ConsentRecord(Base):
     policy_version = Column(String, default="2026.2-DPDP")
     verification_method = Column(String, default="GUARDIAN_EMAIL_OTP")
     granted_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    expires_at = Column(DateTime, nullable=True)
     revoked_at = Column(DateTime, nullable=True)
 
     student = relationship("User", foreign_keys=[student_user_id])

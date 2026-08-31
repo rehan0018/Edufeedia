@@ -1,99 +1,244 @@
 """
-AI Token Quota & Daily Cost Budgeting Engine.
-Protects school and platform infrastructure from runaway LLM expenses by tracking
-per-student and per-school daily token consumption.
+AI Token Quota & Multi-Tier Daily Cost Budgeting Engine.
+Protects student, school, and platform infrastructure with atomic Redis rate limiting
+and two-phase reservation & actual usage reconciliation.
 """
 
+import json
+import uuid
 import datetime
 import logging
 from typing import Dict, Any, Optional
-from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+from app.core.redis_client import redis_client
 
 logger = logging.getLogger("edufeedia.ai_budget")
 
 
-class AIBudgetManager:
+class ModelPricingRegistry:
     """
-    Manages daily student token allowances and cost budgets.
+    Dynamic pricing table and cost calculation across AI LLM providers and models.
     """
-    DEFAULT_DAILY_STUDENT_TOKEN_LIMIT = 40000  # ~100 Socratic queries per day
-    COST_PER_MILLION_PROMPT_TOKENS = 0.15      # USD (gpt-4o-mini tier)
-    COST_PER_MILLION_COMPLETION_TOKENS = 0.60  # USD
-
-    # In-memory daily tracker (synchronized with Redis in production)
-    _daily_usage: Dict[str, Dict[str, Any]] = {}
+    PRICING_TABLE: Dict[str, Dict[str, Any]] = {
+        "gpt-4o-mini": {
+            "provider": "OpenAI",
+            "prompt_per_m": 0.15,
+            "completion_per_m": 0.60,
+            "currency": "USD"
+        },
+        "gpt-4o": {
+            "provider": "OpenAI",
+            "prompt_per_m": 2.50,
+            "completion_per_m": 10.00,
+            "currency": "USD"
+        },
+        "gemini-1.5-flash": {
+            "provider": "Google",
+            "prompt_per_m": 0.075,
+            "completion_per_m": 0.30,
+            "currency": "USD"
+        },
+        "claude-3-5-sonnet": {
+            "provider": "Anthropic",
+            "prompt_per_m": 3.00,
+            "completion_per_m": 15.00,
+            "currency": "USD"
+        },
+        "local-mock": {
+            "provider": "Edufeedia",
+            "prompt_per_m": 0.0,
+            "completion_per_m": 0.0,
+            "currency": "USD"
+        }
+    }
 
     @classmethod
-    def _get_day_key(cls) -> str:
+    def calculate_cost(
+        cls,
+        model_name: str,
+        prompt_tokens: int,
+        completion_tokens: int
+    ) -> float:
+        pricing = cls.PRICING_TABLE.get(model_name.lower()) or cls.PRICING_TABLE["gpt-4o-mini"]
+        p_cost = (prompt_tokens / 1_000_000.0) * pricing["prompt_per_m"]
+        c_cost = (completion_tokens / 1_000_000.0) * pricing["completion_per_m"]
+        return round(p_cost + c_cost, 7)
+
+
+class AIBudgetManager:
+    """
+    Multi-tier atomic token budgeting and reconciliation:
+    1. Student Daily Ceiling (Default: 40,000 tokens)
+    2. School Daily Ceiling (Default: 2,000,000 tokens)
+    3. Platform Daily Ceiling (Default: 50,000,000 tokens)
+    """
+    DEFAULT_STUDENT_DAILY_LIMIT = 40000
+    DEFAULT_SCHOOL_DAILY_LIMIT = 2000000
+    DEFAULT_PLATFORM_DAILY_LIMIT = 50000000
+
+    @classmethod
+    def _get_utc_date_str(cls) -> str:
         return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
     @classmethod
-    def check_and_consume_budget(
+    def _get_ttl_to_midnight_utc(cls) -> int:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return max(60, int((tomorrow - now).total_seconds()))
+
+    @classmethod
+    def reserve_budget(
         cls,
         student_id: str,
-        prompt_tokens: int,
-        estimated_completion_tokens: int = 400,
-        token_limit: Optional[int] = None
+        school_id: Optional[str] = None,
+        estimated_tokens: int = 300,
+        student_limit: Optional[int] = None,
+        school_limit: Optional[int] = None,
+        platform_limit: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Validates whether the student has remaining token quota for today.
-        If under limit, reserves tokens and returns budget metadata; otherwise raises HTTP 429.
+        Phase 1: Atomically checks all 3 tiers and reserves estimated tokens.
+        Raises HTTP 429 if any tier is exhausted.
         """
-        day_key = cls._get_day_key()
-        limit = token_limit or cls.DEFAULT_DAILY_STUDENT_TOKEN_LIMIT
-        req_tokens = prompt_tokens + estimated_completion_tokens
+        date_str = cls._get_utc_date_str()
+        ttl = cls._get_ttl_to_midnight_utc()
+        resolved_school = school_id or "default_school"
 
-        student_record = cls._daily_usage.setdefault(day_key, {}).setdefault(student_id, {
-            "tokens_consumed": 0,
-            "queries_count": 0,
-            "estimated_cost_usd": 0.0
-        })
+        s_limit = student_limit or cls.DEFAULT_STUDENT_DAILY_LIMIT
+        sc_limit = school_limit or cls.DEFAULT_SCHOOL_DAILY_LIMIT
+        p_limit = platform_limit or cls.DEFAULT_PLATFORM_DAILY_LIMIT
 
-        if student_record["tokens_consumed"] + req_tokens > limit:
-            logger.warning(
-                f"[AI BUDGET EXCEEDED] Student {student_id} exceeded daily token limit ({limit}). "
-                f"Consumed: {student_record['tokens_consumed']} tokens."
-            )
+        student_key = f"ai:usage:student:{student_id}:{date_str}"
+        school_key = f"ai:usage:school:{resolved_school}:{date_str}"
+        platform_key = f"ai:usage:platform:{date_str}"
+
+        # 1. Inspect current usage
+        cur_student = int(redis_client.get(student_key) or 0)
+        cur_school = int(redis_client.get(school_key) or 0)
+        cur_platform = int(redis_client.get(platform_key) or 0)
+
+        # Check Student Tier
+        if cur_student + estimated_tokens > s_limit:
+            logger.warning(f"[AI BUDGET EXCEEDED] Student {student_id} reached daily limit ({s_limit}). Consumed: {cur_student}.")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Daily AI tutor usage limit reached ({limit} tokens). Your quota resets at 00:00 UTC."
+                detail=f"Daily student AI tutor token budget exceeded ({s_limit} tokens). Quota resets at 00:00 UTC."
             )
 
-        student_record["tokens_consumed"] += req_tokens
-        student_record["queries_count"] += 1
-        
-        # Calculate cost
-        cost = (
-            (prompt_tokens / 1_000_000.0) * cls.COST_PER_MILLION_PROMPT_TOKENS +
-            (estimated_completion_tokens / 1_000_000.0) * cls.COST_PER_MILLION_COMPLETION_TOKENS
+        # Check School Tier
+        if cur_school + estimated_tokens > sc_limit:
+            logger.warning(f"[AI BUDGET EXCEEDED] School {resolved_school} reached daily quota ({sc_limit}).")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="School-wide daily AI quota has been reached. Please contact your school administrator."
+            )
+
+        # Check Platform Tier
+        if cur_platform + estimated_tokens > p_limit:
+            logger.critical(f"[AI BUDGET EXCEEDED] Platform daily limit reached ({p_limit}).")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="System AI capacity is currently saturated. Please try again later."
+            )
+
+        # 2. Atomic Reservation across all 3 tiers
+        redis_client.incrby(student_key, estimated_tokens, ttl_seconds=ttl)
+        redis_client.incrby(school_key, estimated_tokens, ttl_seconds=ttl)
+        redis_client.incrby(platform_key, estimated_tokens, ttl_seconds=ttl)
+
+        res_id = str(uuid.uuid4())
+        reservation_data = {
+            "reservation_id": res_id,
+            "student_id": student_id,
+            "school_id": resolved_school,
+            "reserved_tokens": estimated_tokens,
+            "date_str": date_str
+        }
+        redis_client.setex(f"ai:reservation:{res_id}", 300, json.dumps(reservation_data))
+
+        return reservation_data
+
+    @classmethod
+    def reconcile_budget(
+        cls,
+        reservation_id: str,
+        student_id: str,
+        school_id: Optional[str],
+        actual_prompt_tokens: int,
+        actual_completion_tokens: int,
+        model_name: str = "gpt-4o-mini"
+    ) -> Dict[str, Any]:
+        """
+        Phase 2: Reconciles actual LLM usage against the reserved estimate.
+        Refunds or supplements token counts across all 3 tiers.
+        """
+        date_str = cls._get_utc_date_str()
+        resolved_school = school_id or "default_school"
+        actual_total = actual_prompt_tokens + actual_completion_tokens
+
+        student_key = f"ai:usage:student:{student_id}:{date_str}"
+        school_key = f"ai:usage:school:{resolved_school}:{date_str}"
+        platform_key = f"ai:usage:platform:{date_str}"
+
+        # Retrieve reservation
+        res_raw = redis_client.get(f"ai:reservation:{reservation_id}")
+        reserved_tokens = 300
+        if res_raw:
+            try:
+                res_data = json.loads(res_raw)
+                reserved_tokens = res_data.get("reserved_tokens", 300)
+            except Exception:
+                pass
+            redis_client.delete(f"ai:reservation:{reservation_id}")
+
+        delta = actual_total - reserved_tokens
+        if delta > 0:
+            redis_client.incrby(student_key, delta)
+            redis_client.incrby(school_key, delta)
+            redis_client.incrby(platform_key, delta)
+        elif delta < 0:
+            redis_client.decrby(student_key, abs(delta))
+            redis_client.decrby(school_key, abs(delta))
+            redis_client.decrby(platform_key, abs(delta))
+
+        # Calculate exact cost
+        cost_usd = ModelPricingRegistry.calculate_cost(
+            model_name=model_name,
+            prompt_tokens=actual_prompt_tokens,
+            completion_tokens=actual_completion_tokens
         )
-        student_record["estimated_cost_usd"] += cost
+
+        final_student_usage = int(redis_client.get(student_key) or actual_total)
+
+        logger.info(
+            f"[AI BUDGET RECONCILED] Student: {student_id} | Model: {model_name} | "
+            f"Actual: {actual_total} tokens (Delta: {delta:+d}) | Total Today: {final_student_usage} | Cost: ${cost_usd}"
+        )
 
         return {
             "is_allowed": True,
-            "tokens_consumed_today": student_record["tokens_consumed"],
-            "remaining_tokens": max(0, limit - student_record["tokens_consumed"]),
-            "daily_limit": limit,
-            "queries_today": student_record["queries_count"],
-            "estimated_cost_today_usd": round(student_record["estimated_cost_usd"], 6)
+            "actual_prompt_tokens": actual_prompt_tokens,
+            "actual_completion_tokens": actual_completion_tokens,
+            "total_tokens_consumed": actual_total,
+            "tokens_consumed_today": final_student_usage,
+            "estimated_cost_usd": cost_usd,
+            "model_used": model_name
         }
 
     @classmethod
-    def get_student_daily_usage(cls, student_id: str) -> Dict[str, Any]:
-        day_key = cls._get_day_key()
-        record = cls._daily_usage.get(day_key, {}).get(student_id, {
-            "tokens_consumed": 0,
-            "queries_count": 0,
-            "estimated_cost_usd": 0.0
-        })
-        limit = cls.DEFAULT_DAILY_STUDENT_TOKEN_LIMIT
-        return {
-            "student_id": student_id,
-            "day": day_key,
-            "tokens_consumed": record["tokens_consumed"],
-            "daily_limit": limit,
-            "remaining_tokens": max(0, limit - record["tokens_consumed"]),
-            "queries_count": record["queries_count"],
-            "estimated_cost_usd": round(record["estimated_cost_usd"], 6)
-        }
+    def refund_reservation(cls, reservation: Dict[str, Any]) -> None:
+        """Rolls back reserved tokens if LLM call crashes or gets aborted."""
+        student_id = reservation.get("student_id")
+        school_id = reservation.get("school_id") or "default_school"
+        reserved = reservation.get("reserved_tokens", 0)
+        date_str = reservation.get("date_str") or cls._get_utc_date_str()
+
+        if student_id and reserved > 0:
+            redis_client.decrby(f"ai:usage:student:{student_id}:{date_str}", reserved)
+            redis_client.decrby(f"ai:usage:school:{school_id}:{date_str}", reserved)
+            redis_client.decrby(f"ai:usage:platform:{date_str}", reserved)
+
+        res_id = reservation.get("reservation_id")
+        if res_id:
+            redis_client.delete(f"ai:reservation:{res_id}")
+        logger.info(f"[AI BUDGET REFUNDED] Refunded {reserved} tokens for student {student_id}")

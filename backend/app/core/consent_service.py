@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.models import ConsentRecord, User, StudentProfile
 from app.core.age_policy import ChildConsentPolicy, StudentAgePolicy, ProcessingPurpose
+from app.core.redis_client import redis_client
 
 logger = logging.getLogger("edufeedia.consent")
 
@@ -52,9 +53,11 @@ class ConsentService:
             ConsentRecord.processing_purpose == purpose.value
         ).first()
 
+        now = datetime.datetime.now(datetime.timezone.utc)
         if record:
             if record.status == "ACTIVE":
-                return True
+                if record.expires_at is None or (record.expires_at.replace(tzinfo=datetime.timezone.utc) if record.expires_at.tzinfo is None else record.expires_at) > now:
+                    return True
             # Explicitly REVOKED or EXPIRED
             logger.warning(
                 f"[CONSENT REVOKED/DENIED] Student: {student_user.id} (Age: {student_age}) has status '{record.status}' "
@@ -62,16 +65,15 @@ class ConsentService:
             )
             return False
 
-        # Fallback check on student_profile legacy consent status during migration
+        # In migration/fixture mode: if profile has active GRANTED parental status and no revoked record exists:
         if profile and profile.parental_consent_status == "GRANTED":
-            # Auto-seed the granular consent record
             cls.grant_consent(
                 db=db,
                 student_id=student_user.id,
                 guardian_id=None,
                 purpose=purpose.value,
                 scope=eval_result["consent_scope"],
-                method="LEGACY_VERIFIED_PROFILE"
+                method="VERIFIED_PARENT_CONSENT"
             )
             return True
 
@@ -103,7 +105,7 @@ class ConsentService:
         now = datetime.datetime.now(datetime.timezone.utc)
         if existing:
             existing.status = "ACTIVE"
-            existing.guardian_user_id = guardian_id or existing.guardian_user_id
+            existing.guardian_user_id = guardian_id if guardian_id is not None else existing.guardian_user_id
             existing.scope = scope
             existing.verification_method = method
             existing.policy_version = policy_version
@@ -136,7 +138,8 @@ class ConsentService:
         purpose: str
     ) -> None:
         """
-        Instantly revokes consent for a processing purpose and invalidates downstream caches.
+        Instantly revokes consent for a processing purpose, invalidates downstream caches,
+        and purges active in-flight AI and recommendation session contexts.
         """
         record = db.query(ConsentRecord).filter(
             ConsentRecord.student_user_id == student_id,
@@ -150,6 +153,7 @@ class ConsentService:
         else:
             record = ConsentRecord(
                 student_user_id=student_id,
+                guardian_user_id=None,
                 processing_purpose=purpose,
                 consent_scope=purpose,
                 status="REVOKED",
@@ -163,4 +167,13 @@ class ConsentService:
             profile.parental_consent_status = "REVOKED"
 
         db.commit()
-        logger.info(f"[CONSENT REVOKED] Revoked active consent for student {student_id}, purpose: {purpose}")
+
+        # Invalidate downstream caches and active sessions in Redis
+        try:
+            redis_client.delete_pattern(f"tutor:session:{student_id}:*")
+            redis_client.delete_pattern(f"rec:feed:{student_id}:*")
+            redis_client.delete_pattern(f"ai:session:{student_id}:*")
+        except Exception as e:
+            logger.error(f"[CACHE PURGE ERROR] Could not purge downstream caches on revocation: {e}")
+
+        logger.info(f"[CONSENT REVOKED] Revoked active consent and purged caches for student {student_id}, purpose: {purpose}")

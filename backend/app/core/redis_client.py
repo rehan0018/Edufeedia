@@ -84,6 +84,55 @@ class RedisClient:
             return True
         return False
 
+    def incrby(self, key: str, amount: int, ttl_seconds: Optional[int] = None) -> int:
+        """Atomically increments integer value by amount, optionally setting TTL."""
+        if self._redis:
+            try:
+                val = self._redis.incrby(key, amount)
+                if ttl_seconds and val == amount:
+                    self._redis.expire(key, ttl_seconds)
+                return val
+            except Exception as e:
+                logger.error(f"Redis incrby failed: {e}")
+                if os.getenv("ENVIRONMENT") == "production":
+                    raise RuntimeError(f"Production Redis cluster operation failed: {e}")
+        val = int(self._local_store.get(key, 0)) + amount
+        self._local_store[key] = str(val)
+        return val
+
+    def decrby(self, key: str, amount: int) -> int:
+        """Atomically decrements integer value by amount (floor at 0)."""
+        if self._redis:
+            try:
+                val = self._redis.decrby(key, amount)
+                return max(0, val)
+            except Exception as e:
+                logger.error(f"Redis decrby failed: {e}")
+                if os.getenv("ENVIRONMENT") == "production":
+                    raise RuntimeError(f"Production Redis cluster operation failed: {e}")
+        val = max(0, int(self._local_store.get(key, 0)) - amount)
+        self._local_store[key] = str(val)
+        return val
+
+    def delete_pattern(self, pattern: str) -> int:
+        """Deletes all keys matching a glob/wildcard pattern (e.g. 'tutor:session:student-123:*')."""
+        if self._redis:
+            try:
+                keys = self._redis.keys(pattern)
+                if keys:
+                    return self._redis.delete(*keys)
+                return 0
+            except Exception as e:
+                logger.error(f"Redis delete_pattern failed: {e}")
+                if os.getenv("ENVIRONMENT") == "production":
+                    raise RuntimeError(f"Production Redis cluster operation failed: {e}")
+        import re
+        regex = re.compile("^" + pattern.replace("*", ".*") + "$")
+        to_del = [k for k in list(self._local_store.keys()) if regex.match(k)]
+        for k in to_del:
+            del self._local_store[k]
+        return len(to_del)
+
     def check_rate_limit(self, key: str, max_requests: int = 10, window_seconds: int = 60) -> bool:
         """
         Sliding rate limiter. Returns True if request is allowed, False if exceeded.

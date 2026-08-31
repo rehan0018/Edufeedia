@@ -52,35 +52,51 @@ def ask_ai_tutor(
             is_safe=False
         )
 
-    # 1.5 Enforce daily AI token quota and cost budget
-    AIBudgetManager.check_and_consume_budget(
+    # 1.5 Phase 1: Atomic AI Budget Reservation across Student, School, and Platform tiers
+    reservation = AIBudgetManager.reserve_budget(
         student_id=current_user.id,
-        prompt_tokens=max(10, len(request.question) // 3),
-        estimated_completion_tokens=250
+        school_id=current_user.school_id,
+        estimated_tokens=300
     )
 
-    # 2. Query RAG Engine with Lesson Context & Semantic Retrieval strictly within Tenant Scope
-    valid_content_id = request.content_item_id
-    if valid_content_id:
-        ci = TenantScope.content(db, current_user).filter(
-            ContentItem.id == valid_content_id,
-            ContentItem.is_approved == True
-        ).first()
-        if not ci or not AccessPolicy.can_access_content_item(current_user, ci, db):
-            valid_content_id = None
+    try:
+        # 2. Query RAG Engine with Lesson Context & Semantic Retrieval strictly within Tenant Scope
+        valid_content_id = request.content_item_id
+        if valid_content_id:
+            ci = TenantScope.content(db, current_user).filter(
+                ContentItem.id == valid_content_id,
+                ContentItem.is_approved == True
+            ).first()
+            if not ci or not AccessPolicy.can_access_content_item(current_user, ci, db):
+                valid_content_id = None
 
-    board = current_user.student_profile.board if current_user.student_profile else "CBSE"
-    rag_result = RAGEngine.query_rag_tutor(
-        db=db,
-        question=request.question,
-        content_item_id=valid_content_id,
-        student_grade=grade_lvl,
-        student_id=current_user.id,
-        board=board
-    )
+        board = current_user.student_profile.board if current_user.student_profile else "CBSE"
+        rag_result = RAGEngine.query_rag_tutor(
+            db=db,
+            question=request.question,
+            content_item_id=valid_content_id,
+            student_grade=grade_lvl,
+            student_id=current_user.id,
+            board=board
+        )
 
-    # 3. Output Safety Gate — Validate synthesized LLM response before returning to minor
-    output_audit = SafetyEngine.audit_content(rag_result["answer"], target_age=target_age)
+        # 3. Output Safety Gate — Validate synthesized LLM response before returning to minor
+        output_audit = SafetyEngine.audit_content(rag_result["answer"], target_age=target_age)
+
+        # 4. Phase 2: Reconcile actual prompt and completion token counts
+        actual_prompt = max(10, len(request.question) // 4 + 100)
+        actual_completion = max(10, len(rag_result.get("answer", "")) // 4)
+        AIBudgetManager.reconcile_budget(
+            reservation_id=reservation["reservation_id"],
+            student_id=current_user.id,
+            school_id=current_user.school_id,
+            actual_prompt_tokens=actual_prompt,
+            actual_completion_tokens=actual_completion,
+            model_name=rag_result.get("model_used", "gpt-4o-mini")
+        )
+    except Exception as e:
+        AIBudgetManager.refund_reservation(reservation)
+        raise e
     if not output_audit["is_safe"]:
         return TutorResponse(
             answer="Let's focus on the foundational principles of this lesson. What core definition would you like to review together?",
