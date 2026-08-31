@@ -21,5 +21,6 @@ from app.models.models import (
     RewardLedger,
     ConceptNode,
     PrerequisiteEdge,
-    MisconceptionLog
+    MisconceptionLog,
+    AuditEvent
 )

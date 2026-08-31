@@ -36,12 +36,65 @@ class AgeBandPolicy:
             return "BAND_16_17"  # Senior Secondary (Grades 11–12)
 
 
+from enum import Enum
+
+class ProcessingPurpose(str, Enum):
+    AI_SOCRATIC_TUTOR = "ai_socratic_tutor"
+    PERSONALIZED_RECOMMENDATIONS = "personalized_recommendations"
+    FORMATIVE_PROGRESS_TRACKING = "formative_progress_tracking"
+    SAFETY_MONITORING = "safety_monitoring"
+    SCHOOL_ADMINISTRATION = "school_administration"
+    BILLING_AND_ACCOUNT = "billing_and_account"
+    ANALYTICS_AGGREGATION = "analytics_aggregation"
+
+
 class ChildConsentPolicy:
     """
-    Statutory Child Protection & Verifiable Consent Engine.
+    Statutory Child Protection & Purpose-Specific Verifiable Consent Engine.
     Enforces DPDP Act 2023 (Section 9) and COPPA standards: Any individual under 18 years is legally a child.
+    Differentiates processing purposes (institutional exemptions vs explicit AI/personalization consent).
     """
     DPDP_CHILD_AGE_THRESHOLD = 18
+
+    # Purpose-to-Legal-Basis and Consent Mapping
+    PURPOSE_RULES: Dict[str, Dict[str, Any]] = {
+        ProcessingPurpose.AI_SOCRATIC_TUTOR.value: {
+            "legal_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
+            "requires_explicit_consent": True,
+            "consent_scope": "ai_socratic_tutoring",
+            "description": "Interactive AI tutoring and real-time conceptual guidance"
+        },
+        ProcessingPurpose.PERSONALIZED_RECOMMENDATIONS.value: {
+            "legal_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
+            "requires_explicit_consent": True,
+            "consent_scope": "personalized_curriculum_recommendations",
+            "description": "Algorithmic adaptation and personalized learning feed"
+        },
+        ProcessingPurpose.FORMATIVE_PROGRESS_TRACKING.value: {
+            "legal_basis": "CORE_EDUCATIONAL_SERVICE",
+            "requires_explicit_consent": True,
+            "consent_scope": "formative_progress_and_mastery_tracking",
+            "description": "Diagnostic mastery scoring, quiz assessments, and learning streaks"
+        },
+        ProcessingPurpose.SAFETY_MONITORING.value: {
+            "legal_basis": "LEGITIMATE_USE_CHILD_SAFETY",
+            "requires_explicit_consent": False,
+            "consent_scope": "child_safety_and_prompt_injection_monitoring",
+            "description": "Automated harm prevention, prompt injection filtering, and threat detection"
+        },
+        ProcessingPurpose.SCHOOL_ADMINISTRATION.value: {
+            "legal_basis": "EDUCATIONAL_INSTITUTION_PROVISION",
+            "requires_explicit_consent": False,
+            "consent_scope": "institutional_class_management",
+            "description": "Roster management, school enrollment, and attendance records"
+        },
+        ProcessingPurpose.ANALYTICS_AGGREGATION.value: {
+            "legal_basis": "ANONYMIZED_AGGREGATE_RESEARCH",
+            "requires_explicit_consent": False,
+            "consent_scope": "deidentified_pedagogical_analytics",
+            "description": "Aggregated, non-PII curriculum effectiveness analysis"
+        }
+    }
 
     @classmethod
     def is_child(cls, age: int) -> bool:
@@ -56,23 +109,31 @@ class ChildConsentPolicy:
         is_school_enrolled: bool = True
     ) -> Dict[str, Any]:
         """
-        Evaluates verifiable parental consent obligations under DPDP Act 2023 & COPPA.
+        Evaluates verifiable parental consent obligations for a specific processing purpose under DPDP Act 2023.
         """
         child_status = cls.is_child(age)
-        requires_guardian_consent = child_status
+        rule = cls.PURPOSE_RULES.get(
+            processing_purpose,
+            {
+                "legal_basis": "EXPLICIT_VERIFIABLE_GUARDIAN_CONSENT",
+                "requires_explicit_consent": True,
+                "consent_scope": processing_purpose,
+                "description": "General student data processing"
+            }
+        )
+
+        # Non-children (>=18) can self-consent; children require guardian consent for non-exempt purposes
+        requires_guardian_consent = child_status and rule["requires_explicit_consent"]
 
         return {
             "is_child": child_status,
             "age": age,
+            "processing_purpose": processing_purpose,
+            "legal_basis": rule["legal_basis"],
             "requires_guardian_consent": requires_guardian_consent,
+            "consent_scope": rule["consent_scope"],
             "statutory_basis": "DPDP_Act_2023_Section_9",
             "consent_version": "2026.2-DPDP-COPPA",
-            "processing_purpose": processing_purpose,
-            "mandatory_scopes": [
-                "ai_socratic_tutoring",
-                "personalized_curriculum_recommendations",
-                "formative_progress_and_mastery_tracking"
-            ],
             "prohibited_activities": [
                 "behavioral_monitoring_for_targeted_advertising",
                 "unvetted_cross_tenant_data_sharing",

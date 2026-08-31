@@ -574,3 +574,30 @@ class MisconceptionLog(Base):
     resolved_at = Column(DateTime, nullable=True)
 
     student = relationship("User")
+
+
+class AuditEvent(Base):
+    """
+    Immutable audit log tracking all sensitive resource access, authentication events,
+    and cross-tenant authorization checks for compliance and safety investigations.
+    """
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_events_actor", "actor_id", "timestamp"),
+        Index("ix_audit_events_resource", "resource_type", "resource_id"),
+        Index("ix_audit_events_school", "school_id", "timestamp"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    actor_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    actor_role = Column(String, nullable=True)
+    school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
+    action = Column(String, nullable=False)  # 'VIEW_CHILD_PROFILE', 'ACCESS_STUDENT_DATA', 'SECURITY_DENIED', 'PASSWORD_RESET'
+    resource_type = Column(String, nullable=False)  # 'student_profile', 'content_item', 'quiz', 'school_class'
+    resource_id = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="SUCCESS")  # 'SUCCESS', 'DENIED', 'ERROR'
+    reason = Column(Text, nullable=True)
+    ip_hash = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
+
+    actor = relationship("User", foreign_keys=[actor_id])
+    school = relationship("School", foreign_keys=[school_id])

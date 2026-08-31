@@ -83,14 +83,39 @@ class HybridRecommender:
                     "source": "collaborative"
                 }
 
-        # Source D: Diagnostic Weak Topics from TopicMastery
+        # Source D: Knowledge Graph Root Prerequisite Remediation
+        from app.learning.knowledge_graph import KnowledgeGraphEngine
         from app.models.models import TopicMastery
+
         weak_masteries = db.query(TopicMastery).filter(
             TopicMastery.student_user_id == student_id,
-            (TopicMastery.mastery_score < 70) | (TopicMastery.trend == "declining")
+            (TopicMastery.mastery_score < 75) | (TopicMastery.trend == "declining")
         ).order_by(TopicMastery.mastery_score.asc()).limit(3).all()
 
         for wm in weak_masteries:
+            # Diagnose root prerequisite gaps via DAG traversal
+            diag = KnowledgeGraphEngine.diagnose_learning_gaps(
+                db=db,
+                student_id=student_id,
+                subject=wm.subject,
+                topic=wm.topic
+            )
+            for prereq in diag.get("remediation_concepts", []):
+                prereq_items = TenantScope.content(db, profile.user).filter(
+                    ContentItem.subject.ilike(f"%{prereq['subject']}%"),
+                    ContentItem.topic.ilike(f"%{prereq['topic']}%"),
+                    ContentItem.is_approved == True
+                ).limit(2).all()
+                for pi in prereq_items:
+                    if pi.id not in candidate_pool:
+                        candidate_pool[pi.id] = {
+                            "item": pi,
+                            "source": "root_prerequisite_remedy",
+                            "prereq_info": prereq,
+                            "target_topic": wm.topic
+                        }
+
+            # Direct weak topic items
             weak_items = TenantScope.content(db, profile.user).filter(
                 ContentItem.subject == wm.subject,
                 ContentItem.topic.ilike(f"%{wm.topic}%"),
@@ -159,8 +184,11 @@ class HybridRecommender:
                 candidate_source=source
             )
 
-            # Boost spaced repetition and weak topic remedy items so intervention is prioritized
-            if source == "spaced_repetition":
+            # Boost spaced repetition, weak topic, and root prerequisite remedy items so intervention is prioritized
+            if source == "root_prerequisite_remedy":
+                score_data["total_relevance_score"] += 0.35
+                score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 35)
+            elif source == "spaced_repetition":
                 score_data["total_relevance_score"] += 0.20
                 score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 20)
             elif source == "weak_topic_remedy":
@@ -168,7 +196,13 @@ class HybridRecommender:
                 score_data["relevance_percentage"] = min(100, score_data["relevance_percentage"] + 25)
 
             # Generate pedagogical explainability reason & reason code
-            if source == "spaced_repetition":
+            if source == "root_prerequisite_remedy":
+                prereq_name = cand.get("prereq_info", {}).get("concept_name", item.topic)
+                target_top = cand.get("target_topic", item.subject)
+                reason_code = "PREREQUISITE_DEFICIENCY_REMEDY"
+                confidence = 0.95
+                reason = f"Foundation review: Mastering prerequisite '{prereq_name}' is essential before advancing in {target_top}"
+            elif source == "spaced_repetition":
                 reason_code = "SPACED_REPETITION_DUE"
                 confidence = 0.90
                 reason = f"Due for active recall review in {item.topic} to solidify memory retention"

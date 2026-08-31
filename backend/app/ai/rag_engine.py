@@ -100,9 +100,21 @@ class RAGEngine:
             top_k=3
         )
 
-        # Gate 1.5: Minimum Grounding Gate (Fail-Closed when ungrounded in curriculum)
-        if not top_chunks and not current_lesson:
-            logger.info("[RAG Grounding Gate]: No approved curriculum chunks found for query: %s", question[:60])
+        # Gate 1.5: Multi-Tiered Grounding & Evidence Gating
+        # Compute evidence score from chunk overlap and lesson context
+        evidence_score = 0.0
+        if is_lesson_related and current_lesson:
+            evidence_score = 0.90
+        elif top_chunks:
+            # Measure keyword and semantic evidence overlap
+            q_words = set(w.lower() for w in question.split() if len(w) > 3)
+            best_chunk_text = top_chunks[0][0]["text"].lower()
+            overlap_hits = sum(1 for w in q_words if w in best_chunk_text)
+            evidence_score = min(1.0, (overlap_hits / max(1, len(q_words))) * 0.70 + 0.30)
+
+        # Tier 3: Low evidence (< 0.45) -> Fail-closed boundary redirect
+        if evidence_score < 0.45 and not current_lesson:
+            logger.info("[RAG Grounding Gate]: Evidence score (%.2f) below 0.45 threshold for query: %s", evidence_score, question[:60])
             return {
                 "socratic_guidance": "I could not find information on this topic in your school's approved curriculum. Let's focus our study on topics in your course syllabus.",
                 "answer": "I could not find information on this topic in your school's approved curriculum. Let's focus our study on topics in your course syllabus.",
@@ -114,7 +126,34 @@ class RAGEngine:
                 "citations": [],
                 "retrieved_chunks": [],
                 "provenance": "Edufeedia Curriculum Boundary",
-                "groundedness_score": 0.0,
+                "groundedness_score": evidence_score,
+                "confidence_tier": "LOW_EVIDENCE_REFUSAL",
+                "is_safe": True
+            }
+
+        # Tier 2: Moderate evidence (0.45 <= score < 0.65) -> Cautious guided clarification prompt
+        if 0.45 <= evidence_score < 0.65 and not is_lesson_related and top_chunks:
+            best_chunk = top_chunks[0][0]
+            logger.info("[RAG Grounding Gate]: Moderate evidence (%.2f) -> Asking for clarification", evidence_score)
+            return {
+                "socratic_guidance": f"I found related concepts in your {best_chunk['subject']} syllabus under '{best_chunk['topic']}', but your question is broad. Could you specify which part of {best_chunk['topic']} you would like to explore?",
+                "answer": f"I found related concepts in your {best_chunk['subject']} syllabus under '{best_chunk['topic']}'. Could you tell me more specifically what you are trying to solve?",
+                "socratic_cue": f"Are you working on definitions, formulas, or practice problems in {best_chunk['topic']}?",
+                "follow_up_questions": [
+                    f"Show me a practice problem in {best_chunk['topic']}",
+                    f"Explain the core definition of {best_chunk['topic']}"
+                ],
+                "citations": [{
+                    "source_title": best_chunk.get("source_doc") or f"Curriculum {best_chunk['subject']}",
+                    "chapter": best_chunk.get("chapter") or best_chunk["topic"],
+                    "section": best_chunk.get("section", "Core Concepts"),
+                    "url": best_chunk.get("source_url") or "",
+                    "relevance_score": top_chunks[0][1]
+                }],
+                "retrieved_chunks": [best_chunk],
+                "provenance": f"{best_chunk['subject']} Syllabus",
+                "groundedness_score": evidence_score,
+                "confidence_tier": "MODERATE_EVIDENCE_CLARIFICATION",
                 "is_safe": True
             }
 
