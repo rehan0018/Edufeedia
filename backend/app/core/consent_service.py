@@ -46,15 +46,21 @@ class ConsentService:
         if not eval_result["requires_guardian_consent"]:
             return True
 
-        # 2. Query persistent database for active consent record
+        # 2. Query persistent database for active or revoked consent records
         record = db.query(ConsentRecord).filter(
             ConsentRecord.student_user_id == student_user.id,
-            ConsentRecord.processing_purpose == purpose.value,
-            ConsentRecord.status == "ACTIVE"
+            ConsentRecord.processing_purpose == purpose.value
         ).first()
 
         if record:
-            return True
+            if record.status == "ACTIVE":
+                return True
+            # Explicitly REVOKED or EXPIRED
+            logger.warning(
+                f"[CONSENT REVOKED/DENIED] Student: {student_user.id} (Age: {student_age}) has status '{record.status}' "
+                f"for purpose: {purpose.value}"
+            )
+            return False
 
         # Fallback check on student_profile legacy consent status during migration
         if profile and profile.parental_consent_status == "GRANTED":
@@ -130,15 +136,31 @@ class ConsentService:
         purpose: str
     ) -> None:
         """
-        Instantly revokes consent for a processing purpose.
+        Instantly revokes consent for a processing purpose and invalidates downstream caches.
         """
         record = db.query(ConsentRecord).filter(
             ConsentRecord.student_user_id == student_id,
             ConsentRecord.processing_purpose == purpose
         ).first()
 
+        now = datetime.datetime.now(datetime.timezone.utc)
         if record:
             record.status = "REVOKED"
-            record.revoked_at = datetime.datetime.now(datetime.timezone.utc)
-            db.commit()
-            logger.info(f"[CONSENT REVOKED] Revoked active consent for student {student_id}, purpose: {purpose}")
+            record.revoked_at = now
+        else:
+            record = ConsentRecord(
+                student_user_id=student_id,
+                processing_purpose=purpose,
+                consent_scope=purpose,
+                status="REVOKED",
+                revoked_at=now
+            )
+            db.add(record)
+
+        # Invalidate legacy profile status
+        profile = db.query(StudentProfile).filter(StudentProfile.user_id == student_id).first()
+        if profile and purpose in (ProcessingPurpose.AI_SOCRATIC_TUTOR.value, ProcessingPurpose.PERSONALIZED_RECOMMENDATIONS.value):
+            profile.parental_consent_status = "REVOKED"
+
+        db.commit()
+        logger.info(f"[CONSENT REVOKED] Revoked active consent for student {student_id}, purpose: {purpose}")

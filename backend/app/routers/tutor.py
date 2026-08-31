@@ -13,7 +13,9 @@ router = APIRouter(prefix="/tutor", tags=["tutor"])
 
 from app.ai.rag_engine import RAGEngine
 from app.core.access_policy import require_ai_access, AccessPolicy
-from app.core.age_policy import StudentAgePolicy
+from app.core.age_policy import StudentAgePolicy, ProcessingPurpose
+from app.core.consent_service import ConsentService
+from app.core.ai_budget import AIBudgetManager
 from app.core.tenant_scope import TenantScope
 
 @router.post("/ask", response_model=TutorResponse)
@@ -25,6 +27,13 @@ def ask_ai_tutor(
     """
     Interactive Socratic AI Tutor powered by curriculum RAG retrieval and safety hard gates.
     """
+    # 0. Enforce real-time statutory consent check (DPDP Section 9 kill switch)
+    if not ConsentService.has_valid_consent(db, current_user, ProcessingPurpose.AI_SOCRATIC_TUTOR):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guardian consent is required or has been revoked for AI Socratic tutoring under DPDP Act Section 9."
+        )
+
     # Determine student target age dynamically via centralized Age Policy
     target_age = StudentAgePolicy.get_student_age(current_user.student_profile if current_user.role == "student" else None)
     grade_lvl = (
@@ -42,6 +51,13 @@ def ask_ai_tutor(
             follow_up_questions=["Can you explain the main definition in your own words?", "Would you like a simplified real-world example?"],
             is_safe=False
         )
+
+    # 1.5 Enforce daily AI token quota and cost budget
+    AIBudgetManager.check_and_consume_budget(
+        student_id=current_user.id,
+        prompt_tokens=max(10, len(request.question) // 3),
+        estimated_completion_tokens=250
+    )
 
     # 2. Query RAG Engine with Lesson Context & Semantic Retrieval strictly within Tenant Scope
     valid_content_id = request.content_item_id

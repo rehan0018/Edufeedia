@@ -1,7 +1,7 @@
 import datetime
 import uuid
 from sqlalchemy import (
-    Column, String, Integer, Boolean, Date, DateTime, Numeric, JSON,
+    Column, String, Integer, BigInteger, Boolean, Date, DateTime, Numeric, JSON,
     ForeignKey, Table, Text, UniqueConstraint, Index, CheckConstraint
 )
 from sqlalchemy.orm import relationship
@@ -148,6 +148,8 @@ class ContentItem(Base):
     view_count = Column(Integer, default=0)
     like_count = Column(Integer, default=0)
     is_approved = Column(Boolean, default=False)
+    moderation_status = Column(String, default="APPROVED")  # 'DISCOVERED', 'QUARANTINED', 'AUTOMATED_SCREENING', 'APPROVED', 'NEEDS_HUMAN_REVIEW', 'REJECTED'
+    transcript_text = Column(Text, nullable=True)
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
@@ -596,6 +598,7 @@ class AuditEvent(Base):
         Index("ix_audit_events_school", "school_id", "timestamp"),
     )
     id = Column(String, primary_key=True, default=generate_uuid)
+    sequence_number = Column(BigInteger, unique=True, index=True, nullable=False, default=1)
     previous_event_hash = Column(String, nullable=True)
     event_hash = Column(String, nullable=False, index=True)
     actor_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

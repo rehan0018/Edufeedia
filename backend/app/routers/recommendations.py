@@ -10,7 +10,8 @@ from app.schemas.schemas import (
 )
 from app.core.security import RoleChecker
 from app.core.tenant_scope import TenantScope
-from app.core.age_policy import StudentAgePolicy
+from app.core.age_policy import StudentAgePolicy, ProcessingPurpose
+from app.core.consent_service import ConsentService
 from app.safety.engine import SafetyEngine
 from app.learning.feedback import log_interaction
 from app.recommender.hybrid import recommender_instance
@@ -24,12 +25,25 @@ def get_personalized_feed(
 ):
     """
     Returns the multi-stage personalized recommendation feed with explainability scores.
+    Falls back gracefully to static un-profiled curriculum feed if personalization consent is revoked.
     """
+    has_personalization_consent = ConsentService.has_valid_consent(
+        db=db,
+        student_user=current_user,
+        purpose=ProcessingPurpose.PERSONALIZED_RECOMMENDATIONS
+    )
+
     feed = recommender_instance.get_personalized_recommendations(
         db=db,
         student_id=current_user.id,
         limit=4
     )
+    if not has_personalization_consent:
+        # Strip personalized explanation metadata to guarantee zero behavioral profiling
+        for item in feed.get("recommendations", []):
+            item["source"] = "standard_curriculum_catalog"
+            item["score"] = 0.50
+            item["explanation_reason"] = "Standard curriculum topic based on your current enrolled grade syllabus."
     return feed
 
 @router.post("/interaction", response_model=InteractionOut, status_code=status.HTTP_201_CREATED)

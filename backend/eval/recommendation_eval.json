@@ -1,0 +1,65 @@
+[
+  {
+    "student_scenario_id": "rec-scen-01",
+    "name": "Prerequisite Gap in Factoring",
+    "grade_level": 10,
+    "board": "CBSE",
+    "subject": "Mathematics",
+    "target_topic": "Quadratic Equations",
+    "prerequisite_gap": "Polynomial Factoring",
+    "expected_top_source": "root_prerequisite_remedy",
+    "expected_relevant_topics": [
+      "Polynomial Factoring",
+      "Algebraic Identities",
+      "Quadratic Equations"
+    ],
+    "min_relevance_ndcg": 0.7
+  },
+  {
+    "student_scenario_id": "rec-scen-02",
+    "name": "Spaced Repetition Decay in Ray Optics",
+    "grade_level": 10,
+    "board": "CBSE",
+    "subject": "Physics",
+    "target_topic": "Light Reflection and Refraction",
+    "spaced_repetition_due": true,
+    "expected_top_source": "spaced_repetition_review",
+    "expected_relevant_topics": [
+      "Light Reflection and Refraction",
+      "Mirror Formula",
+      "Snell's Law"
+    ],
+    "min_relevance_ndcg": 0.75
+  },
+  {
+    "student_scenario_id": "rec-scen-03",
+    "name": "Active Misconception Remediation in Kinematics",
+    "grade_level": 11,
+    "board": "CBSE",
+    "subject": "Physics",
+    "target_topic": "Motion in a Straight Line",
+    "misconception_pattern": "confuses_velocity_with_acceleration",
+    "expected_top_source": "misconception_remedy",
+    "expected_relevant_topics": [
+      "Instantaneous Acceleration",
+      "Velocity Time Graphs",
+      "Motion in a Straight Line"
+    ],
+    "min_relevance_ndcg": 0.7
+  },
+  {
+    "student_scenario_id": "rec-scen-04",
+    "name": "Curriculum Onboarding Cold-Start",
+    "grade_level": 9,
+    "board": "CBSE",
+    "subject": "Science",
+    "target_topic": "Matter in Our Surroundings",
+    "expected_top_source": "curriculum_core",
+    "expected_relevant_topics": [
+      "Matter in Our Surroundings",
+      "States of Matter",
+      "Evaporation and Boiling"
+    ],
+    "min_relevance_ndcg": 0.65
+  }
+]
