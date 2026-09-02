@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
     # Conditional table automigration on boot (development & test only)
     if settings.ENVIRONMENT != "production":
         try:
+            import app.models.models
             Base.metadata.create_all(bind=engine)
         except Exception as e:
             logger.error(f"[SCHEMA INITIALIZATION WARNING]: {e}", exc_info=True)
