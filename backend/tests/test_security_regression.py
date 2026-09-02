@@ -415,8 +415,18 @@ class TestSecurityRegression(unittest.TestCase):
 
     def test_student_with_granted_consent_can_use_ai_tutor(self):
         """Verify student in COMPLETED onboarding and GRANTED consent can access AI tutor."""
+        from app.core.consent_service import ConsentService
+        from app.core.age_policy import ProcessingPurpose
+
         self.student_a.student_profile.onboarding_status = "COMPLETED"
         self.student_a.student_profile.parental_consent_status = "GRANTED"
+        ConsentService.grant_consent(
+            db=self.db,
+            student_id=self.student_a.id,
+            guardian_id=None,
+            purpose=ProcessingPurpose.AI_SOCRATIC_TUTOR.value,
+            scope="ai_socratic_tutoring"
+        )
         self.db.commit()
 
         res = self.client.post(
