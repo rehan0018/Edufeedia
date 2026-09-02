@@ -674,3 +674,29 @@ class AIUsageEvent(Base):
 
     student = relationship("User", foreign_keys=[student_id])
     school = relationship("School", foreign_keys=[school_id])
+
+
+class ParentalScreenTimePolicy(Base):
+    """
+    Parent-configured device & learning screen time policy for a student.
+    Enforces daily screen time thresholds, bedtime curfew, and category quotas.
+    """
+    __tablename__ = "parental_screen_time_policies"
+    __table_args__ = (
+        UniqueConstraint("parent_user_id", "student_user_id", name="uq_parent_student_screentime_policy"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    parent_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    daily_limit_minutes = Column(Integer, default=90)  # e.g. 90 minutes / day
+    curfew_start_time = Column(String, default="21:30")  # 9:30 PM
+    curfew_end_time = Column(String, default="06:30")    # 6:30 AM
+    curfew_enabled = Column(Boolean, default=True)
+    ai_tutor_max_daily_minutes = Column(Integer, default=30)
+    break_interval_minutes = Column(Integer, default=45) # 45 min continuous session warning
+    allow_weekend_bonus_minutes = Column(Integer, default=30)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    parent = relationship("User", foreign_keys=[parent_user_id])
+    student = relationship("User", foreign_keys=[student_user_id])
