@@ -72,8 +72,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Full Repository History
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Execute Full Git History Secret Audit
+        run: |
+          python backend/scripts/audit_git_secrets.py
 
       - name: Verify Required Governance Documents
         run: |
