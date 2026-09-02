@@ -388,6 +388,8 @@ class TestSecurityRegression(unittest.TestCase):
 
     def test_student_with_pending_onboarding_cannot_use_ai_tutor(self):
         """Verify student in PENDING onboarding cannot access AI tutor (403 Forbidden)."""
+        from app.models.models import ConsentRecord
+        self.db.query(ConsentRecord).filter(ConsentRecord.student_user_id == self.student_a.id).delete()
         self.student_a.student_profile.onboarding_status = "PENDING"
         self.db.commit()
 
@@ -401,6 +403,8 @@ class TestSecurityRegression(unittest.TestCase):
 
     def test_student_with_pending_consent_cannot_use_ai_tutor(self):
         """Verify student in PENDING parental consent cannot access AI tutor (403 Forbidden)."""
+        from app.models.models import ConsentRecord
+        self.db.query(ConsentRecord).filter(ConsentRecord.student_user_id == self.student_a.id).delete()
         self.student_a.student_profile.onboarding_status = "COMPLETED"
         self.student_a.student_profile.parental_consent_status = "PENDING"
         self.db.commit()

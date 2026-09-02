@@ -65,19 +65,10 @@ class ConsentService:
             )
             return False
 
-        # Check profile status if no explicit ConsentRecord row exists
-        if profile:
-            if profile.parental_consent_status == "GRANTED":
-                return True
-            if profile.parental_consent_status in ["LEGACY_PENDING_REVALIDATION", "PENDING", "REVOKED"]:
-                logger.warning(
-                    f"[CONSENT REVALIDATION REQUIRED/DENIED] Student: {student_user.id} has profile status '{profile.parental_consent_status}' "
-                    f"for purpose: {purpose.value}."
-                )
-                return False
-
+        # Strict DPDP Act Section 9 Rule: For processing purposes requiring explicit guardian consent,
+        # an active, non-expired ConsentRecord row MUST exist in the database.
         logger.warning(
-            f"[CONSENT DENIED] Student: {student_user.id} (Age: {student_age}) lacks active guardian consent "
+            f"[CONSENT DENIED] Student: {student_user.id} (Age: {student_age}) lacks active guardian consent record "
             f"for purpose: {purpose.value} (Policy Basis: {eval_result['policy_basis']})"
         )
         return False

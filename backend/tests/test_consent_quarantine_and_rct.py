@@ -74,6 +74,8 @@ class TestConsentQuarantineAndRCT(unittest.TestCase):
             grade_level=10,
             board="CBSE",
             date_of_birth=datetime.date(2012, 5, 10),
+            onboarding_status="COMPLETED",
+            learning_access_status="ACTIVE",
             parental_consent_status="GRANTED"
         )
         guardian = User(
