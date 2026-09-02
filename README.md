@@ -23,7 +23,9 @@
 - [14. Docker & CI/CD Deployment Architecture](#14-docker--cicd-deployment-architecture)
 - [15. Observability & SRE Telemetry](#15-observability--sre-telemetry)
 - [16. Product Roadmap](#16-product-roadmap)
-- [17. Deep-Dive System Documentation](#17-deep-dive-system-documentation)
+- [17. License & Student Privacy Notice](#17-license--student-privacy-notice)
+- [18. Contributing](#18-contributing)
+- [19. Deep-Dive System Documentation](#-deep-dive-system-documentation)
 
 ---
 
@@ -406,6 +408,34 @@ Edufeedia includes built-in telemetry endpoints for Kubernetes and CloudWatch:
 
 ---
 
-## 📄 License & Student Privacy Notice
+## 17. License & Student Privacy Notice
 
-Licensed under the **MIT License**. Engineered and designed with student data privacy, Indian DPDP Act principles, and US COPPA parental consent safeguards in mind.
+### License
+
+Edufeedia is proprietary and source-available software.
+
+Copyright © 2026 Rehan Shaikh. All Rights Reserved.
+
+The source code is made publicly available for transparency, learning, review, and contribution to the Edufeedia project. Viewing the source code does not grant ownership or unrestricted rights to copy, modify, redistribute, sublicense, sell, or commercially use Edufeedia or substantial portions of its source code.
+
+Contributions are welcome through the project's official contribution process. By submitting a contribution, contributors agree to the applicable contribution terms and do not receive ownership of the Edufeedia project, its brand, or its intellectual property.
+
+Commercial use, redistribution, licensing, resale, or creation of derivative commercial products based substantially on Edufeedia requires prior written permission from the copyright owner.
+
+Historical releases or versions previously published under the MIT License remain subject to the original terms of that license. All new releases, versions, and updates from this date forward are governed exclusively by this proprietary, source-available license.
+
+Third-party libraries and dependencies remain subject to their respective licenses.
+
+All rights not expressly granted are reserved.
+
+### Student Privacy Notice
+
+Edufeedia is designed with student-data privacy as a core principle. The project is developed with consideration for applicable privacy and child-safety requirements, including principles of India's Digital Personal Data Protection (DPDP) framework and parental-consent safeguards relevant to the US Children's Online Privacy Protection Act (COPPA).
+
+This notice describes the project's design principles and does not by itself constitute a legal determination of compliance with any particular law or regulation.
+
+---
+
+## 18. Contributing
+
+Contributions to Edufeedia are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for details on our contribution guidelines, licensing terms, and code quality/testing standards.

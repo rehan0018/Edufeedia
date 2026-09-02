@@ -98,8 +98,8 @@ class EmailService:
             f"Dear Guardian,\n\n"
             f"{student_name} has requested access to Edufeedia's AI Socratic learning platform via {school_name}.\n\n"
             f"Your 15-minute verification code is: {otp_code}\n\n"
-            f"By submitting this code, you grant verifiable parental consent for personalized curriculum practice "
-            f"in strict compliance with COPPA, GDPR-K, and DPDP Act 2023.\n\n"
+            f"By submitting this code, you grant verifiable guardian consent for personalized curriculum practice "
+            f"in alignment with platform privacy and child-safety principles (including DPDP Act 2023 and COPPA safeguards).\n\n"
             f"If you did not request this, no action is required."
         )
 
@@ -111,7 +111,7 @@ class EmailService:
             f"<div style='background-color: #f1f5f9; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;'>"
             f"<span style='font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #1e293b;'>{otp_code}</span>"
             f"</div>"
-            f"<p style='color: #64748b; font-size: 13px;'>This code is valid for 15 minutes. Submitting it provides verifiable consent under COPPA and DPDP Act 2023.</p>"
+            f"<p style='color: #64748b; font-size: 13px;'>This code is valid for 15 minutes. Submitting it provides verifiable guardian consent for this student.</p>"
             f"</div>"
         )
 

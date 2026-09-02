@@ -92,7 +92,8 @@ def ask_ai_tutor(
             school_id=current_user.school_id,
             actual_prompt_tokens=actual_prompt,
             actual_completion_tokens=actual_completion,
-            model_name=rag_result.get("model_used", "gpt-4o-mini")
+            model_name=rag_result.get("model_used", "gpt-4o-mini"),
+            db=db
         )
     except Exception as e:
         AIBudgetManager.refund_reservation(reservation)

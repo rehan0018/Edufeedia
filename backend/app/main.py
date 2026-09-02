@@ -12,24 +12,23 @@ import logging
 
 logger = logging.getLogger("edufeedia.main")
 
-# Conditional table automigration on boot (development & test only)
-if settings.ENVIRONMENT != "production":
-    Base.metadata.create_all(bind=engine)
-    try:
-        with engine.connect() as conn:
-            if conn.dialect.name == "sqlite":
-                res = conn.execute(text("PRAGMA table_info(content_items)"))
-                cols = [r[1] for r in res.fetchall()]
-                if cols and "school_id" not in cols:
-                    conn.execute(text("ALTER TABLE content_items ADD COLUMN school_id VARCHAR"))
-                    conn.commit()
-    except Exception as e:
-        logger.error(f"[SCHEMA INITIALIZATION WARNING]: {e}", exc_info=True)
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Conditional table automigration on boot (development & test only)
+    if settings.ENVIRONMENT != "production":
+        try:
+            Base.metadata.create_all(bind=engine)
+        except Exception as e:
+            logger.error(f"[SCHEMA INITIALIZATION WARNING]: {e}", exc_info=True)
+    yield
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="A safe, personalized learning platform for students under 18.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure CORS with strict explicit origins, methods, and headers
@@ -93,15 +92,9 @@ async def correlation_id_middleware(request: Request, call_next):
     response.headers["X-Response-Time-MS"] = str(duration_ms)
     return response
 
-from app.core.logging_config import logger
-from app.core.redis_client import redis_client
 
-logger.info(f"Initializing {settings.PROJECT_NAME} backend service...")
 
 @app.get("/health", tags=["system"])
-@app.get("/api/health", tags=["system"])
-@app.get("/api/v1/health", tags=["system"])
-@app.get("/live", tags=["system"])
 def liveness_check():
     """Liveness probe for container orchestrators (Kubernetes / ECS)."""
     return {
@@ -112,8 +105,6 @@ def liveness_check():
     }
 
 @app.get("/ready", tags=["system"])
-@app.get("/api/ready", tags=["system"])
-@app.get("/api/v1/ready", tags=["system"])
 def readiness_check():
     """Readiness probe verifying database and cache cluster connectivity."""
     db_status = "unknown"
@@ -157,7 +148,6 @@ def readiness_check():
     )
 
 @app.get("/metrics", tags=["system"])
-@app.get("/api/v1/metrics", tags=["system"])
 def get_system_metrics():
     """Operational telemetry & metrics endpoint for CloudWatch / Prometheus."""
     uptime_seconds = int(time.time() - METRICS_START_TIME)
@@ -173,7 +163,7 @@ def get_system_metrics():
         }
     }
 
-# Mount static frontend directories for hosting the web client dashboard
+# Mount static frontend directories for hosting the web client dashboard if populated
 static_path = os.path.join(os.path.dirname(__file__), "static")
-os.makedirs(static_path, exist_ok=True)
-app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
+if os.path.exists(static_path) and os.listdir(static_path):
+    app.mount("/static", StaticFiles(directory=static_path), name="static")

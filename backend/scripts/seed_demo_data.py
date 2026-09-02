@@ -8,8 +8,8 @@ DO NOT RUN IN PRODUCTION.
 import sys
 import os
 import datetime
+from decimal import Decimal
 from sqlalchemy.orm import Session
-import bcrypt
 
 # Add the backend folder to system path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -23,10 +23,7 @@ from app.models.models import (
 )
 from app.embeddings.embedder import embed_content
 from app.core.excel_exporter import sync_database_to_excel
-
-def get_password_hash(password: str) -> str:
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+from app.core.security import get_password_hash
 
 def seed_demo_data():
     print("Seeding Edufeedia database with full test suite fixtures...")

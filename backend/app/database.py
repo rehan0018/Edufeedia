@@ -7,18 +7,19 @@ from app.config import settings
 DATABASE_URL = settings.DATABASE_URL
 
 if DATABASE_URL.startswith("sqlite"):
-    from sqlalchemy.pool import NullPool
     engine = create_engine(
         DATABASE_URL,
-        connect_args={"check_same_thread": False, "timeout": 30},
-        poolclass=NullPool
+        connect_args={"check_same_thread": False, "timeout": 30}
     )
 
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+        try:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+        except Exception:
+            pass
 else:
     # Production PostgreSQL connection pool configuration
     engine = create_engine(

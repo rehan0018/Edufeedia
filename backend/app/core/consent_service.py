@@ -1,6 +1,6 @@
 """
 Enforceable Database Consent Verification & Revocation Service.
-Guarantees real-time compliance with DPDP Act 2023 Section 9 statutory requirements.
+Implements purpose-specific verifiable guardian consent workflows designed in accordance with DPDP Act 2023 Section 9 principles.
 """
 
 import datetime
@@ -65,17 +65,16 @@ class ConsentService:
             )
             return False
 
-        # In migration/fixture mode: if profile has active GRANTED parental status and no revoked record exists:
-        if profile and profile.parental_consent_status == "GRANTED":
-            cls.grant_consent(
-                db=db,
-                student_id=student_user.id,
-                guardian_id=None,
-                purpose=purpose.value,
-                scope=eval_result["consent_scope"],
-                method="VERIFIED_PARENT_CONSENT"
+        # Legacy profile status without a verified granular ConsentRecord requires guardian revalidation
+        if profile and profile.parental_consent_status in ["GRANTED", "LEGACY_PENDING_REVALIDATION"]:
+            if profile.parental_consent_status != "LEGACY_PENDING_REVALIDATION":
+                profile.parental_consent_status = "LEGACY_PENDING_REVALIDATION"
+                db.commit()
+            logger.warning(
+                f"[CONSENT REVALIDATION REQUIRED] Student: {student_user.id} has legacy consent. "
+                f"Requires guardian OTP revalidation under DPDP Act 2023 Section 9 before '{purpose.value}' is enabled."
             )
-            return True
+            return False
 
         logger.warning(
             f"[CONSENT DENIED] Student: {student_user.id} (Age: {student_age}) lacks active guardian consent "

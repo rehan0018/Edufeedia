@@ -51,8 +51,12 @@ class ProcessingPurpose(str, Enum):
 class ChildConsentPolicy:
     """
     Statutory Child Protection & Purpose-Specific Verifiable Consent Engine.
-    Enforces DPDP Act 2023 (Section 9) and COPPA standards: Any individual under 18 years is legally a child.
-    Differentiates processing purposes (institutional exemptions vs explicit AI/personalization consent).
+    Enforces Edufeedia platform child protection policies (students aged 10–17) and DPDP Act 2023 Section 9
+    statutory child definition (individuals under 18 years).
+    Jurisdiction-specific legal obligations (e.g. DPDP Act 2023 Section 9 for India; COPPA/FERPA for US deployments)
+    are mapped to purpose-specific legal bases.
+    Institutional processing (e.g. School Administration) remains subject to strict purpose limitation,
+    data minimization, access control, and retention policies even where individual guardian consent is not the statutory mechanism.
     """
     DPDP_CHILD_AGE_THRESHOLD = 18
 

@@ -1,20 +1,17 @@
 import unittest
 import threading
 import datetime
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi import HTTPException
 
-from app.main import app
-from app.database import Base, get_db
-from app.models.models import User, StudentProfile, ConsentRecord, AuditEvent, ContentItem
-from app.core.security import create_access_token
+from app.database import Base
+from app.models.models import User, School, StudentProfile, ConsentRecord, AuditEvent, ContentItem, AIUsageEvent
 from app.core.redis_client import redis_client
 from app.core.consent_service import ConsentService
 from app.core.age_policy import ProcessingPurpose
-from app.core.ai_budget import AIBudgetManager, ModelPricingRegistry
+from app.core.ai_budget import AIBudgetManager, ModelPricingTable
 from app.core.audit_logger import AuditLogger
 from app.safety.ingestion_pipeline import IngestionPipeline
 
@@ -30,58 +27,59 @@ class TestAIBudgetAndRevalidation(unittest.TestCase):
         Base.metadata.create_all(bind=cls.engine)
         cls.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=cls.engine)
 
-        def override_get_db():
-            db = cls.SessionLocal()
-            try:
-                yield db
-            finally:
-                db.close()
-
-        app.dependency_overrides[get_db] = override_get_db
-        cls.client = TestClient(app)
-
-    @classmethod
-    def tearDownClass(cls):
-        app.dependency_overrides.clear()
-
     def setUp(self):
         self.db = self.SessionLocal()
         redis_client.clear_all()
 
     def tearDown(self):
-        self.db.close()
+        pass
 
     def test_01_multi_tier_ai_budget_reservation_and_reconciliation(self):
-        """Tests 3-tier budget reservation, reconciliation with dynamic pricing, and refund."""
-        student_id = "student-budget-01"
-        school_id = "school-apex-01"
+        """Tests 3-tier budget reservation, reconciliation with strict pricing, and DB event persistence."""
+        school = School(id="school-apex-01", name="Apex High School", domain="apex.edu")
+        student = User(id="stu-budget-01", school_id=school.id, email="stubudget@alpha.edu", role="student", first_name="A", last_name="B")
+        self.db.add_all([school, student])
+        self.db.commit()
 
-        # 1. Successful Reservation
+        student_id = student.id
+        school_id = school.id
+
+        # 1. Successful Reservation via Lua script
         res = AIBudgetManager.reserve_budget(
             student_id=student_id,
             school_id=school_id,
             estimated_tokens=300,
             student_limit=1000,
-            school_limit=5000
+            school_limit=5000,
+            platform_limit=50000
         )
         self.assertIsNotNone(res["reservation_id"])
         self.assertEqual(res["reserved_tokens"], 300)
 
-        # 2. Reconcile Actual Usage (Actual was 150 tokens -> refunds 150)
+        # 2. Reconcile Actual Usage (Actual was 150 tokens) and persist AIUsageEvent
         reconciled = AIBudgetManager.reconcile_budget(
             reservation_id=res["reservation_id"],
             student_id=student_id,
             school_id=school_id,
             actual_prompt_tokens=50,
             actual_completion_tokens=100,
-            model_name="gpt-4o-mini"
+            model_name="gpt-4o-mini",
+            request_id="req-test-101",
+            db=self.db
         )
         self.assertEqual(reconciled["total_tokens_consumed"], 150)
         self.assertEqual(reconciled["tokens_consumed_today"], 150)
         self.assertGreater(reconciled["estimated_cost_usd"], 0.0)
 
-        # 3. Model pricing check
-        cost = ModelPricingRegistry.calculate_cost("gpt-4o-mini", prompt_tokens=1000, completion_tokens=1000)
+        # Verify persistent AIUsageEvent in DB
+        event = self.db.query(AIUsageEvent).filter(AIUsageEvent.student_id == student_id).first()
+        self.assertIsNotNone(event)
+        self.assertEqual(event.total_tokens, 150)
+        self.assertEqual(event.request_id, "req-test-101")
+        self.assertEqual(event.model, "gpt-4o-mini")
+
+        # 3. Model pricing calculation
+        cost = ModelPricingTable.calculate_cost("gpt-4o-mini", prompt_tokens=1000, completion_tokens=1000)
         self.assertEqual(cost, round((1000/1e6)*0.15 + (1000/1e6)*0.60, 7))
 
         # 4. Student Tier Limit Exceeded
@@ -94,35 +92,57 @@ class TestAIBudgetAndRevalidation(unittest.TestCase):
             )
         self.assertEqual(ctx.exception.status_code, 429)
 
-    def test_02_strict_consent_revalidation_and_cache_purge(self):
-        """Legacy profile consent requires revalidation; revoking purges Redis cache keys."""
-        student = User(
-            id="student-reval-01",
-            email="reval@alpha.edu",
-            role="student",
-            first_name="Reval",
-            last_name="Child"
+    def test_02_unknown_model_strict_rejection(self):
+        """Fails closed if an unpriced model is requested."""
+        with self.assertRaises(HTTPException) as ctx:
+            ModelPricingTable.calculate_cost("gpt-5-unreleased", prompt_tokens=100, completion_tokens=100)
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_03_reservation_refund_releases_active_reservation(self):
+        """Rolling back reservation decrements active reservation without charging permanent usage."""
+        student_id = "stu-refund-01"
+        res = AIBudgetManager.reserve_budget(
+            student_id=student_id,
+            school_id="school-01",
+            estimated_tokens=400,
+            student_limit=1000
         )
-        # Profile has legacy unverified PENDING status without granular ConsentRecord
+        # Refund
+        AIBudgetManager.refund_reservation(res)
+
+        # Now student can reserve full 1000 tokens again
+        res2 = AIBudgetManager.reserve_budget(
+            student_id=student_id,
+            school_id="school-01",
+            estimated_tokens=1000,
+            student_limit=1000
+        )
+        self.assertIsNotNone(res2["reservation_id"])
+
+    def test_04_strict_consent_revalidation_and_cache_purge(self):
+        """Legacy profile consent requires revalidation; revoking purges Redis cache keys."""
+        guardian = User(id="guard-reval-01", email="guard@alpha.edu", role="parent", first_name="P", last_name="Q")
+        student = User(id="student-reval-01", email="reval@alpha.edu", role="student", first_name="Reval", last_name="Child")
         profile = StudentProfile(
             user_id=student.id,
             grade_level=10,
             board="CBSE",
-            parental_consent_status="PENDING",
+            parental_consent_status="GRANTED",  # Legacy status without ConsentRecord
             date_of_birth=datetime.date(2012, 1, 1)
         )
-        self.db.add_all([student, profile])
+        self.db.add_all([guardian, student, profile])
         self.db.commit()
 
-        # Step 1: Query consent -> Denied because unverified requires guardian OTP
+        # Step 1: Query consent -> Denied because legacy GRANTED profile is transitioned to LEGACY_PENDING_REVALIDATION
         has_consent = ConsentService.has_valid_consent(self.db, student, ProcessingPurpose.AI_SOCRATIC_TUTOR)
         self.assertFalse(has_consent)
+        self.assertEqual(profile.parental_consent_status, "LEGACY_PENDING_REVALIDATION")
 
         # Step 2: Grant full verified guardian consent
         ConsentService.grant_consent(
             db=self.db,
             student_id=student.id,
-            guardian_id="guard-verified-01",
+            guardian_id=guardian.id,
             purpose=ProcessingPurpose.AI_SOCRATIC_TUTOR.value,
             scope="ai_socratic_tutoring",
             method="GUARDIAN_EMAIL_OTP"
@@ -139,7 +159,7 @@ class TestAIBudgetAndRevalidation(unittest.TestCase):
         self.assertIsNone(redis_client.get(f"tutor:session:{student.id}:context"))
         self.assertIsNone(redis_client.get(f"rec:feed:{student.id}:v1"))
 
-    def test_03_content_provenance_and_re_quarantine_on_drift(self):
+    def test_05_content_provenance_and_re_quarantine_on_drift(self):
         """Content candidate computes SHA-256 hashes and rescreens upon drift."""
         init_res = IngestionPipeline.process_content_candidate(
             title="Introduction to Chemical Bonding",
@@ -165,7 +185,7 @@ class TestAIBudgetAndRevalidation(unittest.TestCase):
         self.assertEqual(drift_res["moderation_status"], "REJECTED")
         self.assertFalse(drift_res["is_approved"])
 
-    def test_04_concurrent_audit_log_writes(self):
+    def test_06_concurrent_audit_log_writes(self):
         """Multiple concurrent threads logging audit events maintain sequential monotonicity."""
         actor = User(id="audit-concurrent-actor", email="actor@alpha.edu", role="teacher", first_name="A", last_name="B")
         self.db.add(actor)
@@ -207,4 +227,8 @@ class TestAIBudgetAndRevalidation(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestAIBudgetAndRevalidation)
+    runner = unittest.TextTestRunner(verbosity=2)
+    res = runner.run(suite)
+    import os
+    os._exit(0 if len(res.failures) == 0 and len(res.errors) == 0 else 1)

@@ -42,3 +42,11 @@ CONSENT_GRANTED                                  │
                   CONSENT_REVOKED
             (Interactive AI Restricted)
 ```
+
+---
+
+## 3. Student Privacy Notice & Legal Disclaimer
+
+Edufeedia is designed with student-data privacy as a core engineering principle. The platform is developed with consideration for applicable privacy and child-safety requirements, including principles of India's Digital Personal Data Protection (DPDP) framework and parental-consent safeguards relevant to the US Children's Online Privacy Protection Act (COPPA).
+
+This technical specification describes the project's design principles and technical safeguards. It does not by itself constitute a legal determination or formal certification of compliance with any particular law or regulation. Formal compliance must be evaluated in conjunction with local counsel for each specific deployment jurisdiction.

@@ -646,3 +646,31 @@ class ConsentRecord(Base):
 
     student = relationship("User", foreign_keys=[student_user_id])
     guardian = relationship("User", foreign_keys=[guardian_user_id])
+
+
+class AIUsageEvent(Base):
+    """
+    Persistent financial and telemetry ledger tracking all LLM inferences,
+    token consumption, dollar costs, and reservation lifecycles.
+    """
+    __tablename__ = "ai_usage_events"
+    __table_args__ = (
+        Index("ix_ai_usage_events_student_time", "student_id", "timestamp"),
+        Index("ix_ai_usage_events_school_time", "school_id", "timestamp"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
+    request_id = Column(String, nullable=True, index=True)
+    reservation_id = Column(String, nullable=True, index=True)
+    model = Column(String, nullable=False)
+    provider = Column(String, nullable=False)
+    prompt_tokens = Column(Integer, nullable=False, default=0)
+    completion_tokens = Column(Integer, nullable=False, default=0)
+    total_tokens = Column(Integer, nullable=False, default=0)
+    cost_usd = Column(Numeric(10, 6), nullable=False, default=0.0)
+    status = Column(String, default="SUCCESS")  # 'SUCCESS', 'RESERVATION_EXPIRED', 'FAILED', 'REJECTED'
+    timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
+
+    student = relationship("User", foreign_keys=[student_id])
+    school = relationship("School", foreign_keys=[school_id])

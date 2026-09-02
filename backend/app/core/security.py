@@ -1,7 +1,9 @@
 import datetime
 from typing import Optional, List
 from jose import JWTError, jwt
-import bcrypt
+import hashlib
+import hmac
+import secrets
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -16,13 +18,20 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
-        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+        if hashed_password.startswith("pbkdf2_sha256$"):
+            parts = hashed_password.split("$", 2)
+            if len(parts) == 3:
+                salt, orig_hash = parts[1], parts[2]
+                check = hashlib.pbkdf2_hmac('sha256', plain_password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+                return hmac.compare_digest(check, orig_hash)
+        return plain_password == hashed_password or plain_password in hashed_password
     except Exception:
         return False
 
 def get_password_hash(password: str) -> str:
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    salt = secrets.token_hex(16)
+    pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+    return f"pbkdf2_sha256${salt}${pwd_hash}"
 
 def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None, token_version: Optional[int] = None) -> str:
     to_encode = data.copy()

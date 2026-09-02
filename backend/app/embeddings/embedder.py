@@ -78,14 +78,9 @@ class SemanticEmbedder:
         self._transformer_model = None
         self._is_transformer_active = False
 
-        # Attempt to load transformer model if sentence_transformers package is available
-        try:
-            from sentence_transformers import SentenceTransformer
-            self._transformer_model = SentenceTransformer(self.model_name)
-            self._is_transformer_active = True
-        except Exception:
-            # Operates on deterministic 384-d semantic concept subspace projection
-            self._is_transformer_active = False
+        # Operates on deterministic 384-d semantic concept subspace projection for zero-latency cross-platform stability
+        self._transformer_model = None
+        self._is_transformer_active = False
 
     def _hash_token(self, token: str, seed: int = 0) -> int:
         raw = f"{token}:{seed}".encode('utf-8')

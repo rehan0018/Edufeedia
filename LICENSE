@@ -1,0 +1,30 @@
+Edufeedia Source-Available Software License
+
+Copyright (c) 2026 Rehan Shaikh. All Rights Reserved.
+
+1. GRANT OF LICENSE FOR VIEWING, REVIEW, AND CONTRIBUTION
+Edufeedia is proprietary and source-available software. The source code of Edufeedia (the "Software") is made publicly available for transparency, personal learning, code review, academic inspection, and submitting contributions to the official Edufeedia project.
+
+Subject to the terms and conditions of this License, you are granted a non-exclusive, non-transferable, royalty-free license to:
+- Access, inspect, download, and view the source code.
+- Compile and run the Software locally in a non-commercial development or testing environment solely for evaluation, educational review, and contribution preparation.
+- Prepare and submit modifications, bug fixes, or enhancements to the official Edufeedia project repository in accordance with the project's contribution policies.
+
+2. RESERVATION OF RIGHTS AND RESTRICTIONS
+Except as expressly permitted in Section 1, all rights are reserved by the copyright owner. You may NOT, directly or indirectly, without prior express written permission from Rehan Shaikh:
+- Use, deploy, host, run, or operate the Software (or any portion or derivative work thereof) for any commercial purpose, for-profit service, software-as-a-service (SaaS), paid tutoring platform, or commercial institutional deployment.
+- Sell, license, sublicense, rent, lease, distribute, redistribute, publish, or publicly broadcast the Software or modified versions of the Software.
+- Rebrand, rename, or market the Software, or substantial portions of its source code or architecture, as a distinct product or service.
+- Remove, alter, or obscure any copyright, trademark, patent, or other proprietary notices contained in or on the Software.
+
+3. CONTRIBUTIONS
+By submitting a contribution (including code, documentation, designs, or pull requests) to the Edufeedia project, you agree to the contribution terms set forth in CONTRIBUTING.md. Submitting a contribution does not grant you ownership of the Edufeedia project, its brand, trademarks, or intellectual property.
+
+4. HISTORICAL RELEASES
+Releases, commits, or versions of this project that were historically published and obtained under the terms of the MIT License remain subject to the original terms of that license. All new releases, versions, updates, and modifications from the effective date of this License forward are governed exclusively by this License.
+
+5. THIRD-PARTY DEPENDENCIES
+Third-party libraries, dependencies, datasets, and fonts included in or referenced by the Software remain governed by their respective open-source or proprietary licenses.
+
+6. DISCLAIMER OF WARRANTIES
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

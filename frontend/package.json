@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "backend": "..\\venv\\Scripts\\python.exe ..\\backend\\server.py",
     "build": "vite build",
     "preview": "vite preview"
   },
