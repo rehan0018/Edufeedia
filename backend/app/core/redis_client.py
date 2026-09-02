@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Optional
+from typing import Optional, Any, List, Dict
 
 logger = logging.getLogger("edufeedia.redis")
 
