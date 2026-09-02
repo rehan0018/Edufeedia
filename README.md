@@ -1,6 +1,11 @@
 # Edufeedia
 
-> **An AI-powered safe, personalized learning and revision platform engineered specifically for students under 18.**  
+[![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/License-PolyForm_Shield_1.0.0-blue.svg)](LICENSE)
+[![Source Available](https://img.shields.io/badge/Source-Available-success.svg)](LICENSE)
+[![Security Policy](https://img.shields.io/badge/Security-Policy-informational.svg)](SECURITY.md)
+[![CLA Required](https://img.shields.io/badge/CLA-Required-orange.svg)](CLA.md)
+
+> **An AI-powered safe, personalized learning and revision platform engineered specifically for students aged 10–17.**  
 > Curating curriculum-aligned educational materials from trusted sources, personalizing daily study feeds, orchestrating fail-closed Socratic AI tutoring, and driving long-term retention through active recall, adaptive quizzes, and SM-2 spaced repetition.
 
 ---
@@ -13,7 +18,7 @@
 - [4. The End-to-End Content & AI Lifecycle](#4-the-end-to-end-content--ai-lifecycle)
 - [5. AI & Socratic RAG Engine](#5-ai--socratic-rag-engine)
 - [6. Zero-Trust Security & Multi-Category Safety](#6-zero-trust-security--multi-category-safety)
-- [7. DPDP & COPPA Verifiable Parental Consent](#7-dpdp--coppa-verifiable-parental-consent)
+- [7. Purpose-Specific Verifiable Guardian Consent Framework](#7-purpose-specific-verifiable-guardian-consent-framework)
 - [8. Multi-Tenant Role-Based Access Control (RBAC)](#8-multi-tenant-role-based-access-control-rbac)
 - [9. Technology Stack](#9-technology-stack)
 - [10. Local Development Quickstart](#10-local-development-quickstart)
@@ -24,7 +29,7 @@
 - [15. Observability & SRE Telemetry](#15-observability--sre-telemetry)
 - [16. Product Roadmap](#16-product-roadmap)
 - [17. License & Student Privacy Notice](#17-license--student-privacy-notice)
-- [18. Contributing](#18-contributing)
+- [18. Contributing & Governance](#18-contributing--governance)
 - [19. Deep-Dive System Documentation](#-deep-dive-system-documentation)
 
 ---
@@ -172,12 +177,12 @@ Because Edufeedia is designed for users under 18, safety is treated as a core ar
 
 ---
 
-## 7. DPDP & COPPA Verifiable Parental Consent
+## 7. Purpose-Specific Verifiable Guardian Consent Framework
 
-Edufeedia implements a 2-step verifiable parental consent protocol designed with Indian DPDP Act 2023 principles and US COPPA child-privacy requirements in mind:
+Edufeedia implements a 2-step verifiable parental consent protocol designed with Indian DPDP Act 2023 principles and US COPPA child-privacy safeguards in mind:
 
 ```
-[Student Under 16 Registers] ──► [Account Inactive / Unverified]
+[Student Under 18 Registers] ──► [Account Inactive / Pending Consent]
                                            │
 [Guardian Email Challenge] ◄───────────────┘
          │
@@ -191,8 +196,8 @@ Edufeedia implements a 2-step verifiable parental consent protocol designed with
 [Parent Verifies OTP & Authorizes Scope] ──► [Append-Oriented Audit Log] ──► [Consent Activated]
 ```
 
-- **IDOR Immunity**: Identity bindings prevent student accounts from verifying or claiming unlinked students.
-- **Append-Oriented Audit Logging**: Every consent grant and revocation is recorded with timestamp, consent scope, version (`2026.1-DPDP-COPPA`), and IP fingerprint.
+- **Anti-IDOR Authorization Architecture**: Tenant and user identity bindings prevent student accounts from accessing or verifying unlinked student records (validated by automated regression tests).
+- **Append-Oriented Audit Logging**: Every consent grant and revocation is recorded with timestamp, purpose scope, version (`2026.2-DPDP`), and hashed client IP fingerprint.
 
 ---
 
@@ -203,9 +208,9 @@ Edufeedia isolates data boundaries strictly by tenant school IDs:
 | Role | Registration Path | Permissions & Boundary Scope |
 | :--- | :--- | :--- |
 | **Student** | Public self-registration | Access personalized curriculum feed, Socratic tutor, quizzes, and personal analytics. Strictly cannot self-assign staff roles. |
-| **Parent** | Linked via student invitation | Monitor linked child's progress, grant/revoke DPDP/COPPA consent, view mastery telemetry. Cross-child data strictly blocked. |
+| **Parent** | Linked via student invitation | Monitor linked child's progress, grant/revoke purpose-specific consent, view mastery telemetry. Cross-child data restricted. |
 | **Teacher** | Staff invitation token only | Manage assigned classrooms, inspect student mastery, approve ingestion submissions, assign quizzes. |
-| **School Admin** | Platform super-admin token | School-wide user management, teacher invitation, tenant analytics. Cross-school access strictly forbidden (403). |
+| **School Admin** | Platform super-admin token | School-wide user management, teacher invitation, tenant analytics. Cross-school access restricted via tenant-scoping middleware (403). |
 | **System Admin** | Seed / Root configuration | Platform infrastructure monitoring, global curriculum corpus management. |
 
 ---
@@ -412,30 +417,27 @@ Edufeedia includes built-in telemetry endpoints for Kubernetes and CloudWatch:
 
 ### License
 
-Edufeedia is proprietary and source-available software.
+Edufeedia is proprietary, source-available software licensed under the **[PolyForm Shield License 1.0.0](LICENSE)**.
 
 Copyright © 2026 Rehan Shaikh. All Rights Reserved.
 
-The source code is made publicly available for transparency, learning, review, and contribution to the Edufeedia project. Viewing the source code does not grant ownership or unrestricted rights to copy, modify, redistribute, sublicense, sell, or commercially use Edufeedia or substantial portions of its source code.
-
-Contributions are welcome through the project's official contribution process. By submitting a contribution, contributors agree to the applicable contribution terms and do not receive ownership of the Edufeedia project, its brand, or its intellectual property.
-
-Commercial use, redistribution, licensing, resale, or creation of derivative commercial products based substantially on Edufeedia requires prior written permission from the copyright owner.
-
-Historical releases or versions previously published under the MIT License remain subject to the original terms of that license. All new releases, versions, and updates from this date forward are governed exclusively by this proprietary, source-available license.
-
-Third-party libraries and dependencies remain subject to their respective licenses.
-
-All rights not expressly granted are reserved.
+- **Permitted Use**: You are welcome to view the source code, inspect it for learning or audit purposes, run and test it locally, self-host non-competing private or educational instances, and submit contributions to the official repository.
+- **Prohibited Use**: Commercial software-as-a-service (SaaS) hosting, reselling, sublicensing, or creating competing commercial products based substantially on Edufeedia is strictly prohibited without prior written permission from the copyright owner.
+- **Historical Releases**: Releases, tags, or commits of this repository that were historically published and obtained under the terms of the MIT License remain subject to the original terms of that license. All current and subsequent releases and updates are governed exclusively by the PolyForm Shield License 1.0.0.
+- **Third-Party Components**: Third-party dependencies remain subject to their respective open-source licenses. See [NOTICE](NOTICE) for attributions.
 
 ### Student Privacy Notice
 
-Edufeedia is designed with student-data privacy as a core principle. The project is developed with consideration for applicable privacy and child-safety requirements, including principles of India's Digital Personal Data Protection (DPDP) framework and parental-consent safeguards relevant to the US Children's Online Privacy Protection Act (COPPA).
+Edufeedia is designed with student-data privacy as a core principle. The platform is developed with consideration for applicable privacy and child-safety requirements, including principles of India's Digital Personal Data Protection (DPDP) framework and parental-consent safeguards relevant to the US Children's Online Privacy Protection Act (COPPA).
 
-This notice describes the project's design principles and does not by itself constitute a legal determination of compliance with any particular law or regulation.
+This notice describes the project's design principles and technical architecture. It does not by itself constitute a legal determination of compliance with any particular law or regulation. See [docs/PRIVACY.md](docs/PRIVACY.md) for detailed privacy and consent architecture specifications.
 
 ---
 
-## 18. Contributing
+## 18. Contributing & Governance
 
-Contributions to Edufeedia are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for details on our contribution guidelines, licensing terms, and code quality/testing standards.
+Contributions to Edufeedia are welcome! Please review our project governance documentation:
+- 📜 **[Contributor License Agreement (CLA.md)](CLA.md)**: Intellectual property terms and contributor rights grant.
+- 🛠️ **[Contribution Guidelines (CONTRIBUTING.md)](CONTRIBUTING.md)**: Step-by-step workflow, coding invariants, and testing standards.
+- 🛡️ **[Security Policy (SECURITY.md)](SECURITY.md)**: Private vulnerability disclosure process and response SLAs.
+- 🏷️ **[Trademark Policy (TRADEMARKS.md)](TRADEMARKS.md)**: Guidelines on using the Edufeedia brand name and logos.

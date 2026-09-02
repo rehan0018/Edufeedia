@@ -1,30 +1,73 @@
-Edufeedia Source-Available Software License
+PolyForm Shield License 1.0.0
+
+<https://polyformproject.org/licenses/shield/1.0.0>
 
 Copyright (c) 2026 Rehan Shaikh. All Rights Reserved.
 
-1. GRANT OF LICENSE FOR VIEWING, REVIEW, AND CONTRIBUTION
-Edufeedia is proprietary and source-available software. The source code of Edufeedia (the "Software") is made publicly available for transparency, personal learning, code review, academic inspection, and submitting contributions to the official Edufeedia project.
+================================================================================
+Edufeedia Licensing Rider & Notices
+================================================================================
 
-Subject to the terms and conditions of this License, you are granted a non-exclusive, non-transferable, royalty-free license to:
-- Access, inspect, download, and view the source code.
-- Compile and run the Software locally in a non-commercial development or testing environment solely for evaluation, educational review, and contribution preparation.
-- Prepare and submit modifications, bug fixes, or enhancements to the official Edufeedia project repository in accordance with the project's contribution policies.
+1. Edufeedia is proprietary, source-available software created by Rehan Shaikh.
+2. Permitted Use: You are welcome to view the source code, inspect it for learning
+   or audit purposes, run and test it locally, self-host non-competing private or
+   educational instances, and submit contributions to the official repository.
+3. Prohibited Use: You may NOT use this software (in whole or in part) to build,
+   host, distribute, or provide any commercial product or service that competes
+   with Edufeedia or any product or service offered by the licensor, nor may you
+   resell, commercialize, or re-license this software without prior written permission.
+4. Historical Releases: Any releases, tags, or commits of this repository that were
+   historically published and obtained under the terms of the MIT License remain
+   subject to the original terms of that license. All current and subsequent
+   releases, commits, modifications, and updates are licensed under the PolyForm
+   Shield License 1.0.0 below.
+5. Trademarks: The name "Edufeedia", logos, and branding assets are proprietary
+   trademarks of Rehan Shaikh and are governed by TRADEMARKS.md. This software
+   license does not grant any trademark rights.
+6. Contributions: Contributions submitted to this project are subject to the
+   Contributor License Agreement (CLA.md) and CONTRIBUTING.md.
 
-2. RESERVATION OF RIGHTS AND RESTRICTIONS
-Except as expressly permitted in Section 1, all rights are reserved by the copyright owner. You may NOT, directly or indirectly, without prior express written permission from Rehan Shaikh:
-- Use, deploy, host, run, or operate the Software (or any portion or derivative work thereof) for any commercial purpose, for-profit service, software-as-a-service (SaaS), paid tutoring platform, or commercial institutional deployment.
-- Sell, license, sublicense, rent, lease, distribute, redistribute, publish, or publicly broadcast the Software or modified versions of the Software.
-- Rebrand, rename, or market the Software, or substantial portions of its source code or architecture, as a distinct product or service.
-- Remove, alter, or obscure any copyright, trademark, patent, or other proprietary notices contained in or on the Software.
+================================================================================
+PolyForm Shield License 1.0.0
+================================================================================
 
-3. CONTRIBUTIONS
-By submitting a contribution (including code, documentation, designs, or pull requests) to the Edufeedia project, you agree to the contribution terms set forth in CONTRIBUTING.md. Submitting a contribution does not grant you ownership of the Edufeedia project, its brand, trademarks, or intellectual property.
+### Acceptance
+In order to receive this license, you must agree to its rules. The rules of this
+license are both terms of your agreement and conditions to your license. You must
+not do anything with this software that triggers a rule you cannot or will not follow.
 
-4. HISTORICAL RELEASES
-Releases, commits, or versions of this project that were historically published and obtained under the terms of the MIT License remain subject to the original terms of that license. All new releases, versions, updates, and modifications from the effective date of this License forward are governed exclusively by this License.
+### Copyright License
+The licensor grants you a copyright license to make any use of this software that
+does not violate the Shield Barrier, including to:
+1. Run the software
+2. Modify the software and make derivative works
+3. Reproduce and distribute the software and derivative works, subject to Notices below
 
-5. THIRD-PARTY DEPENDENCIES
-Third-party libraries, dependencies, datasets, and fonts included in or referenced by the Software remain governed by their respective open-source or proprietary licenses.
+### Patent License
+The licensor grants you a patent license for the software that covers patent claims
+the licensor can license, or becomes able to license, that you would infringe by
+using the software under this license.
 
-6. DISCLAIMER OF WARRANTIES
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+### Shield Barrier
+You may not make any use of the software, in whole or in part, as part of, or to
+provide, a product or service that competes with the software or with any other
+product or service that the licensor offers using the software.
+
+### Notices
+You must ensure that everyone who gets a copy of any part of this software from you,
+with or without changes, also gets the text of this license or a link to
+<https://polyformproject.org/licenses/shield/1.0.0>, as well as all copyright,
+patent, trademark, and attribution notices that are part of this software.
+
+### No Other Rights
+This license does not grant you any right to use any trademark, trade name, or logo
+of the licensor.
+
+### Fair Use
+You may have "fair use" rights under law. This license does not limit your fair
+use rights.
+
+### No Warranty
+The software is provided "as is", without warranty of any kind, express or implied.
+In no event will the licensor be liable for any damages arising out of the use of
+this software.

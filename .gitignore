@@ -52,6 +52,11 @@ edufeedia_database_records_latest.xlsx
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.cert
 
 # IDE & Editor files
 .vscode/

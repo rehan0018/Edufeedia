@@ -1,4 +1,6 @@
-# Edufeedia Security Architecture & Access Control
+# Edufeedia Security Architecture & Access Control 🛡️
+
+> For our vulnerability disclosure policy and private reporting channels, please see [SECURITY.md](../SECURITY.md).
 
 ## 1. Multi-Tenant Role-Based Access Control (RBAC)
 

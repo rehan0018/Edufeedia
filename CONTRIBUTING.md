@@ -1,58 +1,70 @@
 # Contributing to Edufeedia 🎓
 
-Thank you for your interest in contributing to Edufeedia! We welcome contributions from developers, educators, researchers, and safety practitioners to improve educational intelligence, child-safety safeguards, curriculum discovery, and developer tooling.
+Thank you for your interest in contributing to Edufeedia! We welcome contributions from developers, educators, researchers, and child-safety advocates to enhance our educational intelligence, curriculum adapters, safety filters, and developer tooling.
 
 ---
 
-## 📜 1. Contribution & Ownership Terms
+## 📜 1. Contributor License Agreement (CLA)
 
-Edufeedia is a **proprietary, source-available project** created and maintained by **Rehan Shaikh**. To protect the project's integrity and intellectual property while encouraging open collaboration, all contributions are subject to the following terms:
+Edufeedia is source-available software under the [PolyForm Shield License 1.0.0](LICENSE).
 
-1. **Grant of Rights**: By submitting a pull request, patch, code snippet, documentation, design, or other contribution to this repository, you grant Rehan Shaikh and the Edufeedia project a perpetual, worldwide, irrevocable, non-exclusive, royalty-free, transferable, and sublicensable license to use, reproduce, modify, adapt, publish, translate, create derivative works from, distribute, perform, display, and commercially exploit your contribution as part of Edufeedia and related projects.
-2. **Project Ownership**: Submitting a contribution does not grant you ownership, equity, copyright, trademark rights, or any proprietary interest in the Edufeedia project, brand, codebase, or intellectual property.
-3. **Original Work Representation**: You represent that each contribution you submit is your original creation, or that you have the full legal right, title, and authorization to grant the rights described above without violating any third-party rights, patents, copyrights, or confidentiality obligations.
-4. **Source-Available Nature**: You acknowledge that Edufeedia is source-available software under the terms of the project [LICENSE](LICENSE), and that your contributions will be distributed under that license.
-
----
-
-## 🛠️ 2. Development & Code Quality Guidelines
-
-Edufeedia is engineered specifically for students aged 10–17. As a child-facing educational platform, all contributions must uphold strict architectural and safety invariants:
-
-### A. Child Safety & Privacy Invariants
-- **Fail-Closed Safety**: Any AI or content pipeline modification must fail closed (i.e. block or safely filter rather than leaking uninspected outputs).
-- **Zero PII Exposure**: Never log or expose personally identifiable information (PII), student email addresses, or unhashed IP addresses in log files, telemetry, or client responses.
-- **Tenant & Role Isolation**: Ensure all database queries and administrative actions enforce strict multi-tenant school isolation and RBAC checks.
-- **Purpose-Specific Consent**: New student-data processing features must map to explicit `ProcessingPurpose` definitions under the verifiable guardian consent engine.
-
-### B. Engineering & Architecture Standards
-- **Backend**: Python 3.10+ / FastAPI / SQLAlchemy / Pydantic. Maintain strict type annotations and docstrings.
-- **Frontend**: React 18 / Vite / Tailwind CSS / Lucide Icons. Ensure accessible, responsive UI with clear loading and error states.
-- **Testing**: Every new feature or bug fix MUST include automated unit and integration tests under `backend/tests/`. All tests must pass before submitting a PR.
+To ensure that the project can accept your code while protecting project ownership and long-term sustainability:
+- **All contributors must review and agree to the [Edufeedia Contributor License Agreement (CLA.md)](CLA.md).**
+- Submitting a Pull Request constitutes your agreement to the terms of `CLA.md`.
+- Under the CLA, you retain copyright in your original contributions while granting Edufeedia a perpetual, worldwide, royalty-free, transferable license to include your contributions in the software.
+- The project and brand remain the intellectual property of Rehan Shaikh.
 
 ---
 
-## 🚀 3. How to Submit a Contribution
+## 🛡️ 2. Architectural & Child-Safety Invariants
 
-1. **Fork the Repository**: Create your own working branch from `main` (e.g. `feature/cbse-math-adapter` or `fix/socratic-timeout`).
-2. **Set Up Local Environment**: Follow the [Local Development Quickstart](README.md#10-local-development-quickstart) in the README.
-3. **Run the Test Suite**:
-   ```bash
-   # Run all backend tests
-   python -m unittest discover -s backend/tests
+Because Edufeedia is engineered specifically for students aged 10–17, all contributions must uphold these non-negotiable principles:
 
-   # Run frontend build check
-   cd frontend && npm run build
-   ```
-4. **Commit with Clear Messages**: Write concise, descriptive commit messages outlining what was changed and why.
-5. **Open a Pull Request**: Submit your pull request against the `main` branch with a clear description of the problem solved, architectural changes made, and verification steps performed.
+1. **Fail-Closed Safety**: Any AI or content classification pipeline modification must fail closed (i.e. block or safely filter rather than leaking uninspected outputs).
+2. **Zero PII Leakage**: Never log, leak, or return student email addresses, full names, or unhashed IP addresses in log files, telemetry, or public API responses.
+3. **Strict Multi-Tenant Scoping**: All database queries must enforce tenant isolation (e.g. `User.school_id`) to prevent cross-school IDOR vulnerabilities.
+4. **Purpose-Specific Consent**: New student-data processing features must declare explicit `ProcessingPurpose` mappings under the guardian consent policy.
 
 ---
 
-## 🛡️ 4. Reporting Security Vulnerabilities
+## 🛠️ 3. Development & Testing Workflow
 
-If you discover a potential security vulnerability, prompt injection bypass, or student privacy concern, please **do NOT create a public issue**. Instead, send a private report directly to **rehan.shaikh@edufeedia.com** with detailed steps to reproduce. We will review and address safety and security reports as high priority.
+### Step 1: Fork & Branch
+Fork the repository and create a feature branch:
+```bash
+git checkout -b feature/cbse-math-adapter
+```
+
+### Step 2: Set Up Local Environment
+Follow the [Local Development Quickstart](README.md#10-local-development-quickstart) in `README.md`.
+
+### Step 3: Run the Test Suite
+Ensure all automated unit and regression tests pass before submitting:
+```bash
+# Run backend test suite
+python -m unittest discover -s backend/tests
+
+# Run frontend build check
+cd frontend && npm run build
+```
+
+### Step 4: Submit a Pull Request
+1. Write clear, concise commit messages following standard conventional commit formats.
+2. Open a Pull Request against `main`.
+3. Verify that all automated CI workflow checks pass.
 
 ---
 
-*Thank you for helping build safe, high-quality, personalized AI education for students!*
+## 🔒 4. Reporting Security Vulnerabilities
+
+Please **do NOT report security flaws via public GitHub issues**. Refer to our [Security Policy (SECURITY.md)](SECURITY.md) for instructions on reporting vulnerabilities privately.
+
+---
+
+## 🏷️ 5. Trademarks & Branding
+
+Usage of the Edufeedia name, logo, and brand assets is governed by [TRADEMARKS.md](TRADEMARKS.md). The software license does not grant trademark rights.
+
+---
+
+*Thank you for contributing to safe, transparent, and personalized AI education for students!*
