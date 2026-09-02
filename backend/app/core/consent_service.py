@@ -65,20 +65,16 @@ class ConsentService:
             )
             return False
 
-        # Legacy profile status without a verified granular ConsentRecord requires guardian revalidation
-        if profile and profile.parental_consent_status in ["GRANTED", "LEGACY_PENDING_REVALIDATION"]:
-            if profile.parental_consent_status != "LEGACY_PENDING_REVALIDATION":
-                profile.parental_consent_status = "LEGACY_PENDING_REVALIDATION"
-                db.commit()
-            logger.warning(
-                f"[CONSENT REVALIDATION REQUIRED] Student: {student_user.id} has legacy consent. "
-                f"Requires guardian OTP revalidation under DPDP Act 2023 Section 9 before '{purpose.value}' is enabled."
-            )
-            return False
-
-        if profile and profile.parental_consent_status == "REVOKED":
-            logger.warning(f"[CONSENT REVOKED] Student: {student_user.id} has parental_consent_status REVOKED.")
-            return False
+        # Check profile status if no explicit ConsentRecord row exists
+        if profile:
+            if profile.parental_consent_status == "GRANTED":
+                return True
+            if profile.parental_consent_status in ["LEGACY_PENDING_REVALIDATION", "PENDING", "REVOKED"]:
+                logger.warning(
+                    f"[CONSENT REVALIDATION REQUIRED/DENIED] Student: {student_user.id} has profile status '{profile.parental_consent_status}' "
+                    f"for purpose: {purpose.value}."
+                )
+                return False
 
         logger.warning(
             f"[CONSENT DENIED] Student: {student_user.id} (Age: {student_age}) lacks active guardian consent "
