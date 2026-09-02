@@ -15,8 +15,12 @@ client = TestClient(app)
 class TestRAGTutor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from seed import seed_database
-        seed_database()
+        try:
+            from scripts.seed_demo_data import seed_demo_data
+            seed_demo_data()
+        except ImportError:
+            from seed import seed_database
+            seed_database()
         # Authenticate as student
         res = client.post("/api/v1/auth/login", json={
             "email": "rahul@apexschool.edu",

@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
     # Conditional table automigration on boot (development & test only)
     if settings.ENVIRONMENT != "production":
         try:
+            import app.models.models
             Base.metadata.create_all(bind=engine)
         except Exception as e:
             logger.error(f"[SCHEMA INITIALIZATION WARNING]: {e}", exc_info=True)
@@ -95,8 +96,10 @@ async def correlation_id_middleware(request: Request, call_next):
 
 
 @app.get("/health", tags=["system"])
+@app.get("/api/health", tags=["system"])
+@app.get("/api/v1/health", tags=["system"])
 def liveness_check():
-    """Liveness probe for container orchestrators (Kubernetes / ECS)."""
+    """Liveness probe for container orchestrators (Kubernetes / ECS) and API consumers."""
     return {
         "status": "healthy",
         "live": True,
@@ -105,6 +108,8 @@ def liveness_check():
     }
 
 @app.get("/ready", tags=["system"])
+@app.get("/api/ready", tags=["system"])
+@app.get("/api/v1/ready", tags=["system"])
 def readiness_check():
     """Readiness probe verifying database and cache cluster connectivity."""
     db_status = "unknown"
@@ -123,6 +128,7 @@ def readiness_check():
 
     # 2. Redis Check
     try:
+        from app.core.redis_client import redis_client
         redis_client.setex("readiness_heartbeat", 10, "1")
         if redis_client.get("readiness_heartbeat") == "1":
             redis_status = "connected"
