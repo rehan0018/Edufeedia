@@ -36,14 +36,17 @@
 
 ## 1. Executive Product Overview
 
-Traditional open internet search exposes K-12 students to unvetted material, distractions, and toxic content. Generic AI chat interfaces frequently hallucinate answers or act as homework-solving engines that bypass critical thinking.
+Traditional open internet search exposes K-12 students to unvetted material, algorithmic rabbit holes, distractions, and toxic content. Generic AI chat interfaces frequently hallucinate answers or act as homework-solving engines that bypass critical thinking.
 
-**Edufeedia** addresses these challenges with a **modular, fail-closed educational platform**:
-1. **Verified Curriculum Discovery**: Ingests exclusively from whitelisted, verified educational authorities (CBSE, NCERT, ICSE, Khan Academy, MIT OpenCourseWare).
+**Edufeedia** addresses these challenges with a **curated, fail-closed educational platform**:
+1. **Verified Curriculum Discovery**: Ingests and indexes exclusively from whitelisted, verified educational authorities (CBSE, NCERT, ICSE, Khan Academy, MIT OpenCourseWare).
 2. **Pedagogical AI Tutoring**: Socratic dialogue guides students step-by-step to arrive at conceptual solutions rather than providing raw answers.
-3. **Multi-Category Safety Gate**: Real-time content filtering rejects toxic material, dangerous activities, hate speech, and adversarial prompt injections.
-4. **Adaptive Personalization**: Pedagogical heuristic weighted ranking with SM-2 memory decay weighting and cold-start exploration.
-5. **Verifiable Guardian Consent**: Cryptographic OTP guardian verification designed with the Indian Digital Personal Data Protection (DPDP) Act 2023 principles and US COPPA parental consent safeguards in mind.
+3. **Application-Level Content & AI Safety Gate**: Real-time filtering over the Edufeedia content pipeline and AI dialogues, rejecting toxic material, dangerous activities, hate speech, and adversarial prompt injections.
+4. **Parental Monitoring & Screen Time Insights**: Dedicated parent dashboard tracking live screen time, subject/content breakdown, bedtime curfew locks, and early warning indicators (fatigue, session limits).
+5. **Adaptive Personalization**: Pedagogical heuristic weighted ranking with SM-2 memory decay weighting and cold-start exploration.
+6. **Verifiable Guardian Consent**: Purpose-specific cryptographic OTP guardian verification designed around the Indian Digital Personal Data Protection (DPDP) Act 2023 principles and US COPPA parental consent safeguards.
+
+> **Architecture Boundary Note**: Edufeedia currently operates as a curated web application and API ecosystem; safety filtering, Socratic gating, and content inspection apply to all interactions within the Edufeedia application boundary. Expansion to device-wide network filtering (Android VPN/DNS layer, Safe Browser, and system-wide application control) represents the next milestone on our forward architectural roadmap.
 
 ---
 
@@ -52,6 +55,7 @@ Traditional open internet search exposes K-12 students to unvetted material, dis
 - **Multi-Provider Socratic AI Tutor**: Hybrid RAG (Dense Vector + Okapi BM25 + Reciprocal Rank Fusion) backed by OpenAI, Google Gemini, and a zero-latency deterministic local fallback.
 - **Anti-Answer Socratic Safeguards**: AI responses actively detect when a student is asking for homework answers and transform them into interactive guiding questions.
 - **SuperMemo SM-2 Spaced Repetition**: Dynamic interval scheduling automatically flags weak topics and queues personalized flashcards before memory decay occurs.
+- **Parental Screen Time & Policy Center**: Real-time screen time monitoring, subject distribution metrics, bedtime curfew locks, and early intervention alerts.
 - **Fail-Closed Safety Gate Architecture**: Every model token passes through real-time safety classification. If the safety auditor is unreachable, the system fails closed rather than delivering uninspected outputs.
 - **Teacher and School Analytics**: Multi-tenant dashboards tracking class mastery, attendance engagement, weak topics, and assignment completion.
 - **Session Revocation with Redis Blacklist**: Instant session revocation and token invalidation on logout.
@@ -377,15 +381,21 @@ Edufeedia includes built-in telemetry endpoints for Kubernetes and CloudWatch:
 
 ## 16. Product Roadmap
 
-- [x] Multi-Provider AI Model Gateway (OpenAI / Gemini / Socratic Local)
-- [x] Fail-Closed Output Safety Auditor and Adversarial Prompt Injection Defense
-- [x] Purpose-Specific Verifiable Guardian Consent Flow with Transactional Email OTP
-- [x] Anti-Farming XP Concurrency Idempotency and Leaderboards
-- [x] Automated RAG Evaluation Framework (MRR@3, Precision@K, Groundedness)
-- [x] Tenant-Scoped Multi-School Administration Dashboard
-- [ ] Multimodal Visual Socratic Solver (Diagram and Geometry OCR analysis)
-- [ ] Offline PWA Voice Socratic Study Assistant
-- [ ] Automated NCERT/CBSE Question Bank Sync via Webhook
+### Core Architecture & Platform Milestones (Implemented)
+- [x] Multi-Provider AI Model Gateway (OpenAI / Gemini / Socratic Local deterministic engine)
+- [x] Fail-Closed Output Safety Auditor & Adversarial Prompt Injection Defense
+- [x] Purpose-Specific Verifiable Guardian Consent Flow with Transactional Email OTP (DPDP Act 2023)
+- [x] Parental Screen Time Tracking, Content Breakdown & Bedtime Curfew Policy Center
+- [x] Anti-Farming XP Concurrency Idempotency & Multi-Class Leaderboards
+- [x] Automated RAG Evaluation Framework (MRR@3, Precision@K, Groundedness benchmarks)
+- [x] Tenant-Scoped Multi-School Administration & Teacher Analytics Dashboards
+
+### Advanced Protection & Ecosystem Milestones (Forward Roadmap)
+- [ ] **Device-Level Protection Layer**: Android VPN / local DNS-level filtering, Safe Browser integration, and device-wide app allow/deny policy enforcement to protect minors beyond the browser application boundary.
+- [ ] **Multimodal Content Moderation Pipeline**: Automated frame-by-frame visual classification, speech-to-text audio transcript analysis, and thumbnail safety scoring for continuous runtime video stream inspection.
+- [ ] **Multilingual & Indic Language Safety Benchmark**: Robust adversarial benchmarks covering Hindi, Hinglish, regional dialects, coded slang, and bilingual code-switching.
+- [ ] **Human-in-the-Loop Moderation Console**: Dedicated operations queue for flagged content escalations, appeals, audit trails, and classifier active-learning feedback loops.
+- [ ] **Native Mobile Client Ecosystem**: Dedicated cross-platform mobile apps for students and parents (push notification alerts for screen limits, study milestones, and consent changes).
 
 ---
 
