@@ -1,17 +1,22 @@
 # Edufeedia Recommendation & Personalization Engine
 
+> **Architecture and Proprietary Notice**  
+> This document describes proprietary Edufeedia architecture and implementation. It is provided for project transparency, technical review, and contribution purposes, and is subject to the project's [LICENSE](../LICENSE) and [TRADEMARKS.md](../TRADEMARKS.md).
+
+---
+
 ## 1. Core Optimization Goal
 
 Edufeedia's recommendation ranker optimizes for **long-term learning mastery and memory retention**, not infinite addictive engagement or click-through maximization.
 
 ```mermaid
 flowchart TD
-    CandidateGen["Candidate Generation\n(Curriculum Syllabus + Grade Level Match)"] --> SafetyGate["Safety & Age Eligibility Filter\n(Target Age <= Student Age)"]
-    SafetyGate --> SM2Weighting["SM-2 Memory Decay Ranking\n(Topics due for review get +40% priority boost)"]
-    SM2Weighting --> DiagnosticBoost["Weak Topic Diagnostic Reranking\n(Accuracy <60% gets +50% remedial boost)"]
-    DiagnosticBoost --> DiversityFilter["Topic Diversity & Fatigue Throttling"]
-    DiversityFilter --> Explainability["Explainable Recommendation Synthesis\n(reason, source, confidence)"]
-    Explainability --> OutputFeed["Personalized Daily Learning Plan"]
+ CandidateGen["Candidate Generation\n(Curriculum Syllabus + Grade Level Match)"] --> SafetyGate["Safety & Age Eligibility Filter\n(Target Age <= Student Age)"]
+ SafetyGate --> SM2Weighting["SM-2 Memory Decay Ranking\n(Topics due for review get +40% priority boost)"]
+ SM2Weighting --> DiagnosticBoost["Weak Topic Diagnostic Reranking\n(Accuracy <60% gets +50% remedial boost)"]
+ DiagnosticBoost --> DiversityFilter["Topic Diversity & Fatigue Throttling"]
+ DiversityFilter --> Explainability["Explainable Recommendation Synthesis\n(reason, source, confidence)"]
+ Explainability --> OutputFeed["Personalized Daily Learning Plan"]
 ```
 
 ---
@@ -32,13 +37,13 @@ Every recommended lesson includes transparent pedagogical provenance:
 
 ```json
 {
-  "title": "Quadratic Equations — Nature of Roots",
-  "subject": "Mathematics",
-  "topic": "Quadratic Equations",
-  "score": 0.94,
-  "reason": "Recommended because Quadratic Equations is currently a weak topic based on recent quiz performance.",
-  "source": "weak_topic",
-  "confidence": 0.89
+ "title": "Quadratic Equations — Nature of Roots",
+ "subject": "Mathematics",
+ "topic": "Quadratic Equations",
+ "score": 0.94,
+ "reason": "Recommended because Quadratic Equations is currently a weak topic based on recent quiz performance.",
+ "source": "weak_topic",
+ "confidence": 0.89
 }
 ```
 

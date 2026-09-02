@@ -1,5 +1,10 @@
 # Edufeedia Production Deployment & Infrastructure Guide
 
+> **Architecture and Proprietary Notice**  
+> This document describes proprietary Edufeedia architecture and implementation. It is provided for project transparency, technical review, and contribution purposes, and is subject to the project's [LICENSE](../LICENSE) and [TRADEMARKS.md](../TRADEMARKS.md).
+
+---
+
 ## 1. Multi-Container Orchestration (`docker-compose.yml`)
 
 Edufeedia is containerized across four core micro-services:
@@ -12,54 +17,54 @@ Edufeedia is containerized across four core micro-services:
 version: '3.8'
 
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_DB: edufeedia
-      POSTGRES_USER: ${POSTGRES_USER:-edufeedia_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U edufeedia_user -d edufeedia"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+ postgres:
+ image: pgvector/pgvector:pg16
+ environment:
+ POSTGRES_DB: edufeedia
+ POSTGRES_USER: ${POSTGRES_USER:-edufeedia_user}
+ POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+ volumes:
+ - pgdata:/var/lib/postgresql/data
+ healthcheck:
+ test: ["CMD-SHELL", "pg_isready -U edufeedia_user -d edufeedia"]
+ interval: 10s
+ timeout: 5s
+ retries: 5
 
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+ redis:
+ image: redis:7-alpine
+ command: redis-server --appendonly yes
+ volumes:
+ - redisdata:/data
+ healthcheck:
+ test: ["CMD", "redis-cli", "ping"]
+ interval: 10s
+ timeout: 5s
+ retries: 5
 
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      ENVIRONMENT: production
-      DATABASE_URL: postgresql://edufeedia_user:${POSTGRES_PASSWORD}@postgres:5432/edufeedia
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+ backend:
+ build:
+ context: .
+ dockerfile: Dockerfile
+ environment:
+ ENVIRONMENT: production
+ DATABASE_URL: postgresql://edufeedia_user:${POSTGRES_PASSWORD}@postgres:5432/edufeedia
+ REDIS_URL: redis://redis:6379/0
+ SECRET_KEY: ${SECRET_KEY}
+ depends_on:
+ postgres:
+ condition: service_healthy
+ redis:
+ condition: service_healthy
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
+ frontend:
+ build:
+ context: ./frontend
+ dockerfile: Dockerfile
+ ports:
+ - "80:80"
+ depends_on:
+ - backend
 ```
 
 ---

@@ -1,5 +1,10 @@
 # Edufeedia Database Architecture & Migrations
 
+> **Architecture and Proprietary Notice**  
+> This document describes proprietary Edufeedia architecture and implementation. It is provided for project transparency, technical review, and contribution purposes, and is subject to the project's [LICENSE](../LICENSE) and [TRADEMARKS.md](../TRADEMARKS.md).
+
+---
+
 ## 1. Relational & Vector Storage Layer
 
 Edufeedia utilizes a dual-engine architecture:
@@ -8,19 +13,19 @@ Edufeedia utilizes a dual-engine architecture:
 
 ```mermaid
 erDiagram
-    SCHOOLS ||--o{ SCHOOL_CLASSES : contains
-    SCHOOLS ||--o{ USERS : enrolls
-    SCHOOL_CLASSES ||--o{ STUDENT_PROFILES : assigns
-    USERS ||--o| STUDENT_PROFILES : has
-    USERS ||--o{ QUIZ_ATTEMPTS : records
-    USERS ||--o{ STUDENT_PROGRESS : logs
-    USERS ||--o{ SPACED_SCHEDULES : schedules
-    CONTENT_ITEMS ||--o{ QUIZZES : contains
-    QUIZZES ||--o{ QUESTIONS : contains
-    QUIZZES ||--o{ QUIZ_ATTEMPTS : tracks
-    CONTENT_ITEMS ||--o{ CONTENT_REPORTS : receives
-    USERS ||--o{ CONTENT_REPORTS : reports
-    USERS ||--o{ PARENTAL_CONSENT_LOGS : audits
+ SCHOOLS ||--o{ SCHOOL_CLASSES : contains
+ SCHOOLS ||--o{ USERS : enrolls
+ SCHOOL_CLASSES ||--o{ STUDENT_PROFILES : assigns
+ USERS ||--o| STUDENT_PROFILES : has
+ USERS ||--o{ QUIZ_ATTEMPTS : records
+ USERS ||--o{ STUDENT_PROGRESS : logs
+ USERS ||--o{ SPACED_SCHEDULES : schedules
+ CONTENT_ITEMS ||--o{ QUIZZES : contains
+ QUIZZES ||--o{ QUESTIONS : contains
+ QUIZZES ||--o{ QUIZ_ATTEMPTS : tracks
+ CONTENT_ITEMS ||--o{ CONTENT_REPORTS : receives
+ USERS ||--o{ CONTENT_REPORTS : reports
+ USERS ||--o{ PARENTAL_CONSENT_LOGS : audits
 ```
 
 ---
@@ -29,9 +34,9 @@ erDiagram
 
 ### Unique Integrity Constraints
 1. **Student Content Progress**: `UniqueConstraint("student_user_id", "content_item_id", name="uq_student_content_progress")`
-   * Guarantees 1 active progress record per lesson, preventing race-condition XP duplication.
+ * Guarantees 1 active progress record per lesson, preventing race-condition XP duplication.
 2. **Quiz Attempts**: `UniqueConstraint("student_user_id", "quiz_id", "attempt_number", name="uq_student_quiz_attempt")`
-   * Ensures deterministic attempt numbering and idempotent first-attempt scoring.
+ * Ensures deterministic attempt numbering and idempotent first-attempt scoring.
 3. **School Class Identifier**: `UniqueConstraint("school_id", "grade_level", "section_name", "academic_year", name="uq_school_class")`
 4. **User Badges**: `UniqueConstraint("user_id", "badge_id", name="uq_user_badge")`
 5. **Parent-Student Links**: Composite primary key `(parent_user_id, student_user_id)`.

@@ -11,18 +11,14 @@ under the terms of the MIT License. Those historical versions remain subject to 
 original MIT terms under which they were obtained. All subsequent versions, updates,
 and commits are licensed under the PolyForm Shield License 1.0.0.
 
-Third-Party Components & Dependencies:
----------------------------------------
-This software includes and depends upon third-party libraries and modules, each
-governed by their respective licenses:
-- FastAPI, Starlette (MIT)
-- React, React-DOM (MIT)
-- SQLAlchemy (MIT)
-- Pydantic (MIT)
-- Tailwind CSS, Lucide Icons (MIT / ISC)
-- Vite (MIT)
-- python-jose, passlib, bcrypt (MIT / BSD / Apache 2.0)
-- redis-py (MIT)
+Trademark Notice:
+-----------------
+The Edufeedia name, logos, and branding assets are proprietary trademarks of Rehan Shaikh
+and are not licensed for use as the branding or identity of derivative products.
 
-For complete dependency lists and third-party license texts, refer to the project's
-package descriptors (backend/pyproject.toml, frontend/package.json).
+Third-Party Components and Dependencies:
+-----------------------------------------
+This software includes and depends upon third-party libraries and modules, each
+governed by their respective open-source licenses (FastAPI, React, SQLAlchemy,
+Pydantic, Tailwind CSS, Lucide Icons, Vite, python-jose, passlib, redis-py).
+For the complete dependency and license inventory, see docs/THIRD_PARTY_LICENSES.md.

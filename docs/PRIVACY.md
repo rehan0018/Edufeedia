@@ -1,4 +1,9 @@
-# Edufeedia Minor Privacy & Consent Architecture 🔒
+# Edufeedia Minor Privacy & Consent Architecture
+
+> **Architecture and Proprietary Notice**  
+> This document describes proprietary Edufeedia architecture and implementation. It is provided for project transparency, technical review, and contribution purposes, and is subject to the project's [LICENSE](../LICENSE) and [TRADEMARKS.md](../TRADEMARKS.md).
+
+---
 
 ## 1. Principles of Child Data Protection
 
@@ -16,31 +21,31 @@ Edufeedia is designed with principles inspired by the **Indian Digital Personal 
 
 ```
 [Google / Public Registration]
-             │
-             ▼
-    PENDING_ONBOARDING
-             │
-             ▼ (Submit DOB, Grade, Board)
-     ONBOARDING_COMPLETE
-             │
-             ▼ (Evaluate Student Age)
+ │
+ ▼
+ PENDING_ONBOARDING
+ │
+ ▼ (Submit DOB, Grade, Board)
+ ONBOARDING_COMPLETE
+ │
+ ▼ (Evaluate Student Age)
  ┌───────────────────────┴───────────────────────┐
- │ Student Age < 16                              │ Student Age >= 16
- ▼                                               ▼
-CONSENT_PENDING (OTP sent to Parent)       CONSENT_EXEMPT (Adult Student)
- │                                               │
- ▼ (Parent Enters OTP)                           │
-CONSENT_GRANTED                                  │
+ │ Student Age < 16 │ Student Age >= 16
+ ▼ ▼
+CONSENT_PENDING (OTP sent to Parent) CONSENT_EXEMPT (Adult Student)
+ │ │
+ ▼ (Parent Enters OTP) │
+CONSENT_GRANTED │
  └───────────────────────┬───────────────────────┘
-                         │
-                         ▼
-                   ACTIVE ACCESS
-                         │
-       (Guardian Revokes via Portal)
-                         │
-                         ▼
-                  CONSENT_REVOKED
-            (Interactive AI Restricted)
+ │
+ ▼
+ ACTIVE ACCESS
+ │
+ (Guardian Revokes via Portal)
+ │
+ ▼
+ CONSENT_REVOKED
+ (Interactive AI Restricted)
 ```
 
 ---

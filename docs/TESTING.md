@@ -1,26 +1,31 @@
 # Edufeedia Comprehensive Testing & Evaluation Framework
 
+> **Architecture and Proprietary Notice**  
+> This document describes proprietary Edufeedia architecture and implementation. It is provided for project transparency, technical review, and contribution purposes, and is subject to the project's [LICENSE](../LICENSE) and [TRADEMARKS.md](../TRADEMARKS.md).
+
+---
+
 ## 1. Test Architecture
 
 The Edufeedia platform maintains a **157-test automated verification tree** organized across 28 distinct modules:
 
 ```text
 backend/tests/
-  ├── safety/                     # Safety hard-gate unit tests
-  │   ├── test_adult_content.py
-  │   ├── test_dangerous_content.py
-  │   ├── test_hate_content.py
-  │   ├── test_prompt_injection.py
-  │   ├── test_fail_closed.py
-  │   └── test_age_gating.py
-  ├── test_deep_security_matrix.py # 19-test deep edge-case matrix
-  ├── test_redteam_security.py    # 18-test red team penetration suite
-  ├── test_tenant_isolation.py    # Multi-school boundary isolation
-  ├── test_parental_privacy.py    # DPDP / COPPA consent lifecycle
-  ├── test_rag_evaluation.py      # Golden benchmark MRR / Precision / Recall
-  ├── test_two_stage_recommender.py # Pedagogical ranking & cold start
-  ├── test_ai_model_gateway.py    # Multi-provider failover & output gate
-  └── test_e2e_production_lifecycle.py # 20-step student learning journey
+ ├── safety/ # Safety hard-gate unit tests
+ │ ├── test_adult_content.py
+ │ ├── test_dangerous_content.py
+ │ ├── test_hate_content.py
+ │ ├── test_prompt_injection.py
+ │ ├── test_fail_closed.py
+ │ └── test_age_gating.py
+ ├── test_deep_security_matrix.py # 19-test deep edge-case matrix
+ ├── test_redteam_security.py # 18-test red team penetration suite
+ ├── test_tenant_isolation.py # Multi-school boundary isolation
+ ├── test_parental_privacy.py # DPDP / COPPA consent lifecycle
+ ├── test_rag_evaluation.py # Golden benchmark MRR / Precision / Recall
+ ├── test_two_stage_recommender.py # Pedagogical ranking & cold start
+ ├── test_ai_model_gateway.py # Multi-provider failover & output gate
+ └── test_e2e_production_lifecycle.py # 20-step student learning journey
 ```
 
 ---

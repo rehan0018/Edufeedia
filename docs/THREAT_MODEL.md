@@ -1,4 +1,9 @@
-# Edufeedia Security Threat Model & Defense Matrix 🛡️
+# Edufeedia Security Threat Model & Defense Matrix
+
+> **Architecture and Proprietary Notice**  
+> This document describes proprietary Edufeedia architecture and implementation. It is provided for project transparency, technical review, and contribution purposes, and is subject to the project's [LICENSE](../LICENSE) and [TRADEMARKS.md](../TRADEMARKS.md).
+
+---
 
 ## 1. Scope & Trust Boundaries
 

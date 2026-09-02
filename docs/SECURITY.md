@@ -1,4 +1,9 @@
-# Edufeedia Security Architecture & Access Control 🛡️
+# Edufeedia Security Architecture & Access Control
+
+> **Architecture and Proprietary Notice**  
+> This document describes proprietary Edufeedia architecture and implementation. It is provided for project transparency, technical review, and contribution purposes, and is subject to the project's [LICENSE](../LICENSE) and [TRADEMARKS.md](../TRADEMARKS.md).
+
+---
 
 > For our vulnerability disclosure policy and private reporting channels, please see [SECURITY.md](../SECURITY.md).
 
@@ -8,15 +13,15 @@ Edufeedia isolates data boundaries strictly by tenant `school_id`:
 
 ```mermaid
 graph TD
-    Request["Incoming API Request"] --> JWTValidation{"JWT Valid & Not Blacklisted in Redis?"}
-    JWTValidation -- No --> Deny401["401 Unauthorized"]
-    JWTValidation -- Yes --> AccountState{"Account ACTIVE in DB?"}
-    AccountState -- Suspended / Deactivated --> Deny403["403 Forbidden: Account Not Active"]
-    AccountState -- Active --> CentralPolicy["Central Access Policy Engine\n(access_policy.py)"]
-    
-    CentralPolicy --> CheckTenant{"Same School ID / Assigned Class?"}
-    CheckTenant -- Foreign School --> LogViolation["Log Security Violation & 403 Forbidden"]
-    CheckTenant -- Verified --> GatedAction["Execute Protected Resource"]
+ Request["Incoming API Request"] --> JWTValidation{"JWT Valid & Not Blacklisted in Redis?"}
+ JWTValidation -- No --> Deny401["401 Unauthorized"]
+ JWTValidation -- Yes --> AccountState{"Account ACTIVE in DB?"}
+ AccountState -- Suspended / Deactivated --> Deny403["403 Forbidden: Account Not Active"]
+ AccountState -- Active --> CentralPolicy["Central Access Policy Engine\n(access_policy.py)"]
+
+ CentralPolicy --> CheckTenant{"Same School ID / Assigned Class?"}
+ CheckTenant -- Foreign School --> LogViolation["Log Security Violation & 403 Forbidden"]
+ CheckTenant -- Verified --> GatedAction["Execute Protected Resource"]
 ```
 
 ---
