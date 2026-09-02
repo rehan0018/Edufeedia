@@ -447,6 +447,7 @@ Contributions to Edufeedia are welcome. Please review our project governance doc
 
 Detailed technical design specifications are maintained in the [`docs/`](docs/) directory:
 - [**Architecture and System Design**](docs/ARCHITECTURE.md): Component topology, 3-tier hierarchy, and data flow.
+- [**Device Protection & Multimodal Safety Roadmap**](docs/DEVICE_PROTECTION_AND_MULTIMODAL.md): Technical specification for Android local VPN/DNS filtering, Safe Browser sandbox, and frame-by-frame multimodal moderation.
 - [**Security and Access Control**](docs/SECURITY.md): Multi-tenant isolation, role authorization, and anti-IDOR architecture.
 - [**Threat Model and Defense Matrix**](docs/THREAT_MODEL.md): STRIDE threat analysis, adversarial prompt injection mitigations, and fail-closed proofs.
 - [**AI and Socratic RAG Engine**](docs/AI_RAG.md): Hybrid Dense + BM25 + RRF retrieval, Socratic scaffolding, and quantitative MRR benchmarks.
