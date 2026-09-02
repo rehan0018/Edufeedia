@@ -1,11 +1,11 @@
-# Edufeedia 🎓
+# Edufeedia
 
 > **An AI-powered safe, personalized learning and revision platform engineered specifically for students under 18.**  
 > Curating curriculum-aligned educational materials from trusted sources, personalizing daily study feeds, orchestrating fail-closed Socratic AI tutoring, and driving long-term retention through active recall, adaptive quizzes, and SM-2 spaced repetition.
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
 - [1. Executive Product Overview](#1-executive-product-overview)
 - [2. Key Features & Capabilities](#2-key-features--capabilities)
@@ -32,16 +32,16 @@
 ## 📚 Deep-Dive System Documentation
 
 Detailed technical design specifications are maintained in the [`docs/`](docs/) directory:
-- 🏛️ [**Architecture & System Design**](docs/ARCHITECTURE.md): Component topology, 3-tier hierarchy, and data flow.
-- 🛡️ [**Security & Access Control**](docs/SECURITY.md): Multi-tenant isolation, role authorization, and anti-IDOR architecture.
-- 🎯 [**Threat Model & Defense Matrix**](docs/THREAT_MODEL.md): STRIDE threat analysis, adversarial prompt injection mitigations, and fail-closed proofs.
-- 🤖 [**AI & Socratic RAG Engine**](docs/AI_RAG.md): Hybrid Dense + BM25 + RRF retrieval, Socratic scaffolding, and quantitative MRR benchmarks.
-- 📈 [**Recommendation Engine**](docs/RECOMMENDATIONS.md): Pedagogical ranking, explainability taxonomy, and SM-2 memory decay weighting.
-- 🔒 [**Child Privacy & Consent Architecture**](docs/PRIVACY.md): DPDP Act 2023 & COPPA verifiable parental consent state machines.
-- 🗄️ [**Database & Migrations**](docs/DATABASE.md): Schema definitions, composite integrity constraints, and pgvector vector storage.
-- 🔌 [**REST API Specification**](docs/API.md): Standardized endpoints, Pydantic schemas, and role permissions.
-- 🚢 [**Deployment & Infrastructure**](docs/DEPLOYMENT.md): Multi-container Docker Compose orchestration and production checklist.
-- 🧪 [**Testing & Evaluation Framework**](docs/TESTING.md): 161-test automated verification tree and evaluation datasets.
+- [**Architecture & System Design**](docs/ARCHITECTURE.md): Component topology, 3-tier hierarchy, and data flow.
+- [**Security & Access Control**](docs/SECURITY.md): Multi-tenant isolation, role authorization, and anti-IDOR architecture.
+- [**Threat Model & Defense Matrix**](docs/THREAT_MODEL.md): STRIDE threat analysis, adversarial prompt injection mitigations, and fail-closed proofs.
+- [**AI & Socratic RAG Engine**](docs/AI_RAG.md): Hybrid Dense + BM25 + RRF retrieval, Socratic scaffolding, and quantitative MRR benchmarks.
+- [**Recommendation Engine**](docs/RECOMMENDATIONS.md): Pedagogical ranking, explainability taxonomy, and SM-2 memory decay weighting.
+- [**Child Privacy & Consent Architecture**](docs/PRIVACY.md): DPDP Act 2023 & COPPA verifiable parental consent state machines.
+- [**Database & Migrations**](docs/DATABASE.md): Schema definitions, composite integrity constraints, and pgvector vector storage.
+- [**REST API Specification**](docs/API.md): Standardized endpoints, Pydantic schemas, and role permissions.
+- [**Deployment & Infrastructure**](docs/DEPLOYMENT.md): Multi-container Docker Compose orchestration and production checklist.
+- [**Testing & Evaluation Framework**](docs/TESTING.md): 161-test automated verification tree and evaluation datasets.
 
 ## 1. Executive Product Overview
 
@@ -58,12 +58,12 @@ Traditional open internet search exposing K-12 students to toxic content, clickb
 
 ## 2. Key Features & Capabilities
 
-- 🤖 **Multi-Provider Socratic AI Tutor**: Intelligent hybrid RAG (Dense Vector + Okapi BM25 + Reciprocal Rank Fusion) backed by OpenAI GPT-5/Responses API, Google Gemini, and a zero-latency local fallback.
-- ⚡ **Anti-Answer Socratic Safeguards**: AI responses actively detect when a student is asking for homework answers and transform them into interactive guiding questions.
-- 🧠 **SuperMemo SM-2 Spaced Repetition**: Dynamic interval scheduling automatically flags weak topics and queues personalized flashcards before memory decay occurs.
-- 🛡️ **Fail-Closed AI Output Gate**: Every model token passes through real-time safety classification. If the safety auditor is unreachable, the system fails closed rather than leaking uninspected outputs.
-- 📊 **Teacher & School Analytics**: Multi-tenant dashboards tracking class mastery, attendance engagement, weak topics, and assignment completion.
-- 🔒 **Stateless JWT with Redis Blacklist**: Instant session revocation and token invalidation on logout.
+- **Multi-Provider Socratic AI Tutor**: Intelligent hybrid RAG (Dense Vector + Okapi BM25 + Reciprocal Rank Fusion) backed by OpenAI GPT-5/Responses API, Google Gemini, and a zero-latency local fallback.
+- **Anti-Answer Socratic Safeguards**: AI responses actively detect when a student is asking for homework answers and transform them into interactive guiding questions.
+- **SuperMemo SM-2 Spaced Repetition**: Dynamic interval scheduling automatically flags weak topics and queues personalized flashcards before memory decay occurs.
+- **Fail-Closed AI Output Gate**: Every model token passes through real-time safety classification. If the safety auditor is unreachable, the system fails closed rather than leaking uninspected outputs.
+- **Teacher & School Analytics**: Multi-tenant dashboards tracking class mastery, attendance engagement, weak topics, and assignment completion.
+- **Stateless JWT with Redis Blacklist**: Instant session revocation and token invalidation on logout.
 
 ---
 
@@ -352,10 +352,10 @@ OK
 ```
 
 ### Key Test Coverage Areas:
-- 🧪 `test_security_regression.py`: Tenant-scoped admin records, Parental consent IDOR defense, Google OAuth audience validation, Redis production fail-fast.
-- 🧪 `test_rag_evaluation.py`: MRR@3, Precision@K, Recall@K, Groundedness, Adversarial prompt injection defense.
-- 🧪 `test_ai_model_gateway.py`: Multi-provider failover (OpenAI $\to$ Gemini $\to$ Local Socratic) and fail-closed safety gate.
-- 🧪 `test_api.py` & `test_advanced_ai.py`: Student registration, SM-2 interval calculations, GBDT ranking, weak-topic detection.
+- `test_security_regression.py`: Tenant-scoped admin records, Parental consent IDOR defense, Google OAuth audience validation, Redis production fail-fast.
+- `test_rag_evaluation.py`: MRR@3, Precision@K, Recall@K, Groundedness, Adversarial prompt injection defense.
+- `test_ai_model_gateway.py`: Multi-provider failover (OpenAI $\to$ Gemini $\to$ Local Socratic) and fail-closed safety gate.
+- `test_api.py` & `test_advanced_ai.py`: Student registration, SM-2 interval calculations, GBDT ranking, weak-topic detection.
 
 ---
 
