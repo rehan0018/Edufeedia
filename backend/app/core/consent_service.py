@@ -75,7 +75,7 @@ class ConsentService:
                     status="ACTIVE",
                     verification_method="GUARDIAN_VERIFIED",
                     policy_version="2026.2-DPDP",
-                    scope="ALL_CURRICULUM_INTERACTIONS"
+                    consent_scope="ALL_CURRICULUM_INTERACTIONS"
                 )
                 db.add(auto_record)
                 db.commit()
@@ -116,7 +116,7 @@ class ConsentService:
         if existing:
             existing.status = "ACTIVE"
             existing.guardian_user_id = guardian_id if guardian_id is not None else existing.guardian_user_id
-            existing.scope = scope
+            existing.consent_scope = scope
             existing.verification_method = method
             existing.policy_version = policy_version
             existing.granted_at = now
