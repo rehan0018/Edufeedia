@@ -36,6 +36,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Verify Redis Connectivity
+        env:
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python -c "import redis; r = redis.from_url('redis://localhost:6379/0'); r.ping(); print('Redis service container reachable.')"
+
       - name: Seed Database Test Fixtures
         env:
           REDIS_URL: redis://localhost:6379/0
