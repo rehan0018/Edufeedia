@@ -393,7 +393,9 @@ Edufeedia includes built-in telemetry endpoints for Kubernetes and CloudWatch:
 
 ### License
 
-Edufeedia is proprietary, source-available software licensed under the **[PolyForm Shield License 1.0.0](LICENSE)**.
+**Edufeedia is source-available software (not open-source).**
+
+The project codebase is licensed under the **[PolyForm Shield License 1.0.0](LICENSE)**.
 
 Copyright (c) 2026 Rehan Shaikh. All Rights Reserved.
 
@@ -403,6 +405,14 @@ The source code is made available for inspection, learning, evaluation, testing,
 - **Prohibited Scope**: Commercial software-as-a-service (SaaS) hosting, reselling, sublicensing, or creating competing commercial products based substantially on Edufeedia is strictly prohibited without prior written permission from the copyright owner.
 - **Historical Releases**: Releases, tags, or commits of this repository that were historically published and obtained under the terms of the MIT License remain subject to the original terms of that license. All current and subsequent releases and updates are governed exclusively by the PolyForm Shield License 1.0.0.
 - **Third-Party Dependencies**: Third-party libraries and dependencies remain governed by their respective open-source licenses. See [NOTICE](NOTICE) and [docs/THIRD_PARTY_LICENSES.md](docs/THIRD_PARTY_LICENSES.md) for full dependency attributions.
+
+For complete licensing and governance policies, please review:
+- [LICENSE](LICENSE)
+- [CLA.md](CLA.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [TRADEMARKS.md](TRADEMARKS.md)
+- [SECURITY.md](SECURITY.md)
+- [NOTICE](NOTICE)
 
 ### Student Privacy Notice
 
