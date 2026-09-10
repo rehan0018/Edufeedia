@@ -22,9 +22,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-edufeedia_user}:${POSTGRES_PASSWORD:-edufeedia_dev_secret_change_in_prod}@postgres:5432/${POSTGRES_DB:-edufeedia_db}}
-      - SECRET_KEY=${SECRET_KEY:-edufeedia_dev_jwt_secret_key_2026}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-edufeedia_user}:${POSTGRES_PASSWORD:-edufeedia_dev_password_only}@postgres:5432/${POSTGRES_DB:-edufeedia_db}}
+      - SECRET_KEY=${SECRET_KEY:-edufeedia-dev-only-insecure-test-signing-key-32chars}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000,http://localhost:3000,http://localhost:80}
     depends_on:
       postgres:
@@ -32,7 +32,7 @@ services:
       redis:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health').read()\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
       interval: 5s
       timeout: 5s
       retries: 5

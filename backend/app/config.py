@@ -27,9 +27,9 @@ class Settings:
     def __init__(self):
         env_secret = os.getenv("SECRET_KEY")
         if self.ENVIRONMENT == "production":
-            errors = []
-            if not env_secret or len(env_secret) < 32 or "change-in-production" in env_secret:
-                errors.append("• SECRET_KEY: Must be a strong, random 32+ character string.")
+            forbidden_patterns = ["change-in-production", "edufeedia_dev", "dev-only", "secret_key_2026", "insecure-test"]
+            if not env_secret or len(env_secret) < 32 or any(p in env_secret.lower() for p in forbidden_patterns):
+                errors.append("• SECRET_KEY: Must be a strong, random 32+ character string (cannot use default development placeholders).")
             
             if self.ALLOWED_ORIGINS_RAW == "*":
                 errors.append("• ALLOWED_ORIGINS: Wildcard '*' is disallowed in production. Provide comma-separated origins (e.g. 'https://app.edufeedia.com').")

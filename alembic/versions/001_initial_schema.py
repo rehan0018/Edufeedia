@@ -372,7 +372,20 @@ def upgrade() -> None:
     op.create_index('ix_curriculum_chunks_subject_topic', 'curriculum_chunks', ['subject', 'topic', 'grade_level'])
     op.create_index('ix_staff_invitations_school_status', 'staff_invitations', ['school_id', 'status'])
 
+    # PostgreSQL pgvector IVFFlat ANN Index for vector similarity search
+    if is_postgres and HAS_PGVECTOR:
+        try:
+            op.execute("CREATE INDEX IF NOT EXISTS ix_curriculum_chunks_embedding ON curriculum_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);")
+        except Exception:
+            pass
+
 def downgrade() -> None:
+    conn = op.get_bind()
+    if conn.dialect.name == "postgresql" and HAS_PGVECTOR:
+        try:
+            op.execute("DROP INDEX IF EXISTS ix_curriculum_chunks_embedding;")
+        except Exception:
+            pass
     op.drop_index('ix_staff_invitations_school_status', table_name='staff_invitations')
     op.drop_index('ix_curriculum_chunks_subject_topic', table_name='curriculum_chunks')
     op.drop_index('ix_topic_masteries_student_subject', table_name='topic_masteries')

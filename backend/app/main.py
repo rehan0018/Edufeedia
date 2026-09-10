@@ -6,11 +6,9 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.database import engine, Base
 from app.config import settings
+from app.core.redis_client import redis_client
+from app.core.logging_config import logger
 from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin, ingestion, privacy, challenges
-
-import logging
-
-logger = logging.getLogger("edufeedia.main")
 
 from contextlib import asynccontextmanager
 
@@ -128,7 +126,6 @@ def readiness_check():
 
     # 2. Redis Check
     try:
-        from app.core.redis_client import redis_client
         redis_client.setex("readiness_heartbeat", 10, "1")
         if redis_client.get("readiness_heartbeat") == "1":
             redis_status = "connected"
@@ -157,14 +154,31 @@ def readiness_check():
 def get_system_metrics():
     """Operational telemetry & metrics endpoint for CloudWatch / Prometheus."""
     uptime_seconds = int(time.time() - METRICS_START_TIME)
+
+    db_ok = False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    redis_ok = False
+    try:
+        redis_client.setex("metrics_probe", 5, "ok")
+        redis_ok = (redis_client.get("metrics_probe") == "ok")
+    except Exception:
+        redis_ok = False
+
     return {
         "service": settings.PROJECT_NAME,
         "environment": settings.ENVIRONMENT,
         "uptime_seconds": uptime_seconds,
         "telemetry": _METRICS_COUNTER,
-        "security": {
+        "subsystem_health": {
+            "database_connected": db_ok,
+            "redis_connected": redis_ok,
             "fail_closed_ai_enabled": True,
-            "verifiable_parental_consent": True,
             "tenant_isolation_enforced": True
         }
     }
