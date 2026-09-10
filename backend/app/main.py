@@ -93,6 +93,21 @@ async def correlation_id_middleware(request: Request, call_next):
 
 
 
+@app.get("/", tags=["system"])
+def root():
+    """Root landing endpoint providing system information and documentation links."""
+    return {
+        "service": settings.PROJECT_NAME,
+        "version": "1.0.0",
+        "status": "online",
+        "message": "Welcome to the Edufeedia API! Explore interactive documentation at /docs.",
+        "documentation": "/docs",
+        "redoc": "/redoc",
+        "health": "/health",
+        "ready": "/ready",
+        "api_v1": "/api/v1"
+    }
+
 @app.get("/health", tags=["system"])
 @app.get("/api/health", tags=["system"])
 @app.get("/api/v1/health", tags=["system"])
