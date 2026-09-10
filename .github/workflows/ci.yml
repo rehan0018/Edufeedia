@@ -56,7 +56,7 @@ jobs:
           ENVIRONMENT: test
           SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
         run: |
-          PYTHONPATH=.:backend python -m unittest discover -s backend/tests
+          PYTHONPATH=.:backend pytest backend/tests
 
   frontend-build:
     name: Frontend Asset Compilation and Lint

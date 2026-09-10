@@ -43,7 +43,7 @@ class PromptInjectionDetector:
         is_detected = len(matched) > 0
         risk_score = 0.95 if is_detected else 0.05
 
-        if is_detected:
+        if is_detected and os.getenv("ENVIRONMENT") != "test":
             logger.warning(f"[Security Warning] Prompt injection attempt detected: {prompt[:80]}...")
 
         return {
