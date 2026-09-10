@@ -69,6 +69,8 @@ class Settings:
         if not raw_url or raw_url.startswith("sqlite:///."):
             db_file = (BASE_DIR / "edufeedia.db").resolve().as_posix()
             return f"sqlite:///{db_file}"
+        if raw_url.startswith("postgres://"):
+            raw_url = raw_url.replace("postgres://", "postgresql://", 1)
         return raw_url
 
 settings = Settings()
