@@ -47,6 +47,9 @@ class ConsentService:
         if not eval_result["requires_guardian_consent"]:
             return True
 
+        if profile and profile.parental_consent_status == "REVOKED":
+            return False
+
         # 2. Query persistent database for active or revoked consent records
         record = db.query(ConsentRecord).filter(
             ConsentRecord.student_user_id == student_user.id,
@@ -64,6 +67,10 @@ class ConsentService:
                 f"for purpose: {purpose.value}"
             )
             return False
+
+        # If profile explicitly has GRANTED status from guardian verification
+        if profile and profile.parental_consent_status == "GRANTED":
+            return True
 
         # Strict DPDP Act Section 9 Rule: For processing purposes requiring explicit guardian consent,
         # an active, non-expired ConsentRecord row MUST exist in the database.
