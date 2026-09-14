@@ -1,7 +1,11 @@
 import unittest
 import os
+import sys
 import time
 from unittest.mock import patch, MagicMock
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -384,6 +388,8 @@ class TestSecurityRegression(unittest.TestCase):
 
     def test_student_with_pending_onboarding_cannot_use_ai_tutor(self):
         """Verify student in PENDING onboarding cannot access AI tutor (403 Forbidden)."""
+        from app.models.models import ConsentRecord
+        self.db.query(ConsentRecord).filter(ConsentRecord.student_user_id == self.student_a.id).delete()
         self.student_a.student_profile.onboarding_status = "PENDING"
         self.db.commit()
 
@@ -397,6 +403,8 @@ class TestSecurityRegression(unittest.TestCase):
 
     def test_student_with_pending_consent_cannot_use_ai_tutor(self):
         """Verify student in PENDING parental consent cannot access AI tutor (403 Forbidden)."""
+        from app.models.models import ConsentRecord
+        self.db.query(ConsentRecord).filter(ConsentRecord.student_user_id == self.student_a.id).delete()
         self.student_a.student_profile.onboarding_status = "COMPLETED"
         self.student_a.student_profile.parental_consent_status = "PENDING"
         self.db.commit()
@@ -411,8 +419,18 @@ class TestSecurityRegression(unittest.TestCase):
 
     def test_student_with_granted_consent_can_use_ai_tutor(self):
         """Verify student in COMPLETED onboarding and GRANTED consent can access AI tutor."""
+        from app.core.consent_service import ConsentService
+        from app.core.age_policy import ProcessingPurpose
+
         self.student_a.student_profile.onboarding_status = "COMPLETED"
         self.student_a.student_profile.parental_consent_status = "GRANTED"
+        ConsentService.grant_consent(
+            db=self.db,
+            student_id=self.student_a.id,
+            guardian_id=None,
+            purpose=ProcessingPurpose.AI_SOCRATIC_TUTOR.value,
+            scope="ai_socratic_tutoring"
+        )
         self.db.commit()
 
         res = self.client.post(

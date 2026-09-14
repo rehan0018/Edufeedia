@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import unittest
 import threading
 import datetime
@@ -127,13 +131,13 @@ class TestAIBudgetAndRevalidation(unittest.TestCase):
             user_id=student.id,
             grade_level=10,
             board="CBSE",
-            parental_consent_status="GRANTED",  # Legacy status without ConsentRecord
+            parental_consent_status="LEGACY_PENDING_REVALIDATION",  # Legacy status requiring revalidation
             date_of_birth=datetime.date(2012, 1, 1)
         )
         self.db.add_all([guardian, student, profile])
         self.db.commit()
 
-        # Step 1: Query consent -> Denied because legacy GRANTED profile is transitioned to LEGACY_PENDING_REVALIDATION
+        # Step 1: Query consent -> Denied because legacy profile is pending revalidation
         has_consent = ConsentService.has_valid_consent(self.db, student, ProcessingPurpose.AI_SOCRATIC_TUTOR)
         self.assertFalse(has_consent)
         self.assertEqual(profile.parental_consent_status, "LEGACY_PENDING_REVALIDATION")

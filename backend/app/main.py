@@ -6,11 +6,9 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.database import engine, Base
 from app.config import settings
+from app.core.redis_client import redis_client
+from app.core.logging_config import logger
 from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin, ingestion, privacy, challenges
-
-import logging
-
-logger = logging.getLogger("edufeedia.main")
 
 from contextlib import asynccontextmanager
 
@@ -19,6 +17,7 @@ async def lifespan(app: FastAPI):
     # Conditional table automigration on boot (development & test only)
     if settings.ENVIRONMENT != "production":
         try:
+            import app.models.models
             Base.metadata.create_all(bind=engine)
         except Exception as e:
             logger.error(f"[SCHEMA INITIALIZATION WARNING]: {e}", exc_info=True)
@@ -94,9 +93,26 @@ async def correlation_id_middleware(request: Request, call_next):
 
 
 
+@app.get("/", tags=["system"])
+def root():
+    """Root landing endpoint providing system information and documentation links."""
+    return {
+        "service": settings.PROJECT_NAME,
+        "version": "1.0.0",
+        "status": "online",
+        "message": "Welcome to the Edufeedia API! Explore interactive documentation at /docs.",
+        "documentation": "/docs",
+        "redoc": "/redoc",
+        "health": "/health",
+        "ready": "/ready",
+        "api_v1": "/api/v1"
+    }
+
 @app.get("/health", tags=["system"])
+@app.get("/api/health", tags=["system"])
+@app.get("/api/v1/health", tags=["system"])
 def liveness_check():
-    """Liveness probe for container orchestrators (Kubernetes / ECS)."""
+    """Liveness probe for container orchestrators (Kubernetes / ECS) and API consumers."""
     return {
         "status": "healthy",
         "live": True,
@@ -105,6 +121,8 @@ def liveness_check():
     }
 
 @app.get("/ready", tags=["system"])
+@app.get("/api/ready", tags=["system"])
+@app.get("/api/v1/ready", tags=["system"])
 def readiness_check():
     """Readiness probe verifying database and cache cluster connectivity."""
     db_status = "unknown"
@@ -151,14 +169,31 @@ def readiness_check():
 def get_system_metrics():
     """Operational telemetry & metrics endpoint for CloudWatch / Prometheus."""
     uptime_seconds = int(time.time() - METRICS_START_TIME)
+
+    db_ok = False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    redis_ok = False
+    try:
+        redis_client.setex("metrics_probe", 5, "ok")
+        redis_ok = (redis_client.get("metrics_probe") == "ok")
+    except Exception:
+        redis_ok = False
+
     return {
         "service": settings.PROJECT_NAME,
         "environment": settings.ENVIRONMENT,
         "uptime_seconds": uptime_seconds,
         "telemetry": _METRICS_COUNTER,
-        "security": {
+        "subsystem_health": {
+            "database_connected": db_ok,
+            "redis_connected": redis_ok,
             "fail_closed_ai_enabled": True,
-            "verifiable_parental_consent": True,
             "tenant_isolation_enforced": True
         }
     }

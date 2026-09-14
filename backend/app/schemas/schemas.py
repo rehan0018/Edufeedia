@@ -515,3 +515,60 @@ class TeacherInterventionsResponse(BaseModel):
     total_interventions: int
     high_urgency_count: int
     interventions: List[TeacherInterventionItem]
+
+
+# --- PARENT SCREEN TIME & CONTENT BREAKDOWN SCHEMAS ---
+
+class ScreenTimePolicyUpdate(BaseModel):
+    daily_limit_minutes: Optional[int] = Field(None, ge=15, le=360)
+    curfew_start_time: Optional[str] = None
+    curfew_end_time: Optional[str] = None
+    curfew_enabled: Optional[bool] = None
+    ai_tutor_max_daily_minutes: Optional[int] = Field(None, ge=5, le=180)
+    break_interval_minutes: Optional[int] = Field(None, ge=15, le=120)
+
+class SubjectTimeBreakdown(BaseModel):
+    subject: str
+    minutes: int
+    percentage: float
+
+class ActivityFormatBreakdown(BaseModel):
+    activity_type: str
+    minutes: int
+    percentage: float
+
+class ContentActivityItem(BaseModel):
+    id: str
+    title: str
+    subject: str
+    topic: Optional[str] = None
+    activity_type: str
+    minutes_spent: int
+    completed: bool
+    timestamp: str
+
+class EarlyActionAlert(BaseModel):
+    severity: str # 'info', 'warning', 'positive', 'action_required'
+    type: str     # 'fatigue', 'distraction', 'balance', 'limit', 'ai_usage'
+    title: str
+    description: str
+    recommended_action: str
+
+class ScreenTimeAnalyticsOut(BaseModel):
+    student_id: str
+    student_name: str
+    today_screen_time_minutes: int
+    weekly_screen_time_minutes: int
+    daily_average_minutes: int
+    daily_limit_minutes: int
+    percent_limit_used: int
+    is_over_limit: bool
+    curfew_enabled: bool
+    curfew_start_time: str
+    curfew_end_time: str
+    is_curfew_active: bool
+    subject_breakdown: List[SubjectTimeBreakdown]
+    activity_breakdown: List[ActivityFormatBreakdown]
+    recent_activities: List[ContentActivityItem]
+    early_action_alerts: List[EarlyActionAlert]
+    ai_tutor_minutes_today: int

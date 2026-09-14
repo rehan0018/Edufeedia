@@ -17,8 +17,12 @@ class TestEdufeediaAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Run seeder to have consistent fixtures
-        from seed import seed_database
-        seed_database()
+        try:
+            from scripts.seed_demo_data import seed_demo_data
+            seed_demo_data()
+        except ImportError:
+            from seed import seed_database
+            seed_database()
 
     def test_health_check(self):
         response = client.get("/api/health")

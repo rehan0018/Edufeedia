@@ -272,7 +272,7 @@ export const fetchClassAnalytics = async (classId) => {
   return await res.json();
 };
 
-// 11. Parent Linked Student Progress
+// 11. Parent Linked Student Progress & Screen Time
 export const fetchParentStudentSummary = async () => {
   const res = await fetch(`${API_BASE_URL}/parents/students`, {
     headers: defaultHeaders()
@@ -292,6 +292,29 @@ export const fetchParentStudentSummary = async () => {
   }
   const summary = await progressRes.json();
   return { student: firstStudent, summary };
+};
+
+export const fetchStudentScreenTime = async (studentId) => {
+  const res = await fetch(`${API_BASE_URL}/parents/student/${studentId}/screen-time`, {
+    headers: defaultHeaders()
+  });
+  if (!res.ok) {
+    throw new Error('Failed to fetch student screen time analytics');
+  }
+  return await res.json();
+};
+
+export const updateStudentScreenTimePolicy = async (studentId, policyData) => {
+  const res = await fetch(`${API_BASE_URL}/parents/student/${studentId}/screen-time/policy`, {
+    method: 'POST',
+    headers: defaultHeaders(),
+    body: JSON.stringify(policyData)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update screen time policy' }));
+    throw new Error(err.detail || 'Failed to update screen time policy');
+  }
+  return await res.json();
 };
 
 // 12. Explore Catalog Search & Filter

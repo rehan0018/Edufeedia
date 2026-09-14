@@ -98,5 +98,42 @@ class TestParentalPrivacyAndConsent(unittest.TestCase):
         self.assertEqual(log_entry.consent_status, "revoked")
         self.assertIsNotNone(log_entry.revoked_at)
 
+    def test_parental_screen_time_analytics_and_policy(self):
+        # 1. Fetch linked students
+        s_list_res = client.get("/api/v1/parents/students", headers=self.parent_headers)
+        self.assertEqual(s_list_res.status_code, 200)
+        students = s_list_res.json()
+        self.assertTrue(len(students) > 0)
+        student_id = students[0]["student_id"]
+
+        # 2. Query screen time analytics
+        st_res = client.get(f"/api/v1/parents/student/{student_id}/screen-time", headers=self.parent_headers)
+        self.assertEqual(st_res.status_code, 200)
+        st_data = st_res.json()
+        self.assertIn("today_screen_time_minutes", st_data)
+        self.assertIn("daily_limit_minutes", st_data)
+        self.assertIn("subject_breakdown", st_data)
+        self.assertIn("activity_breakdown", st_data)
+        self.assertIn("early_action_alerts", st_data)
+        self.assertTrue(len(st_data["early_action_alerts"]) > 0)
+
+        # 3. Update screen time policy
+        pol_res = client.post(
+            f"/api/v1/parents/student/{student_id}/screen-time/policy",
+            headers=self.parent_headers,
+            json={
+                "daily_limit_minutes": 120,
+                "curfew_enabled": True,
+                "curfew_start_time": "22:00",
+                "curfew_end_time": "06:00",
+                "ai_tutor_max_daily_minutes": 45
+            }
+        )
+        self.assertEqual(pol_res.status_code, 200)
+        pol_data = pol_res.json()
+        self.assertEqual(pol_data["status"], "success")
+        self.assertEqual(pol_data["policy"]["daily_limit_minutes"], 120)
+        self.assertEqual(pol_data["policy"]["curfew_start_time"], "22:00")
+
 if __name__ == "__main__":
     unittest.main()

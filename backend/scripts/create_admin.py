@@ -7,17 +7,12 @@ with strong bcrypt password hashing.
 import sys
 import os
 import argparse
-import bcrypt
-
 # Add the backend root directory to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.database import SessionLocal
 from app.models.models import User, School
-
-def get_password_hash(password: str) -> str:
-    salt = bcrypt.gensalt(rounds=12)
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+from app.core.security import get_password_hash
 
 def create_admin(email: str, password: str, first_name: str, last_name: str, role: str = "admin", school_id: str = None):
     db = SessionLocal()

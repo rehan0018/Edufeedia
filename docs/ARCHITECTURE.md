@@ -144,3 +144,16 @@ All relational models enforce strict domain and relational integrity via databas
 - **`uq_student_quiz_attempt`**: Enforces strict attempt number sequence and prevents XP duplication.
 - **`uq_user_badge`**: Idempotent badge assignment preventing duplicate reward exploits.
 - **`uq_parent_student_link`**: Verifiable single or multi-parent linkage.
+
+---
+
+## 7. Strategic Product Evolution Roadmap
+
+Edufeedia progresses along four structured engineering phases:
+
+1. **Phase 1: Web-Based Learning & Safety MVP (Complete)**: End-to-end verified curriculum feeds, Socratic RAG AI tutoring, SuperMemo SM-2 spaced repetition, DPDP Act 2023 verifiable parental consent, screen time analytics, and tenant-scoped school analytics.
+2. **Phase 2: Device-Level Protection & Safe Shell (Next Milestone)**: Android native shell, local loopback VPN/DNS filtering (`VpnService`), Safe Browser sandbox, and system-wide application screen time gating.
+3. **Phase 3: Advanced Multimodal Safety Pipeline**: Frame-by-frame visual classification (FFmpeg + Vision Transformers), speech-to-text audio transcript analysis (Whisper ASR), thumbnail cross-encoders, and human-in-the-loop escalation queues.
+4. **Phase 4: Scale, Multilingual Benchmarks & Operations**: Indic language safety datasets (Hindi, Hinglish, regional dialects), automated question bank synchronization, and native mobile client applications for parents and teachers.
+
+*For complete technical specifications on Phases 2 and 3, see [**Device Protection & Multimodal Safety Roadmap**](DEVICE_PROTECTION_AND_MULTIMODAL.md).*
