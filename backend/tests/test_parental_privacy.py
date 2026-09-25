@@ -106,6 +106,12 @@ class TestParentalPrivacyAndConsent(unittest.TestCase):
         self.assertTrue(len(students) > 0)
         student_id = students[0]["student_id"]
 
+        # Ensure test isolation: clear telemetry for this student created by prior test suites
+        from app.models.models import UserInteraction, LearningEvent
+        self.db.query(UserInteraction).filter(UserInteraction.user_id == student_id).delete()
+        self.db.query(LearningEvent).filter(LearningEvent.student_user_id == student_id).delete()
+        self.db.commit()
+
         # 2. Query screen time analytics
         st_res = client.get(f"/api/v1/parents/student/{student_id}/screen-time", headers=self.parent_headers)
         self.assertEqual(st_res.status_code, 200)

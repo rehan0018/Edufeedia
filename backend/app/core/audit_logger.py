@@ -89,15 +89,28 @@ class AuditLogger:
         raw_ip = cls._extract_safe_ip(request)
         ip_hash = cls._hash_ip(raw_ip)
 
-        resolved_school_id = school_id or (actor.school_id if actor else None)
-        actor_id = actor.id if actor else None
-        actor_role = actor.role if actor else None
-        now = datetime.datetime.now(datetime.timezone.utc)
-        now_ts = cls._format_timestamp_utc(now)
-
         max_retries = 5
         for attempt in range(max_retries):
             with cls._write_lock:
+                actor_id = None
+                actor_role = None
+                resolved_school_id = school_id
+                if actor is not None:
+                    try:
+                        actor_id = getattr(actor, "id", None)
+                        actor_role = getattr(actor, "role", None)
+                        if not resolved_school_id:
+                            resolved_school_id = getattr(actor, "school_id", None)
+                    except Exception:
+                        actor_dict = getattr(actor, "__dict__", {})
+                        actor_id = actor_dict.get("id")
+                        actor_role = actor_dict.get("role")
+                        if not resolved_school_id:
+                            resolved_school_id = actor_dict.get("school_id")
+
+                now = datetime.datetime.now(datetime.timezone.utc)
+                now_ts = cls._format_timestamp_utc(now)
+
                 # Retrieve previous event for sequence and block chaining
                 last_event = db.query(AuditEvent).order_by(AuditEvent.sequence_number.desc(), AuditEvent.id.desc()).first()
                 prev_hash = last_event.event_hash if (last_event and last_event.event_hash) else GENESIS_HASH

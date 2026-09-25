@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, List
 
 from app.database import get_db
-from app.models.models import User, ContentItem, StudentProfile, SafetyIncident
+from app.models.models import (
+    User, ContentItem, StudentProfile, SafetyIncident, UserInteraction, LearningEvent
+)
 from app.schemas.schemas import TutorAskRequest, TutorResponse
 from app.core.security import RoleChecker
 from app.safety.engine import SafetyEngine
@@ -141,7 +143,6 @@ def ask_ai_tutor(
 
     # Record AI query telemetry for real screen-time and quota tracking
     try:
-        from app.models.models import UserInteraction, LearningEvent, ContentItem
         target_id = valid_content_id
         if not target_id:
             first_item = db.query(ContentItem).first()

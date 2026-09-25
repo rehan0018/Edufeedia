@@ -194,6 +194,7 @@ class TestAIBudgetAndRevalidation(unittest.TestCase):
         actor = User(id="audit-concurrent-actor", email="actor@alpha.edu", role="teacher", first_name="A", last_name="B")
         self.db.add(actor)
         self.db.commit()
+        self.db.refresh(actor)
 
         events_logged = []
         errors = []
