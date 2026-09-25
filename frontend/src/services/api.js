@@ -531,3 +531,19 @@ export const searchKidsContent = async (childId, query) => {
   return await apiFetch(`/kids/${childId}/safe-search?q=${encodeURIComponent(query)}`);
 };
 
+export const fetchStudentScreenTimeStatus = async () => {
+  return await apiFetch('/students/screen-time-status');
+};
+
+export const sendStudentHeartbeat = async (contentItemId = null, activityType = 'general', activeSeconds = 30) => {
+  return await apiFetch('/students/heartbeat', {
+    method: 'POST',
+    body: JSON.stringify({
+      content_item_id: contentItemId,
+      activity_type: activityType,
+      active_seconds: activeSeconds
+    })
+  });
+};
+
+

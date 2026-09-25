@@ -53,7 +53,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
       setError(err.message || 'The AI Tutor is temporarily unavailable.');
       setMessages(prev => [...prev, {
         sender: 'tutor',
-        text: '⚠ Tutor service is currently unavailable. Please check your connection or explore another topic in the Explore Catalog.',
+        text: err.message ? `🔒 ${err.message}` : '⚠ Tutor service is currently unavailable. Please check your connection or explore another topic in the Explore Catalog.',
         is_error: true
       }]);
     } finally {

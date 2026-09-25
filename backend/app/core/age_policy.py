@@ -44,6 +44,27 @@ class AgeBandPolicy:
             "mode": "kids",
             "description": "STEM fundamentals, money literacy, creative challenges, and mini-quizzes."
         },
+        "BAND_10_12": {
+            "name": "Middle School Explorer",
+            "age_min": 10,
+            "age_max": 12,
+            "mode": "student",
+            "description": "Middle school CBSE/NCERT curriculum, introductory Socratic coaching."
+        },
+        "BAND_13_15": {
+            "name": "Secondary Student",
+            "age_min": 13,
+            "age_max": 15,
+            "mode": "student",
+            "description": "Secondary CBSE/NCERT mastery, deep Socratic RAG, SM-2 spaced repetition."
+        },
+        "BAND_16_17": {
+            "name": "Senior Secondary Student",
+            "age_min": 16,
+            "age_max": 17,
+            "mode": "student",
+            "description": "Senior secondary CBSE/NCERT mastery and diagnostic exam preparation."
+        },
         "BAND_11_13": {
             "name": "Student Explorer",
             "age_min": 11,
@@ -84,12 +105,14 @@ class AgeBandPolicy:
             return "BAND_0_5"
         elif age <= 8:
             return "BAND_6_8"
-        elif age <= 10:
+        elif age <= 9:
             return "BAND_9_10"
-        elif age <= 13:
-            return "BAND_11_13"
+        elif age <= 12:
+            return "BAND_10_12"
+        elif age <= 15:
+            return "BAND_13_15"
         elif age <= 17:
-            return "BAND_14_17"
+            return "BAND_16_17"
         else:
             return "BAND_18_PLUS"
 

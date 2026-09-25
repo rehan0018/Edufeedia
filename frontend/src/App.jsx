@@ -12,7 +12,8 @@ import ClassChallenges from './components/ClassChallenges';
 import AuthScreen from './components/AuthScreen';
 import KidsDashboard from './components/KidsDashboard';
 import ParentGateModal from './components/ParentGateModal';
-import { getSession, clearAuthSession, fetchDailyPlanFeed } from './services/api';
+import BedtimeCurfewScreen from './components/BedtimeCurfewScreen';
+import { getSession, clearAuthSession, fetchDailyPlanFeed, fetchStudentScreenTimeStatus, sendStudentHeartbeat } from './services/api';
 
 export default function App() {
   const [session, setSession] = useState(() => {
@@ -147,11 +148,38 @@ export default function App() {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  const [studentScreenTimeStatus, setStudentScreenTimeStatus] = useState(null);
+
   useEffect(() => {
     if (session.user && session.user.role === 'student' && experienceMode === 'student') {
       loadFeed();
     }
   }, [session.user, experienceMode]);
+
+  // Periodic Telemetry Heartbeat & Screen Time Evaluation (every 45s during student sessions)
+  useEffect(() => {
+    if (!session.user || session.user.role !== 'student' || experienceMode !== 'student') {
+      return;
+    }
+
+    // Initial policy status check
+    fetchStudentScreenTimeStatus()
+      .then(st => setStudentScreenTimeStatus(st))
+      .catch(() => {});
+
+    // Active session heartbeat ping to log verified LearningEvent time
+    const timer = setInterval(() => {
+      const actType = activeLesson ? 'video' : (currentTab === 'tutor' ? 'tutor' : 'general');
+      const contentId = activeLesson?.id || null;
+      sendStudentHeartbeat(contentId, actType, 45)
+        .then(st => {
+          if (st) setStudentScreenTimeStatus(st);
+        })
+        .catch(() => {});
+    }, 45000);
+
+    return () => clearInterval(timer);
+  }, [session.user, experienceMode, activeLesson, currentTab]);
 
   const loadFeed = async () => {
     setLoadingFeed(true);
@@ -159,6 +187,9 @@ export default function App() {
     try {
       const data = await fetchDailyPlanFeed();
       setDailyPlan(data);
+      if (data?.screen_time_status) {
+        setStudentScreenTimeStatus(data.screen_time_status);
+      }
     } catch (err) {
       setFeedError(err.message || 'Could not fetch daily recommendations');
     } finally {
@@ -281,8 +312,46 @@ export default function App() {
         )}
 
         {/* EXPERIENCE 3: EDUFEEDIA STUDENT (11–17 YEARS) */}
-        {experienceMode === 'student' && (
+        {experienceMode === 'student' && studentScreenTimeStatus?.is_locked && (
+          <BedtimeCurfewScreen
+            childName={session.user.first_name || 'Student'}
+            curfewHours={studentScreenTimeStatus.curfew_start_time ? `${studentScreenTimeStatus.curfew_start_time} - ${studentScreenTimeStatus.curfew_end_time}` : ''}
+            message={studentScreenTimeStatus.lock_message}
+            onOpenParentGate={() => {
+              setPendingTargetMode('parent');
+              setParentGateOpen(true);
+            }}
+          />
+        )}
+
+        {experienceMode === 'student' && !studentScreenTimeStatus?.is_locked && (
           <>
+            {studentScreenTimeStatus && (
+              <div style={{
+                maxWidth: '1200px',
+                margin: '0 auto 16px auto',
+                padding: '10px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px',
+                background: studentScreenTimeStatus.remaining_minutes <= 15 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                border: `1px solid ${studentScreenTimeStatus.remaining_minutes <= 15 ? 'rgba(239, 68, 68, 0.3)' : 'var(--border-subtle)'}`,
+                borderRadius: '14px',
+                fontSize: '0.85rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>⏳ <strong>Daily Learning Screen Time:</strong> {studentScreenTimeStatus.today_minutes}m / {studentScreenTimeStatus.daily_limit_minutes}m ({studentScreenTimeStatus.remaining_minutes}m remaining)</span>
+                </div>
+                {studentScreenTimeStatus.curfew_enabled && (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                    🌙 Bedtime Curfew: {studentScreenTimeStatus.curfew_start_time} - {studentScreenTimeStatus.curfew_end_time}
+                  </div>
+                )}
+              </div>
+            )}
+
             {currentTab === 'feed' && (
               <DailyPlanFeed
                 dailyPlan={dailyPlan}

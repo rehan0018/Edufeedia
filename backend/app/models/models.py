@@ -186,7 +186,7 @@ class UserInteraction(Base):
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=True)
     interaction_type = Column(String, nullable=False) # 'view', 'click', 'watch_time', 'completed', 'quiz_completed', 'bookmark', 'like', 'skip'
     weight = Column(Numeric(4, 2), default=1.0) # +5 for completion, +4 for bookmark, -2 for skip, etc.
     dwell_time_seconds = Column(Integer, default=0)
@@ -512,7 +512,7 @@ class LearningEvent(Base):
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=True)
     event_type = Column(String, nullable=False)  # 'heartbeat', 'progress_checkpoint', 'completion_verified', 'quiz_submission'
     progress_percentage = Column(Integer, default=0)
     verified_seconds = Column(Integer, default=0)

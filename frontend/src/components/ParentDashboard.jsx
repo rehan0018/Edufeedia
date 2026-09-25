@@ -310,7 +310,7 @@ export default function ParentDashboard({ onLaunchKidsMode }) {
     try {
       const selectedChild = children.find(c => c.id === selectedChildId) || {
         id: selectedChildId,
-        name: childDashboard?.child_name || 'Aarav',
+        name: childDashboard?.child_name || 'Child',
         age: childDashboard?.age || 7,
         avatar_mascot: childDashboard?.avatar_mascot || 'lion'
       };
@@ -1080,7 +1080,7 @@ export default function ParentDashboard({ onLaunchKidsMode }) {
                     <Award size={16} color="var(--accent-mint)" />
                   </div>
                   <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '4px', color: 'var(--accent-mint)' }}>
-                    {studentData.summary?.average_quiz_accuracy != null ? `${Math.round(studentData.summary.average_quiz_accuracy)}%` : '91%'}
+                    {studentData.summary?.average_quiz_accuracy != null ? `${Math.round(studentData.summary.average_quiz_accuracy)}%` : 'No data available'}
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                     Active recall evaluations
@@ -1118,7 +1118,7 @@ export default function ParentDashboard({ onLaunchKidsMode }) {
               <div className="glass-panel" style={{ padding: '24px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
-                    {studentData.student?.name || 'Rahul Kumar'}'s Recent Curriculum Lessons
+                    {studentData.student?.name || 'Student'}'s Recent Curriculum Lessons
                   </h3>
                   <button
                     onClick={() => setShowStudentPolicyModal(true)}

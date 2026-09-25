@@ -34,6 +34,10 @@ def ask_ai_tutor(
             detail="Guardian consent is required or has been revoked for AI Socratic tutoring under DPDP Act Section 9."
         )
 
+    # 0.5 Enforce parental screen time, bedtime curfew, and AI tutor daily quota
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="ai_tutor")
+
     # Determine student target age dynamically via centralized Age Policy
     target_age = StudentAgePolicy.get_student_age(current_user.student_profile if current_user.role == "student" else None)
     grade_lvl = (
@@ -134,6 +138,31 @@ def ask_ai_tutor(
             follow_up_questions=["Would you like a step-by-step example?", "Which part seems challenging?"],
             is_safe=True
         )
+
+    # Record AI query telemetry for real screen-time and quota tracking
+    try:
+        from app.models.models import UserInteraction, LearningEvent, ContentItem
+        target_id = valid_content_id
+        if not target_id:
+            first_item = db.query(ContentItem).first()
+            target_id = first_item.id if first_item else "general_tutor_dialog"
+
+        interaction = UserInteraction(
+            user_id=current_user.id,
+            content_item_id=target_id,
+            interaction_type="ai_query",
+            dwell_time_seconds=60
+        )
+        db.add(interaction)
+        db.add(LearningEvent(
+            student_user_id=current_user.id,
+            content_item_id=target_id,
+            event_type="ai_tutor_session",
+            verified_seconds=60
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
 
     return TutorResponse(
         answer=rag_result["answer"],

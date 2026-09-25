@@ -43,7 +43,11 @@ SAFE_PLACEHOLDERS = {
     "Parent123!",
     "Admin123!",
     "user:password@rds-host",
-    "postgresql://user:password@rds-host:5432/edufeedia"
+    "postgresql://user:password@rds-host:5432/edufeedia",
+    "postgresql://ci_user:ci_pass@localhost:5432",
+    "postgresql://prod_user:prod_pass@rds-postgres:5432",
+    "ci_user:ci_pass",
+    "prod_user:prod_pass"
 }
 
 

@@ -246,11 +246,22 @@ def get_parent_weekly_summary(
         newest_acc = float(weekly_attempts[0].accuracy_percentage)
         mastery_delta = round(max(0.0, newest_acc - oldest_acc), 1)
 
-    # Real aggregated safety incidents
+    # Real aggregated safety incidents across incidents, reports, and access blocks
+    from app.models.models import ContentReport, AuditEvent
     real_incidents_count = db.query(SafetyIncident).filter(
         SafetyIncident.student_user_id == student_id,
         SafetyIncident.created_at >= week_start
     ).count()
+    reports_count = db.query(ContentReport).filter(
+        ContentReport.reporter_user_id == student_id,
+        ContentReport.created_at >= week_start
+    ).count()
+    denied_audits = db.query(AuditEvent).filter(
+        AuditEvent.actor_id == student_id,
+        AuditEvent.status == "DENIED",
+        AuditEvent.timestamp >= week_start
+    ).count()
+    total_safety_events = real_incidents_count + reports_count + denied_audits
 
     return ParentWeeklySummaryOut(
         student_id=student.id,
@@ -263,7 +274,7 @@ def get_parent_weekly_summary(
         ai_tutor_sessions=tutor_query_count,
         mastery_improvement_percentage=mastery_delta,
         topics_needing_revision=revision_topics,
-        safety_incident_count=real_incidents_count,
+        safety_incident_count=total_safety_events,
         parent_insight=insight
     )
 
@@ -415,22 +426,10 @@ def get_student_screen_time(
     ).count()
 
     today_raw_seconds = max(today_verified_seconds, today_interaction_seconds) + (quizzes_today * 300)
-    completed_today = db.query(StudentProgress).filter(
-        StudentProgress.student_user_id == student_id,
-        StudentProgress.updated_at >= today_start
-    ).count()
     today_minutes = int(today_raw_seconds / 60)
-    if today_minutes == 0 and completed_today > 0:
-        today_minutes = completed_today * 10
 
     week_raw_seconds = max(week_verified_seconds, week_interaction_seconds) + (quizzes_week * 300)
-    completed_week = db.query(StudentProgress).filter(
-        StudentProgress.student_user_id == student_id,
-        StudentProgress.updated_at >= week_start
-    ).count()
     week_minutes = int(week_raw_seconds / 60)
-    if week_minutes == 0 and completed_week > 0:
-        week_minutes = completed_week * 10
 
     all_progress = db.query(StudentProgress).filter(StudentProgress.student_user_id == student_id).all()
 
@@ -554,6 +553,14 @@ def get_student_screen_time(
             title="High-Value Curriculum Focus",
             description=f"{today_minutes}m of today's screen time was dedicated to approved curriculum modules with verified engagement.",
             recommended_action="Praise student for maintaining dedicated, distraction-free study cadence."
+        ))
+    elif 0 < today_minutes < 15 and not is_curfew_active and not is_over_limit:
+        alerts.append(EarlyActionAlert(
+            severity="info",
+            type="balance",
+            title="Active Learning Session Underway",
+            description=f"{student.first_name} has logged {today_minutes}m of focused study so far today.",
+            recommended_action="Allow student to continue uninterrupted with scheduled curriculum lessons."
         ))
     elif today_minutes == 0 and not is_curfew_active and not is_over_limit:
         alerts.append(EarlyActionAlert(
