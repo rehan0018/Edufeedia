@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, List
 
 from app.database import get_db
-from app.models.models import User, ContentItem, StudentProfile
+from app.models.models import (
+    User, ContentItem, StudentProfile, SafetyIncident, UserInteraction, LearningEvent
+)
 from app.schemas.schemas import TutorAskRequest, TutorResponse
 from app.core.security import RoleChecker
 from app.safety.engine import SafetyEngine
@@ -34,6 +36,10 @@ def ask_ai_tutor(
             detail="Guardian consent is required or has been revoked for AI Socratic tutoring under DPDP Act Section 9."
         )
 
+    # 0.5 Enforce parental screen time, bedtime curfew, and AI tutor daily quota
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="ai_tutor")
+
     # Determine student target age dynamically via centralized Age Policy
     target_age = StudentAgePolicy.get_student_age(current_user.student_profile if current_user.role == "student" else None)
     grade_lvl = (
@@ -45,6 +51,21 @@ def ask_ai_tutor(
     # 1. Safety Hard Gate check on student's prompt
     safety_audit = SafetyEngine.audit_content(request.question, target_age=target_age)
     if not safety_audit["is_safe"]:
+        # Record real safety incident for parental visibility
+        incident = SafetyIncident(
+            student_user_id=current_user.id,
+            source="ai_tutor_input",
+            category=safety_audit["matched_rules"][0] if safety_audit.get("matched_rules") else "PROHIBITED_QUERY",
+            severity="high" if safety_audit.get("safety_score", 50) < 30 else "medium",
+            blocked=True,
+            flagged_snippet=request.question[:250],
+            reason=safety_audit.get("explanation", "Student query blocked by fail-closed safety gate"),
+            action_taken="STEERED",
+            parent_notified=True
+        )
+        db.add(incident)
+        db.commit()
+
         return TutorResponse(
             answer="I am your Edufeedia Socratic study guide! I am designed to assist you with curriculum subjects, math, science, and coding concepts. Let's redirect our focus back to the lesson topic.",
             socratic_cue="What specific formula or idea in this module would you like to review?",
@@ -99,12 +120,50 @@ def ask_ai_tutor(
         AIBudgetManager.refund_reservation(reservation)
         raise e
     if not output_audit["is_safe"]:
+        out_incident = SafetyIncident(
+            student_user_id=current_user.id,
+            source="ai_tutor_output",
+            category=output_audit["matched_rules"][0] if output_audit.get("matched_rules") else "LLM_SAFETY_VIOLATION",
+            severity="critical",
+            blocked=True,
+            flagged_snippet=rag_result["answer"][:250],
+            reason="AI Tutor output intercepted by fail-closed safety gate",
+            action_taken="STEERED",
+            parent_notified=True
+        )
+        db.add(out_incident)
+        db.commit()
+
         return TutorResponse(
             answer="Let's focus on the foundational principles of this lesson. What core definition would you like to review together?",
             socratic_cue="Can you explain the problem in your own words?",
             follow_up_questions=["Would you like a step-by-step example?", "Which part seems challenging?"],
             is_safe=True
         )
+
+    # Record AI query telemetry for real screen-time and quota tracking
+    try:
+        target_id = valid_content_id
+        if not target_id:
+            first_item = db.query(ContentItem).first()
+            target_id = first_item.id if first_item else "general_tutor_dialog"
+
+        interaction = UserInteraction(
+            user_id=current_user.id,
+            content_item_id=target_id,
+            interaction_type="ai_query",
+            dwell_time_seconds=60
+        )
+        db.add(interaction)
+        db.add(LearningEvent(
+            student_user_id=current_user.id,
+            content_item_id=target_id,
+            event_type="ai_tutor_session",
+            verified_seconds=60
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
 
     return TutorResponse(
         answer=rag_result["answer"],

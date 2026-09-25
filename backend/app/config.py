@@ -25,34 +25,48 @@ class Settings:
     CORS_ALLOW_HEADERS: list = ["Authorization", "Content-Type", "X-Requested-With", "X-Request-ID", "Accept", "Origin"]
 
     def __init__(self):
-        # Resolve SECRET_KEY safely without hardcoded production fallbacks
+        self.ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+        self.ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", self.DEFAULT_DEV_ORIGINS)
         env_secret = os.getenv("SECRET_KEY")
         if self.ENVIRONMENT == "production":
-            if not env_secret or len(env_secret) < 32 or "change-in-production" in env_secret:
-                raise ValueError("CRITICAL CONFIG ERROR: Production environment requires a strong, random 32+ char SECRET_KEY set via environment variable.")
-            self.SECRET_KEY = env_secret
+            errors = []
+            forbidden_patterns = ["change-in-production", "edufeedia_dev", "dev-only", "secret_key_2026", "insecure-test"]
+            if not env_secret or len(env_secret) < 32 or any(p in env_secret.lower() for p in forbidden_patterns):
+                errors.append("• SECRET_KEY: Must be a strong, random 32+ character string (cannot use default development placeholders).")
             
             if self.ALLOWED_ORIGINS_RAW == "*":
-                raise ValueError("CRITICAL CONFIG ERROR: Production environment cannot use wildcard '*' ALLOWED_ORIGINS.")
+                errors.append("• ALLOWED_ORIGINS: Wildcard '*' is disallowed in production. Provide comma-separated origins (e.g. 'https://app.edufeedia.com').")
             
-            # Database check: Production must run PostgreSQL
             db_url = os.getenv("DATABASE_URL", "")
             if not db_url or "sqlite" in db_url.lower():
-                raise ValueError("CRITICAL CONFIG ERROR: Production environment must use RDS/PostgreSQL database (sqlite not permitted).")
+                errors.append("• DATABASE_URL: Production requires a managed PostgreSQL database (e.g. Render PostgreSQL or Supabase).")
 
-            # Cache check: Production requires Redis
             redis_url = os.getenv("REDIS_URL", "")
             if not redis_url:
-                raise ValueError("CRITICAL CONFIG ERROR: Production environment requires REDIS_URL for OTP and token cache.")
+                errors.append("• REDIS_URL: Production requires a Redis instance for token blacklisting and OTP verification.")
 
-            # Email check: Production requires live SMTP provider for verifiable parental consent
             smtp_host = os.getenv("SMTP_HOST", "")
             smtp_user = os.getenv("SMTP_USER", "")
             smtp_pass = os.getenv("SMTP_PASSWORD", "")
             if not (smtp_host and smtp_user and smtp_pass):
-                raise ValueError("CRITICAL CONFIG ERROR: Production environment requires valid SMTP credentials (SMTP_HOST, SMTP_USER, SMTP_PASSWORD) for legal guardian consent dispatch.")
+                errors.append("• SMTP_HOST, SMTP_USER, SMTP_PASSWORD: Required for verifiable parental consent dispatch.")
+
+            if errors:
+                err_msg = (
+                    "\n======================================================================\n"
+                    "CRITICAL CONFIG ERROR: Missing Production Environment Variables\n"
+                    "======================================================================\n"
+                    + "\n".join(errors) +
+                    "\n\n👉 ACTION REQUIRED: Add the variables above in your Render / Cloud Dashboard.\n"
+                    "👉 PREVIEW / DEMO MODE: If deploying a lightweight preview/demo without external PostgreSQL/Redis,\n"
+                    "   set ENVIRONMENT=staging in your Environment Variables.\n"
+                    "======================================================================"
+                )
+                raise ValueError(err_msg)
+
+            self.SECRET_KEY = env_secret
         else:
-            # Development/Testing environment fallback
+            # Development/Staging/Testing fallback
             self.SECRET_KEY = env_secret or "edufeedia-dev-only-insecure-test-signing-key-32chars"
 
     @property
@@ -69,6 +83,8 @@ class Settings:
         if not raw_url or raw_url.startswith("sqlite:///."):
             db_file = (BASE_DIR / "edufeedia.db").resolve().as_posix()
             return f"sqlite:///{db_file}"
+        if raw_url.startswith("postgres://"):
+            raw_url = raw_url.replace("postgres://", "postgresql://", 1)
         return raw_url
 
 settings = Settings()

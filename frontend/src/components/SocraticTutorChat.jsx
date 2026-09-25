@@ -53,7 +53,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
       setError(err.message || 'The AI Tutor is temporarily unavailable.');
       setMessages(prev => [...prev, {
         sender: 'tutor',
-        text: '⚠ Tutor service is currently unavailable. Please check your connection or explore another topic in the Explore Catalog.',
+        text: err.message ? `🔒 ${err.message}` : '⚠ Tutor service is currently unavailable. Please check your connection or explore another topic in the Explore Catalog.',
         is_error: true
       }]);
     } finally {
@@ -86,16 +86,16 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
               fontWeight: 800,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
-              padding: '3px 10px',
+              padding: '4px 10px',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
-              color: '#0a0f1d'
+              background: 'var(--gradient-hero)',
+              color: '#FFFFFF'
             }}>
               🤖 Socratic AI Tutor
             </span>
             <span style={{
               fontSize: '0.75rem',
-              color: 'var(--accent-emerald)',
+              color: 'var(--accent-mint)',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
@@ -114,12 +114,12 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
 
         <div style={{
           padding: '8px 14px',
-          background: 'var(--bg-space)',
+          background: 'var(--bg-soft-blue)',
           borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-subtle)',
           fontSize: '0.84rem'
         }}>
-          <span style={{ color: 'var(--text-muted)' }}>Focus Context:</span> <strong style={{ color: 'var(--accent-cyan)' }}>{activeTopic}</strong>
+          <span style={{ color: 'var(--text-muted)' }}>Focus Context:</span> <strong style={{ color: 'var(--brand-primary)' }}>{activeTopic}</strong>
         </div>
       </div>
 
@@ -149,12 +149,12 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                 maxWidth: '75%',
                 padding: '12px 18px',
                 borderRadius: '18px 18px 4px 18px',
-                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
-                color: '#0a0f1d',
+                background: 'var(--brand-primary)',
+                color: '#FFFFFF',
                 fontWeight: 600,
                 fontSize: '0.95rem',
                 lineHeight: '1.45',
-                boxShadow: 'var(--shadow-glow-cyan)'
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
               }}>
                 {m.text}
               </div>
@@ -164,8 +164,8 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                 maxWidth: '90%',
                 padding: '20px',
                 borderRadius: '18px 18px 18px 4px',
-                background: m.is_error ? 'hsla(346, 84%, 61%, 0.12)' : 'var(--bg-card-solid)',
-                border: m.is_error ? '1px solid var(--accent-rose)' : '1px solid var(--border-subtle)',
+                background: m.is_error ? 'rgba(255, 122, 89, 0.12)' : 'var(--bg-card)',
+                border: m.is_error ? '1px solid var(--accent-coral)' : '1px solid var(--border-subtle)',
                 color: 'var(--text-primary)',
                 lineHeight: '1.55'
               }}>
@@ -176,7 +176,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                     alignItems: 'center',
                     gap: '6px',
                     fontSize: '0.78rem',
-                    color: 'var(--accent-cyan)',
+                    color: 'var(--brand-primary)',
                     fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px',
@@ -196,18 +196,18 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                   <div style={{
                     padding: '12px 16px',
                     borderRadius: 'var(--radius-md)',
-                    background: 'hsla(186, 100%, 50%, 0.08)',
-                    borderLeft: '4px solid var(--accent-cyan)',
-                    borderTop: '1px solid hsla(186, 100%, 50%, 0.2)',
-                    borderRight: '1px solid hsla(186, 100%, 50%, 0.2)',
-                    borderBottom: '1px solid hsla(186, 100%, 50%, 0.2)',
-                    color: 'var(--accent-cyan)',
+                    background: 'var(--bg-soft-blue)',
+                    borderLeft: '4px solid var(--brand-primary)',
+                    borderTop: '1px solid var(--border-subtle)',
+                    borderRight: '1px solid var(--border-subtle)',
+                    borderBottom: '1px solid var(--border-subtle)',
+                    color: 'var(--text-primary)',
                     fontSize: '0.88rem',
                     fontWeight: 500,
                     marginBottom: '12px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', fontSize: '0.76rem' }}>
-                      <Lightbulb size={14} /> Think About This:
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', fontSize: '0.76rem', color: 'var(--brand-primary)' }}>
+                      <Lightbulb size={14} color="var(--accent-yellow)" /> Think About This:
                     </div>
                     {m.socratic_cue}
                   </div>
@@ -228,7 +228,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                             fontSize: '0.8rem',
                             padding: '6px 12px',
                             borderRadius: '16px',
-                            background: 'var(--bg-space)',
+                            background: 'var(--bg-soft-blue)',
                             borderColor: 'var(--border-subtle)',
                             textAlign: 'left'
                           }}
@@ -252,9 +252,9 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
             gap: '10px',
             padding: '14px 18px',
             borderRadius: '16px',
-            background: 'var(--bg-card-solid)',
+            background: 'var(--bg-card)',
             border: '1px solid var(--border-subtle)',
-            color: 'var(--accent-cyan)',
+            color: 'var(--brand-primary)',
             fontSize: '0.88rem',
             maxWidth: '340px'
           }}>
@@ -318,7 +318,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
             flex: 1,
             padding: '14px 18px',
             borderRadius: 'var(--radius-md)',
-            background: 'var(--bg-card-solid)',
+            background: 'var(--bg-card)',
             border: '1px solid var(--border-subtle)',
             color: 'var(--text-primary)',
             fontSize: '0.96rem',

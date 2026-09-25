@@ -272,7 +272,7 @@ export const fetchClassAnalytics = async (classId) => {
   return await res.json();
 };
 
-// 11. Parent Linked Student Progress
+// 11. Parent Linked Student Progress & Screen Time
 export const fetchParentStudentSummary = async () => {
   const res = await fetch(`${API_BASE_URL}/parents/students`, {
     headers: defaultHeaders()
@@ -292,6 +292,29 @@ export const fetchParentStudentSummary = async () => {
   }
   const summary = await progressRes.json();
   return { student: firstStudent, summary };
+};
+
+export const fetchStudentScreenTime = async (studentId) => {
+  const res = await fetch(`${API_BASE_URL}/parents/student/${studentId}/screen-time`, {
+    headers: defaultHeaders()
+  });
+  if (!res.ok) {
+    throw new Error('Failed to fetch student screen time analytics');
+  }
+  return await res.json();
+};
+
+export const updateStudentScreenTimePolicy = async (studentId, policyData) => {
+  const res = await fetch(`${API_BASE_URL}/parents/student/${studentId}/screen-time/policy`, {
+    method: 'POST',
+    headers: defaultHeaders(),
+    body: JSON.stringify(policyData)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update screen time policy' }));
+    throw new Error(err.detail || 'Failed to update screen time policy');
+  }
+  return await res.json();
 };
 
 // 12. Explore Catalog Search & Filter
@@ -393,3 +416,134 @@ export const moderateContentReport = async (reportId, status, actionTaken = '') 
     body: JSON.stringify({ report_id: reportId, status, action_taken: actionTaken })
   });
 };
+
+// ==============================================================================
+// 20. EduFeedia Kids & Parent Supervision APIs
+// ==============================================================================
+
+// Parent Child Profiles CRUD
+export const fetchParentChildren = async () => {
+  return await apiFetch('/parents/children');
+};
+
+export const createChildProfile = async (childData) => {
+  return await apiFetch('/parents/children', {
+    method: 'POST',
+    body: JSON.stringify(childData)
+  });
+};
+
+export const updateChildProfile = async (childId, childData) => {
+  return await apiFetch(`/parents/children/${childId}`, {
+    method: 'PUT',
+    body: JSON.stringify(childData)
+  });
+};
+
+export const deleteChildProfile = async (childId) => {
+  return await apiFetch(`/parents/children/${childId}`, {
+    method: 'DELETE'
+  });
+};
+
+export const updateChildControls = async (childId, controlsData) => {
+  return await apiFetch(`/parents/children/${childId}/controls`, {
+    method: 'PUT',
+    body: JSON.stringify(controlsData)
+  });
+};
+
+export const setChildContentApproval = async (childId, contentItemId, status, notes = '') => {
+  return await apiFetch(`/parents/children/${childId}/approve-content`, {
+    method: 'POST',
+    body: JSON.stringify({ content_item_id: contentItemId, status, notes })
+  });
+};
+
+export const updateChildScreenTime = async (childId, screenTimeData) => {
+  return await apiFetch(`/parents/children/${childId}/screen-time`, {
+    method: 'PUT',
+    body: JSON.stringify(screenTimeData)
+  });
+};
+
+export const fetchChildDashboard = async (childId) => {
+  return await apiFetch(`/parents/children/${childId}/dashboard`);
+};
+
+export const enterKidsMode = async (childId) => {
+  return await apiFetch(`/parents/children/${childId}/enter-kids-mode`, {
+    method: 'POST'
+  });
+};
+
+// Parent Gate PIN Security
+export const verifyParentPin = async (pin) => {
+  return await apiFetch('/parents/verify-pin', {
+    method: 'POST',
+    body: JSON.stringify({ pin })
+  });
+};
+
+export const setParentPin = async (pin) => {
+  return await apiFetch('/parents/pin', {
+    method: 'POST',
+    body: JSON.stringify({ pin })
+  });
+};
+
+// Kids Mode Endpoints
+export const fetchKidsAdventure = async (childId) => {
+  return await apiFetch(`/kids/${childId}/adventure`);
+};
+
+export const fetchKidsFeed = async (childId, limit = 6) => {
+  return await apiFetch(`/kids/${childId}/feed?limit=${limit}`);
+};
+
+export const fetchKidsExplain = async (childId, contentId) => {
+  return await apiFetch(`/kids/${childId}/feed/explain/${contentId}`);
+};
+
+export const recordKidsActivity = async (childId, activityData) => {
+  return await apiFetch(`/kids/${childId}/activity`, {
+    method: 'POST',
+    body: JSON.stringify(activityData)
+  });
+};
+
+export const submitKidsQuiz = async (childId, quizId, selectedOption) => {
+  return await apiFetch(`/kids/${childId}/quiz/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ quiz_id: quizId, selected_option: selectedOption })
+  });
+};
+
+export const fetchKidsAchievements = async (childId) => {
+  return await apiFetch(`/kids/${childId}/achievements`);
+};
+
+export const fetchKidsScreenTimeStatus = async (childId) => {
+  return await apiFetch(`/kids/${childId}/screen-time-status`);
+};
+
+export const searchKidsContent = async (childId, query) => {
+  return await apiFetch(`/kids/${childId}/safe-search?q=${encodeURIComponent(query)}`);
+};
+
+export const fetchStudentScreenTimeStatus = async () => {
+  return await apiFetch('/students/screen-time-status');
+};
+
+export const sendStudentHeartbeat = async (contentItemId = null, activityType = 'general', activeSeconds = 30) => {
+  return await apiFetch('/students/heartbeat', {
+    method: 'POST',
+    body: JSON.stringify({
+      content_item_id: contentItemId,
+      activity_type: activityType,
+      active_seconds: activeSeconds
+    })
+  });
+};
+
+

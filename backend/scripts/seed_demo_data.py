@@ -19,7 +19,7 @@ from app.models.models import (
     ContentItem, Quiz, Question, School, SchoolClass, User, StudentProfile,
     StudentProgress, QuizAttempt, SpacedRepetitionSchedule, Flashcard,
     Badge, UserBadge, ClassAssignment, parent_student_links, teacher_classes,
-    TopicMastery
+    TopicMastery, ConsentRecord
 )
 from app.embeddings.embedder import embed_content
 from app.core.excel_exporter import sync_database_to_excel
@@ -208,6 +208,20 @@ def seed_demo_data():
             student_user_id=student_rahul.id,
             is_verified=True
         ))
+
+        # Add Verified Granular Consent Records for All Seeded Students
+        for s_user in [student_rahul, student_priya, student_aman, student_sneha]:
+            for purp in ["ai_socratic_tutor", "curriculum_recommendations", "analytics_tracking", "formative_tracking"]:
+                db.add(ConsentRecord(
+                    student_user_id=s_user.id,
+                    guardian_user_id=parent_user.id,
+                    processing_purpose=purp,
+                    status="ACTIVE",
+                    verification_method="GUARDIAN_EMAIL_OTP",
+                    policy_version="2026.2-DPDP",
+                    consent_scope="ALL_CURRICULUM_INTERACTIONS"
+                ))
+        db.flush()
 
         # 5. Add Badges
         badges = [
@@ -611,6 +625,14 @@ def seed_demo_data():
         ])
 
         db.commit()
+
+        # Seed Kids Ecosystem Fixtures (Aarav, Sara, Kabir, Cartoons, Money Adventure)
+        try:
+            from app.seed_kids_data import seed_kids_ecosystem
+            seed_kids_ecosystem()
+        except Exception as ke:
+            print(f"[Kids Seeding Note]: {ke}")
+
         print("Seeding complete! Database records exported to Excel sheet: edufeedia_database_records.xlsx")
         try:
             excel_path = sync_database_to_excel(db)

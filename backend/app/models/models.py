@@ -81,12 +81,14 @@ class User(Base):
     account_status = Column(String, default="ACTIVE") # ACTIVE, SUSPENDED, DEACTIVATED
     token_version = Column(Integer, default=1, nullable=False) # Incremented on password reset to invalidate active JWTs
     password_changed_at = Column(DateTime, nullable=True) # Explicit timestamp of last credential reset
+    parent_pin_hash = Column(String, nullable=True) # Bcrypt hash of 4-digit parent gate PIN
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     school = relationship("School", back_populates="users")
 
     student_profile = relationship("StudentProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
+    child_profiles = relationship("ChildProfile", back_populates="parent", cascade="all, delete-orphan")
     quiz_attempts = relationship("QuizAttempt", back_populates="student", cascade="all, delete-orphan")
     progress_logs = relationship("StudentProgress", back_populates="student", cascade="all, delete-orphan")
     spaced_schedules = relationship("SpacedRepetitionSchedule", back_populates="student", cascade="all, delete-orphan")
@@ -155,6 +157,19 @@ class ContentItem(Base):
     policy_version = Column(String, default="2026.2")
     source_id = Column(String, nullable=True)
     provenance_metadata = Column(JSON, default=dict)
+    
+    # Kids Mode & Multilingual Extensions
+    age_min = Column(Integer, default=0)
+    age_max = Column(Integer, default=18)
+    content_category = Column(String, default="STEM") # 'STEM', 'Creativity', 'World', 'Life Skills', 'Philosophy & Values', 'World Traditions'
+    subcategory = Column(String, nullable=True)
+    language = Column(String, default="en") # 'en', 'hi', 'mr', 'gu', 'ta', 'te', 'bn'
+    is_cartoon = Column(Boolean, default=False)
+    mascot_character = Column(String, nullable=True)
+    ai_generated_status = Column(String, default="HUMAN_CREATED") # 'HUMAN_CREATED', 'AI_ASSISTED', 'AI_GENERATED'
+    human_reviewed = Column(Boolean, default=True)
+    interactive_payload = Column(JSON, nullable=True)
+
     checked_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
@@ -162,6 +177,7 @@ class ContentItem(Base):
     quizzes = relationship("Quiz", back_populates="content_item", cascade="all, delete-orphan")
     progress_logs = relationship("StudentProgress", back_populates="content_item", cascade="all, delete-orphan")
     interactions = relationship("UserInteraction", back_populates="content_item", cascade="all, delete-orphan")
+    child_activities = relationship("ChildActivity", back_populates="content_item", cascade="all, delete-orphan")
 
 class UserInteraction(Base):
     __tablename__ = "user_interactions"
@@ -170,7 +186,7 @@ class UserInteraction(Base):
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=True)
     interaction_type = Column(String, nullable=False) # 'view', 'click', 'watch_time', 'completed', 'quiz_completed', 'bookmark', 'like', 'skip'
     weight = Column(Numeric(4, 2), default=1.0) # +5 for completion, +4 for bookmark, -2 for skip, etc.
     dwell_time_seconds = Column(Integer, default=0)
@@ -496,7 +512,7 @@ class LearningEvent(Base):
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=True)
     event_type = Column(String, nullable=False)  # 'heartbeat', 'progress_checkpoint', 'completion_verified', 'quiz_submission'
     progress_percentage = Column(Integer, default=0)
     verified_seconds = Column(Integer, default=0)
@@ -674,3 +690,228 @@ class AIUsageEvent(Base):
 
     student = relationship("User", foreign_keys=[student_id])
     school = relationship("School", foreign_keys=[school_id])
+
+
+class ParentalScreenTimePolicy(Base):
+    """
+    Parent-configured device & learning screen time policy for a student.
+    Enforces daily screen time thresholds, bedtime curfew, and category quotas.
+    """
+    __tablename__ = "parental_screen_time_policies"
+    __table_args__ = (
+        UniqueConstraint("parent_user_id", "student_user_id", name="uq_parent_student_screentime_policy"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    parent_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    daily_limit_minutes = Column(Integer, default=90)  # e.g. 90 minutes / day
+    curfew_start_time = Column(String, default="21:30")  # 9:30 PM
+    curfew_end_time = Column(String, default="06:30")    # 6:30 AM
+    curfew_enabled = Column(Boolean, default=True)
+    ai_tutor_max_daily_minutes = Column(Integer, default=30)
+    break_interval_minutes = Column(Integer, default=45) # 45 min continuous session warning
+    allow_weekend_bonus_minutes = Column(Integer, default=30)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    parent = relationship("User", foreign_keys=[parent_user_id])
+    student = relationship("User", foreign_keys=[student_user_id])
+
+
+# ==============================================================================
+# EduFeedia Kids & Parent Supervision Architecture Models
+# ==============================================================================
+
+class ChildProfile(Base):
+    """
+    Sub-profile entity internally linked to a Parent account.
+    Children under configured threshold (0–10) do NOT need an independent email or public credentials.
+    Supports granular parent curation, developmental age-banding, mascot avatar, and screen-time bounds.
+    """
+    __tablename__ = "child_profiles"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    parent_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    date_of_birth = Column(Date, nullable=False)
+    preferred_language = Column(String, default="en")  # 'en', 'hi', 'mr', 'gu', 'ta', 'te', 'bn'
+    secondary_language = Column(String, nullable=True)
+    learning_level = Column(String, default="beginner") # 'beginner', 'intermediate', 'advanced'
+    avatar_mascot = Column(String, default="space_explorer") # 'space_explorer', 'dino', 'fox', 'robot', 'owl'
+    school_name = Column(String, nullable=True)
+    grade_or_class = Column(String, nullable=True)
+    interests = Column(JSON, default=list) # e.g. ["Art", "Science", "Space", "Animals", "Money & Financial Literacy"]
+    allowed_categories = Column(JSON, default=lambda: ["STEM", "Creativity", "World", "Life Skills", "Philosophy & Values", "World Traditions"])
+    blocked_categories = Column(JSON, default=list)
+    allowed_content_types = Column(JSON, default=lambda: ["video", "story", "activity", "quiz", "game"])
+    parent_approved_only = Column(Boolean, default=False)
+    daily_limit_minutes = Column(Integer, default=45)
+    curfew_start_time = Column(String, default="20:00")
+    curfew_end_time = Column(String, default="07:00")
+    curfew_enabled = Column(Boolean, default=True)
+    xp_score = Column(Integer, default=0)
+    streak_count = Column(Integer, default=0)
+    stars_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    parent = relationship("User", back_populates="child_profiles")
+    activities = relationship("ChildActivity", back_populates="child", cascade="all, delete-orphan")
+    quiz_history = relationship("ChildQuizHistory", back_populates="child", cascade="all, delete-orphan")
+    achievements = relationship("ChildAchievement", back_populates="child", cascade="all, delete-orphan")
+    content_approvals = relationship("ChildContentApproval", back_populates="child", cascade="all, delete-orphan")
+
+
+class ChildActivity(Base):
+    """
+    Child interaction and dwell-time log supporting child-friendly emoji reactions
+    (❤️ Loved it, 😊 Good, 😐 Okay, 😕 Confused) to power the Learning Balance Engine.
+    """
+    __tablename__ = "child_activities"
+    __table_args__ = (
+        Index("ix_child_activities_child_content", "child_profile_id", "content_item_id"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    child_profile_id = Column(String, ForeignKey("child_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    activity_type = Column(String, nullable=False) # 'video', 'story', 'game', 'creative_task', 'experiment', 'quiz'
+    dwell_time_seconds = Column(Integer, default=0)
+    completed = Column(Boolean, default=False)
+    child_reaction = Column(String, nullable=True) # 'loved', 'good', 'okay', 'confused'
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    child = relationship("ChildProfile", back_populates="activities")
+    content_item = relationship("ContentItem", back_populates="child_activities")
+
+
+class ChildQuizHistory(Base):
+    """
+    Kids formative mini-quiz results with encouraging, non-punishing feedback
+    ('Almost! Let's discover why 🌟') and star awards.
+    """
+    __tablename__ = "child_quiz_history"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    child_profile_id = Column(String, ForeignKey("child_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = Column(String, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    score = Column(Integer, nullable=False)
+    total_questions = Column(Integer, nullable=False)
+    positive_feedback = Column(Text, nullable=True)
+    stars_awarded = Column(Integer, default=3)
+    completed_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    child = relationship("ChildProfile", back_populates="quiz_history")
+    quiz = relationship("Quiz")
+
+
+class ChildAchievement(Base):
+    """
+    Age-appropriate gamification: Badges, progress stars, and curiosity trophies.
+    Focuses on curiosity, consistency, and discovery rather than stressful competition.
+    """
+    __tablename__ = "child_achievements"
+    __table_args__ = (
+        UniqueConstraint("child_profile_id", "badge_code", name="uq_child_badge_code"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    child_profile_id = Column(String, ForeignKey("child_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    badge_code = Column(String, nullable=False) # 'space_explorer', 'junior_scientist', 'creative_artist', 'nature_friend', 'curious_thinker', 'money_explorer'
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    icon = Column(String, nullable=False) # Lucide or emoji icon identifier
+    stars_awarded = Column(Integer, default=5)
+    unlocked_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    child = relationship("ChildProfile", back_populates="achievements")
+
+
+class ChildContentApproval(Base):
+    """
+    Explicit parent whitelist / blacklist per content item for strict 'Parent Approved Only' mode.
+    """
+    __tablename__ = "child_content_approvals"
+    __table_args__ = (
+        UniqueConstraint("child_profile_id", "content_item_id", name="uq_child_content_approval"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    child_profile_id = Column(String, ForeignKey("child_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String, nullable=False) # 'APPROVED', 'BLOCKED'
+    notes = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    child = relationship("ChildProfile", back_populates="content_approvals")
+    content_item = relationship("ContentItem")
+
+
+class SystemSetting(Base):
+    """
+    Configurable platform policies: Age threshold for Kids Mode, age bands definition,
+    and moderation policies.
+    """
+    __tablename__ = "system_settings"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    key = Column(String, unique=True, index=True, nullable=False)
+    value = Column(JSON, nullable=False)
+    description = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+
+class SafetyIncident(Base):
+    """
+    Real-time safety incident aggregation log for both Student Mode and Kids Mode.
+    Records content violations, prompt injections, blocked search queries, device blocks,
+    and parental notification records.
+    """
+    __tablename__ = "safety_incidents"
+    __table_args__ = (
+        Index("ix_safety_incidents_student", "student_user_id", "created_at"),
+        Index("ix_safety_incidents_child", "child_profile_id", "created_at"),
+        Index("ix_safety_incidents_severity", "severity"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    child_profile_id = Column(String, ForeignKey("child_profiles.id", ondelete="CASCADE"), nullable=True)
+    source = Column(String, nullable=False) # 'ai_tutor_input', 'ai_tutor_output', 'safe_search', 'content_ingestion', 'browser_extension', 'device_vpn'
+    category = Column(String, nullable=False) # 'VIOLENCE', 'SELF_HARM', 'NSFW', 'HATE_SPEECH', 'DRUGS', 'JAILBREAK', 'MATURE_RESTRICTED', 'BULLYING'
+    severity = Column(String, nullable=False, default="medium") # 'low', 'medium', 'high', 'critical'
+    blocked = Column(Boolean, default=True)
+    flagged_snippet = Column(Text, nullable=True)
+    detected_language = Column(String, default="en") # 'en', 'hi', 'hinglish', 'mr', 'ta', 'te', 'bn'
+    reason = Column(Text, nullable=False)
+    action_taken = Column(String, default="BLOCKED") # 'BLOCKED', 'QUARANTINED', 'STEERED', 'ALERTED_PARENT'
+    parent_notified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), index=True)
+
+    student = relationship("User", foreign_keys=[student_user_id])
+    child = relationship("ChildProfile", foreign_keys=[child_profile_id])
+
+
+class ContentModerationItem(Base):
+    """
+    Human Moderation Queue for staged, suspicious, or reported educational content.
+    Enables educators/moderators to inspect flagged text, video keyframes, OCR snippets,
+    and decide whether to APPROVE, REJECT, or QUARANTINE.
+    """
+    __tablename__ = "content_moderation_items"
+    __table_args__ = (
+        Index("ix_mod_status", "status"),
+        Index("ix_mod_risk", "risk_level"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    content_item_id = Column(String, ForeignKey("content_items.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String, nullable=False)
+    source_url = Column(String, nullable=True)
+    source_platform = Column(String, default="Web Ingestion")
+    risk_level = Column(String, nullable=False, default="medium") # 'low', 'medium', 'high', 'critical'
+    ai_safety_score = Column(Numeric(5, 2), default=85.0)
+    flagged_reasons = Column(JSON, default=list) # e.g. ["Hindi slang detected", "Unsafe frame at 07:42", "Adult keyword"]
+    extracted_text_snippet = Column(Text, nullable=True)
+    multimodal_evidence = Column(JSON, nullable=True) # e.g. {"frame_timestamps": ["07:42"], "ocr_text": "...", "audio_transcript": "..."}
+    status = Column(String, default="PENDING", index=True) # 'PENDING', 'APPROVED', 'REJECTED', 'QUARANTINED'
+    moderator_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    moderator_notes = Column(Text, nullable=True)
+    action_timestamp = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    content_item = relationship("ContentItem")
+    moderator = relationship("User", foreign_keys=[moderator_user_id])
+

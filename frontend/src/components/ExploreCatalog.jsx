@@ -41,7 +41,7 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-          <Sparkles size={24} color="var(--accent-cyan)" />
+          <Sparkles size={24} color="var(--brand-primary)" />
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Explore Curriculum Catalog</h1>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
@@ -65,7 +65,7 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
                 width: '100%',
                 padding: '12px 14px 12px 42px',
                 borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-space)',
+                background: 'var(--bg-soft-blue)',
                 border: '1px solid var(--border-subtle)',
                 color: 'var(--text-primary)',
                 fontSize: '0.95rem',
@@ -84,7 +84,7 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
               style={{
                 padding: '12px 16px',
                 borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-space)',
+                background: 'var(--bg-soft-blue)',
                 border: '1px solid var(--border-subtle)',
                 color: 'var(--text-primary)',
                 fontSize: '0.9rem',
@@ -107,8 +107,8 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
               onClick={() => setSelectedSubject(subj)}
               className="btn btn-sm"
               style={{
-                background: selectedSubject === subj ? 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))' : 'var(--bg-space)',
-                color: selectedSubject === subj ? '#0a0f1d' : 'var(--text-secondary)',
+                background: selectedSubject === subj ? 'var(--brand-primary)' : 'var(--bg-soft-blue)',
+                color: selectedSubject === subj ? '#FFFFFF' : 'var(--text-secondary)',
                 fontWeight: selectedSubject === subj ? 700 : 500,
                 border: selectedSubject === subj ? 'none' : '1px solid var(--border-subtle)',
                 borderRadius: '20px',
@@ -126,9 +126,9 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
         <div style={{
           padding: '14px 18px',
           borderRadius: 'var(--radius-md)',
-          background: 'hsla(346, 84%, 61%, 0.15)',
-          border: '1px solid var(--accent-rose)',
-          color: 'var(--accent-rose)',
+          background: 'rgba(255, 122, 89, 0.12)',
+          border: '1px solid var(--accent-coral)',
+          color: 'var(--accent-coral)',
           marginBottom: '24px'
         }}>
           {error}
@@ -172,7 +172,7 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
                 justifyContent: 'space-between',
                 padding: '20px',
                 transition: 'transform 0.2s ease, border-color 0.2s ease',
-                border: item.is_completed ? '1px solid hsla(160, 84%, 39%, 0.4)' : '1px solid var(--border-subtle)'
+                border: item.is_completed ? '1px solid var(--accent-mint)' : '1px solid var(--border-subtle)'
               }}
             >
               <div>
@@ -186,21 +186,21 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
                     padding: '4px 10px',
                     borderRadius: '12px',
                     background: item.subject === 'Computer Science' || item.subject === 'Coding'
-                      ? 'hsla(186, 100%, 50%, 0.15)'
+                      ? 'rgba(37, 99, 235, 0.12)'
                       : item.subject === 'Mathematics'
-                      ? 'hsla(263, 70%, 58%, 0.15)'
-                      : 'hsla(160, 84%, 39%, 0.15)',
+                      ? 'rgba(23, 59, 108, 0.12)'
+                      : 'rgba(52, 191, 163, 0.12)',
                     color: item.subject === 'Computer Science' || item.subject === 'Coding'
-                      ? 'var(--accent-cyan)'
+                      ? 'var(--brand-primary)'
                       : item.subject === 'Mathematics'
-                      ? 'var(--accent-purple)'
-                      : 'var(--accent-emerald)'
+                      ? 'var(--brand-dark)'
+                      : 'var(--accent-mint)'
                   }}>
                     {item.subject} • Grade {item.grade_level}
                   </span>
 
                   {item.is_completed && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-emerald)', fontSize: '0.8rem', fontWeight: 600 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-mint)', fontSize: '0.8rem', fontWeight: 600 }}>
                       <CheckCircle2 size={15} /> Completed
                     </span>
                   )}
@@ -240,10 +240,10 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
                     <Clock size={14} /> {item.duration_minutes ?? 12} min
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <ShieldCheck size={14} color="var(--accent-emerald)" /> Safe EDU
+                    <ShieldCheck size={14} color="var(--accent-mint)" /> Safe EDU
                   </span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Award size={14} color="var(--accent-gold)" /> {item.edu_score ?? 98}% Score
+                    <Award size={14} color="var(--accent-yellow)" /> {item.edu_score ?? 98}% Score
                   </span>
                 </div>
 

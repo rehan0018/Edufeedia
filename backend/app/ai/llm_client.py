@@ -95,7 +95,8 @@ class LLMClient:
         try:
             final_response = self._audit_output_safety(raw_response, student_grade)
         except Exception as e:
-            logger.error(f"[CRITICAL: Safety Engine Failure -> Failing Closed]: {e}")
+            if os.getenv("ENVIRONMENT") != "test":
+                logger.warning(f"[Safety Gate Failing Closed]: {e}")
             final_response = {
                 "answer": "Safety Alert: We encountered an unexpected validation check error. As a student safety precaution, this response has been withheld.",
                 "socratic_cue": "Let's review the verified curriculum textbook lesson together.",

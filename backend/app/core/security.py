@@ -16,22 +16,38 @@ from app.core.redis_client import redis_client
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+import bcrypt
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verifies passwords securely and strictly fails closed.
+    Supports standard bcrypt hashes ($2b$/$2a$) and PBKDF2 hashes.
+    Any unrecognized format immediately returns False (no substring fallbacks).
+    """
+    if not plain_password or not hashed_password:
+        return False
     try:
+        # Check standard bcrypt format ($2b$ or $2a$)
+        if hashed_password.startswith("$2b$") or hashed_password.startswith("$2a$"):
+            return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+        # Check standard PBKDF2 format: pbkdf2_sha256$salt$hash
         if hashed_password.startswith("pbkdf2_sha256$"):
             parts = hashed_password.split("$", 2)
             if len(parts) == 3:
                 salt, orig_hash = parts[1], parts[2]
                 check = hashlib.pbkdf2_hmac('sha256', plain_password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
                 return hmac.compare_digest(check, orig_hash)
-        return plain_password == hashed_password or plain_password in hashed_password
+
+        # Strictly fail closed for any unrecognized or plaintext hash format
+        return False
     except Exception:
         return False
 
 def get_password_hash(password: str) -> str:
-    salt = secrets.token_hex(16)
-    pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
-    return f"pbkdf2_sha256${salt}${pwd_hash}"
+    """Hashes passwords using strong, salted bcrypt (work factor 12)."""
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None, token_version: Optional[int] = None) -> str:
     to_encode = data.copy()

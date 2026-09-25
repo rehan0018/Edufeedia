@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import datetime
 
 from app.database import get_db
@@ -93,7 +93,11 @@ def record_student_activity(
     """
     Explicit Activity Tracking Endpoint:
     Registers a study session and advances the student's daily streak count idempotently.
+    Enforces parental curfew and screen time bounds.
     """
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+
     profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
@@ -124,6 +128,80 @@ def record_student_activity(
         "streak_advanced": streak_advanced
     }
 
+
+from pydantic import BaseModel, Field
+
+class StudentHeartbeatIn(BaseModel):
+    content_item_id: Optional[str] = None
+    activity_type: str = "general"
+    active_seconds: int = Field(default=30, ge=5, le=120)
+
+
+@router.get("/screen-time-status", response_model=Dict[str, Any])
+def get_student_screen_time_status(
+    current_user: User = Depends(RoleChecker(["student"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns real-time parental policy bounds and verified telemetry status for the student.
+    Enables frontend UI to lock screen or display warnings when curfew or limits are reached.
+    """
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    return ScreenTimePolicyEnforcer.get_screen_time_status(db, current_user.id)
+
+
+@router.post("/heartbeat", response_model=Dict[str, Any])
+def record_student_heartbeat(
+    heartbeat_data: StudentHeartbeatIn,
+    current_user: User = Depends(RoleChecker(["student"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Genuine Heartbeat Telemetry:
+    Records verified study session increments (5–120s) into authoritative LearningEvent logs.
+    Immediately returns updated curfew and daily limit enforcement status.
+    """
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    from app.models.models import LearningEvent, UserInteraction
+
+    # Validate and clamp active seconds to prevent tampering
+    clamped_seconds = min(120, max(5, heartbeat_data.active_seconds))
+
+    target_content_id = heartbeat_data.content_item_id
+    if not target_content_id:
+        from app.models.models import ContentItem
+        first_item = db.query(ContentItem).first()
+        target_content_id = first_item.id if first_item else "general_platform_heartbeat"
+
+    # Log authoritative learning event
+    event = LearningEvent(
+        student_user_id=current_user.id,
+        content_item_id=target_content_id,
+        event_type="heartbeat",
+        verified_seconds=clamped_seconds,
+        heartbeat_count=1
+    )
+    db.add(event)
+
+    if heartbeat_data.content_item_id or target_content_id:
+        interaction = UserInteraction(
+            user_id=current_user.id,
+            content_item_id=target_content_id,
+            interaction_type="watch_time" if heartbeat_data.activity_type == "video" else "view",
+            dwell_time_seconds=clamped_seconds
+        )
+        db.add(interaction)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # Return updated screen time status after recording telemetry
+    status_info = ScreenTimePolicyEnforcer.get_screen_time_status(db, current_user.id)
+    return status_info
+
+
 @router.get("/feed", response_model=Dict[str, Any])
 def get_daily_learning_feed(
     current_user: User = Depends(RoleChecker(["student"])),
@@ -132,15 +210,19 @@ def get_daily_learning_feed(
     """
     Read-Only Daily Learning Feed:
     Retrieves personalized curriculum recommendations without mutating user streak or profile state.
+    Includes real-time screen-time policy and curfew enforcement status.
     """
     profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
-        
+
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    st_status = ScreenTimePolicyEnforcer.get_screen_time_status(db, current_user.id)
+
     from app.recommender.hybrid import recommender_instance
     rec_result = recommender_instance.get_personalized_recommendations(db, current_user.id, limit=4)
     feed_items = rec_result.get("items", [])
-    
+
     # Check if they have a quiz for today's items
     quiz_id = None
     if feed_items:
@@ -159,7 +241,8 @@ def get_daily_learning_feed(
         "daily_quiz": {
             "quiz_id": quiz_id,
             "number_of_questions": 5 if quiz_id else 0
-        } if quiz_id else None
+        } if quiz_id else None,
+        "screen_time_status": st_status
     }
 
 @router.get("/dashboard", response_model=Dict[str, Any])

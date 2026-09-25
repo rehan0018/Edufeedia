@@ -199,6 +199,11 @@ def update_progress(
 ):
     if current_user.role != "student":
         raise HTTPException(status_code=403, detail="Only students can track personal progress")
+
+    # Screen Time & Bedtime Curfew Enforcement Gate
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+
     item = TenantScope.content(db, current_user).filter(
         ContentItem.id == progress_data.content_item_id,
         ContentItem.is_approved == True

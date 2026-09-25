@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models.models import User, StudentProfile, parent_student_links, StaffInvitation
-from app.schemas.schemas import UserRegister, UserLogin, Token, UserOut
+from app.schemas.schemas import UserRegister, UserLogin, Token, UserOut, ParentRegister
 from app.core.security import (
     get_password_hash, verify_password, create_access_token,
     validate_password_complexity, revoke_token, oauth2_scheme, get_current_user
@@ -129,6 +129,50 @@ def register(user_in: UserRegister, request: Request, db: Session = Depends(get_
     db.commit()
     db.refresh(user)
 
+    return user
+
+@router.post("/register-parent", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+def register_parent(parent_in: ParentRegister, request: Request, db: Session = Depends(get_db)):
+    """
+    Direct Parent Registration Endpoint:
+    Enables parents to create their primary account, configure a parent gate PIN,
+    and manage multiple child profiles without requiring school affiliation.
+    """
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    if not redis_client.check_rate_limit(f"register_parent_ip:{client_ip}", max_requests=10, window_seconds=3600):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registration attempts. Please try again later."
+        )
+
+    validate_password_complexity(parent_in.password)
+
+    existing_user = db.query(User).filter(User.email == parent_in.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    parent_pin_hash = None
+    if parent_in.parent_pin:
+        parent_pin_hash = get_password_hash(parent_in.parent_pin)
+
+    user = User(
+        email=parent_in.email,
+        password_hash=get_password_hash(parent_in.password),
+        role="parent",
+        first_name=parent_in.first_name,
+        last_name=parent_in.last_name,
+        is_verified=True,
+        email_verified=True,
+        identity_verified=True,
+        account_status="ACTIVE",
+        parent_pin_hash=parent_pin_hash
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return user
 
 @router.post("/activate-invite", response_model=Token)

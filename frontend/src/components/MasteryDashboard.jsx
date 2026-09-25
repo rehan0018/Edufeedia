@@ -34,7 +34,7 @@ export default function MasteryDashboard({ onStartRevision }) {
       
       {/* Header */}
       <div className="glass-panel" style={{ padding: '28px 32px', marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-amber)', fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--brand-primary)', fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>
           <TrendingUp size={16} /> Educational Intelligence & Memory Retention
         </div>
         <h1 style={{ fontSize: '2rem', marginBottom: '6px' }}>Curriculum Mastery & Spaced Revision</h1>
@@ -44,7 +44,7 @@ export default function MasteryDashboard({ onStartRevision }) {
       </div>
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--accent-cyan)' }}>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--brand-primary)' }}>
           <Loader2 size={32} className="spin" style={{ margin: '0 auto 12px auto' }} />
           <p>Calculating mastery curves and retention intervals...</p>
         </div>
@@ -54,9 +54,9 @@ export default function MasteryDashboard({ onStartRevision }) {
         <div style={{
           padding: '18px 24px',
           borderRadius: 'var(--radius-md)',
-          background: 'hsla(346, 84%, 61%, 0.15)',
-          border: '1px solid var(--accent-rose)',
-          color: 'var(--accent-rose)',
+          background: 'rgba(255, 122, 89, 0.12)',
+          border: '1px solid var(--accent-coral)',
+          color: 'var(--accent-coral)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -82,14 +82,14 @@ export default function MasteryDashboard({ onStartRevision }) {
                 <div key={idx} className="glass-panel" style={{ padding: '20px 24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{item.subject}</span>
-                    <span style={{ fontWeight: 800, color: score >= 80 ? 'var(--accent-emerald)' : 'var(--accent-cyan)' }}>{score}%</span>
+                    <span style={{ fontWeight: 800, color: score >= 80 ? 'var(--accent-mint)' : 'var(--brand-primary)' }}>{score}%</span>
                   </div>
                   <div className="progress-bar-track">
                     <div
                       className="progress-bar-fill"
                       style={{
                         width: `${score}%`,
-                        background: score >= 80 ? 'linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan))' : 'linear-gradient(90deg, var(--accent-cyan), var(--accent-purple))'
+                        background: score >= 80 ? 'var(--gradient-hero)' : 'var(--gradient-learning)'
                       }}
                     ></div>
                   </div>
@@ -104,11 +104,11 @@ export default function MasteryDashboard({ onStartRevision }) {
           {/* Weak Topics Diagnostic */}
           <div style={{ marginBottom: '32px' }}>
             <h2 style={{ fontSize: '1.35rem', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <AlertTriangle size={20} color="var(--accent-rose)" /> Topics Needing Targeted Practice ({weakTopicsList.length})
+              <AlertTriangle size={20} color="var(--accent-coral)" /> Topics Needing Targeted Practice ({weakTopicsList.length})
             </h2>
 
             {weakTopicsList.length === 0 ? (
-              <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--accent-emerald)' }}>
+              <div className="glass-panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--accent-mint)' }}>
                 ✓ No critical weak topics identified! All evaluated curriculum units are currently above proficiency thresholds.
               </div>
             ) : (
@@ -122,7 +122,7 @@ export default function MasteryDashboard({ onStartRevision }) {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      borderLeft: '4px solid var(--accent-rose)'
+                      borderLeft: '4px solid var(--accent-coral)'
                     }}
                   >
                     <div>
@@ -136,7 +136,7 @@ export default function MasteryDashboard({ onStartRevision }) {
                       </p>
                     </div>
 
-                    <button className="btn btn-outline" onClick={() => onStartRevision(t.topic)}>
+                    <button className="btn btn-primary btn-sm" onClick={() => onStartRevision(t.topic)}>
                       Practice with AI Tutor
                     </button>
                   </div>
@@ -148,7 +148,7 @@ export default function MasteryDashboard({ onStartRevision }) {
           {/* Upcoming Spaced Repetition Calendar */}
           <div>
             <h2 style={{ fontSize: '1.35rem', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <RotateCcw size={20} color="var(--accent-amber)" /> Upcoming Spaced Revision (Active Recall)
+              <RotateCcw size={20} color="var(--accent-yellow)" /> Upcoming Spaced Revision (Active Recall)
             </h2>
 
             {upcomingRevisionsList.length === 0 ? (
