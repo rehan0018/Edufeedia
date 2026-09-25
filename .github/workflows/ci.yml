@@ -58,6 +58,18 @@ jobs:
         run: |
           PYTHONPATH=.:backend pytest backend/tests
 
+      - name: Verify Production Settings Boot Validation
+        env:
+          ENVIRONMENT: production
+          SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
+          DATABASE_URL: postgresql://ci_user:ci_pass@localhost:5432/ci_db
+          REDIS_URL: redis://localhost:6379/0
+          SMTP_HOST: smtp.example.com
+          SMTP_USER: ci_smtp_user
+          SMTP_PASSWORD: ci_smtp_password
+        run: |
+          PYTHONPATH=.:backend python -c "from app.config import Settings; s = Settings(); print('Production Settings Boot Verification PASSED')"
+
   frontend-build:
     name: Frontend Asset Compilation and Lint
     runs-on: ubuntu-latest
@@ -110,3 +122,26 @@ jobs:
           test -f TRADEMARKS.md || (echo "Missing TRADEMARKS.md file" && exit 1)
           test -f docs/THIRD_PARTY_LICENSES.md || (echo "Missing docs/THIRD_PARTY_LICENSES.md" && exit 1)
           echo "All required governance documents are present."
+
+  docker-smoke-test:
+    name: Docker Deployment and Health Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Launch Docker Stack
+        run: |
+          docker compose up -d --build
+          sleep 15
+          docker compose ps
+
+      - name: Probe API Health and Ready Endpoints
+        run: |
+          curl --fail --retry 5 --retry-delay 3 http://localhost:8000/health || exit 1
+          curl --fail --retry 5 --retry-delay 3 http://localhost:8000/ready || exit 1
+          echo "Docker Compose services healthy and endpoints verified."
+
+      - name: Teardown Docker Compose
+        if: always()
+        run: docker compose down -v

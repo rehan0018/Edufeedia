@@ -460,5 +460,51 @@ class TestSecurityRegression(unittest.TestCase):
             self.assertIn("recommendation_reason", item)
             self.assertIn("recommendation_source", item)
 
+    # --- 9. PRODUCTION CONFIGURATION STARTUP VALIDATION ---
+
+    def test_production_settings_startup_success_with_valid_config(self):
+        """Verify Settings() succeeds without NameError under ENVIRONMENT=production with full valid config."""
+        from app.config import Settings
+        from unittest.mock import patch
+
+        prod_env = {
+            "ENVIRONMENT": "production",
+            "SECRET_KEY": "a" * 64,
+            "ALLOWED_ORIGINS": "https://app.edufeedia.com,https://edufeedia.com",
+            "DATABASE_URL": "postgresql://prod_user:prod_pass@rds-postgres:5432/edufeedia_prod",
+            "REDIS_URL": "redis://redis-cluster:6379/0",
+            "SMTP_HOST": "smtp.sendgrid.net",
+            "SMTP_USER": "apikey",
+            "SMTP_PASSWORD": "SG.secure_smtp_api_key_test_token"
+        }
+        with patch.dict(os.environ, prod_env, clear=True):
+            s = Settings()
+            self.assertEqual(s.ENVIRONMENT, "production")
+            self.assertEqual(s.SECRET_KEY, "a" * 64)
+            self.assertIn("https://app.edufeedia.com", s.ALLOWED_ORIGINS)
+
+    def test_production_settings_startup_fails_closed_with_missing_config(self):
+        """Verify Settings() fails closed (raises ValueError) listing all missing variables when misconfigured."""
+        from app.config import Settings
+        from unittest.mock import patch
+
+        invalid_prod_env = {
+            "ENVIRONMENT": "production",
+            "SECRET_KEY": "insecure-test",
+            "ALLOWED_ORIGINS": "*",
+            "DATABASE_URL": "sqlite:///local.db",
+            "REDIS_URL": "",
+            "SMTP_HOST": ""
+        }
+        with patch.dict(os.environ, invalid_prod_env, clear=True):
+            with self.assertRaises(ValueError) as ctx:
+                Settings()
+            err_text = str(ctx.exception)
+            self.assertIn("SECRET_KEY", err_text)
+            self.assertIn("ALLOWED_ORIGINS", err_text)
+            self.assertIn("DATABASE_URL", err_text)
+            self.assertIn("REDIS_URL", err_text)
+            self.assertIn("SMTP_HOST", err_text)
+
 if __name__ == "__main__":
     unittest.main()

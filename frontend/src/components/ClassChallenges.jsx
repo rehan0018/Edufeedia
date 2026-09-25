@@ -48,7 +48,7 @@ export default function ClassChallenges() {
       {/* Page Header */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-          <Trophy size={28} color="var(--accent-gold)" />
+          <Trophy size={28} color="var(--accent-yellow)" />
           <h1 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Inter-Class Academic Challenges</h1>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
@@ -60,9 +60,9 @@ export default function ClassChallenges() {
         <div style={{
           padding: '14px 18px',
           borderRadius: 'var(--radius-md)',
-          background: 'hsla(346, 84%, 61%, 0.15)',
-          border: '1px solid var(--accent-rose)',
-          color: 'var(--accent-rose)',
+          background: 'rgba(255, 122, 89, 0.12)',
+          border: '1px solid var(--accent-coral)',
+          color: 'var(--accent-coral)',
           marginBottom: '24px'
         }}>
           {error}
@@ -74,8 +74,8 @@ export default function ClassChallenges() {
         <div className="glass-panel" style={{
           padding: '24px',
           marginBottom: '28px',
-          background: 'linear-gradient(135deg, hsla(263, 70%, 58%, 0.12), hsla(186, 100%, 50%, 0.08))',
-          border: '1px solid var(--border-glow)'
+          background: 'var(--bg-soft-blue)',
+          border: '1px solid var(--border-subtle)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
             <div>
@@ -83,8 +83,8 @@ export default function ClassChallenges() {
                 <span style={{
                   padding: '4px 10px',
                   borderRadius: '12px',
-                  background: 'var(--accent-gold)',
-                  color: '#0a0f1d',
+                  background: 'var(--accent-yellow)',
+                  color: 'var(--text-primary)',
                   fontSize: '0.75rem',
                   fontWeight: 800,
                   textTransform: 'uppercase'
@@ -112,40 +112,35 @@ export default function ClassChallenges() {
             <div style={{
               padding: '16px 20px',
               borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-card-solid)',
+              background: 'var(--bg-card)',
               border: '1px solid var(--border-subtle)',
               textAlign: 'center',
               minWidth: '160px'
             }}>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Next Challenge
+                Cohort Target
               </div>
-              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                {challenge.next_challenge?.title}
-              </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Starts Monday
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
+                {challenge.target_xp} XP
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Grid: Class Leaderboard (Left) & Private Personal Growth (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+      {/* Main Grid: Leaderboard + Personal Growth */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '24px' }}>
         {/* Class Leaderboard */}
         <div className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Users size={20} color="var(--accent-cyan)" />
+              <Users size={20} color="var(--brand-primary)" />
               <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Class Standings</h2>
             </div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              🔒 Privacy-Safe Team Score
-            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Live Aggregation</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {leaderboard.map((cls) => {
               const percentage = Math.min(100, Math.round((cls.total_xp / maxLeaderboardXp) * 100));
               return (
@@ -154,8 +149,8 @@ export default function ClassChallenges() {
                   style={{
                     padding: '16px',
                     borderRadius: 'var(--radius-md)',
-                    background: cls.is_my_class ? 'hsla(186, 100%, 50%, 0.08)' : 'var(--bg-space)',
-                    border: cls.is_my_class ? '1px solid var(--accent-cyan)' : '1px solid var(--border-subtle)',
+                    background: cls.is_my_class ? 'var(--bg-soft-blue)' : 'var(--bg-card)',
+                    border: cls.is_my_class ? '1px solid var(--brand-primary)' : '1px solid var(--border-subtle)',
                     position: 'relative'
                   }}
                 >
@@ -165,8 +160,8 @@ export default function ClassChallenges() {
                         width: '26px',
                         height: '26px',
                         borderRadius: '50%',
-                        background: cls.rank === 1 ? 'var(--accent-gold)' : (cls.rank === 2 ? 'var(--text-secondary)' : 'var(--bg-card-solid)'),
-                        color: cls.rank === 1 ? '#0a0f1d' : 'var(--text-primary)',
+                        background: cls.rank === 1 ? 'var(--accent-yellow)' : (cls.rank === 2 ? 'var(--text-secondary)' : 'var(--bg-soft-blue)'),
+                        color: 'var(--text-primary)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -175,15 +170,15 @@ export default function ClassChallenges() {
                       }}>
                         #{cls.rank}
                       </span>
-                      <strong style={{ fontSize: '1.05rem' }}>{cls.class_name}</strong>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>{cls.class_name}</strong>
                       {cls.is_my_class && (
                         <span style={{
                           fontSize: '0.7rem',
                           fontWeight: 700,
                           padding: '2px 8px',
                           borderRadius: '10px',
-                          background: 'var(--accent-cyan)',
-                          color: '#0a0f1d'
+                          background: 'var(--brand-primary)',
+                          color: '#FFFFFF'
                         }}>
                           YOUR CLASS
                         </span>
@@ -191,7 +186,7 @@ export default function ClassChallenges() {
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
+                      <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
                         {cls.total_xp}
                       </span>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '4px' }}>XP</span>
@@ -202,16 +197,14 @@ export default function ClassChallenges() {
                   <div style={{
                     height: '10px',
                     borderRadius: '5px',
-                    background: 'var(--bg-card-solid)',
+                    background: 'var(--border-subtle)',
                     overflow: 'hidden',
                     marginBottom: '8px'
                   }}>
                     <div style={{
                       height: '100%',
                       width: `${percentage}%`,
-                      background: cls.is_my_class
-                        ? 'linear-gradient(90deg, var(--accent-cyan), var(--accent-purple))'
-                        : 'var(--accent-purple)',
+                      background: cls.is_my_class ? 'var(--gradient-hero)' : 'var(--brand-dark)',
                       borderRadius: '5px',
                       transition: 'width 0.6s ease'
                     }} />
@@ -231,7 +224,7 @@ export default function ClassChallenges() {
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <TrendingUp size={20} color="var(--accent-emerald)" />
+              <TrendingUp size={20} color="var(--accent-mint)" />
               <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Private Growth Tracker</h2>
             </div>
 
@@ -245,15 +238,15 @@ export default function ClassChallenges() {
                 <div style={{
                   padding: '16px',
                   borderRadius: 'var(--radius-md)',
-                  background: 'hsla(160, 84%, 39%, 0.15)',
-                  border: '1px solid var(--accent-emerald)',
+                  background: 'rgba(52, 191, 163, 0.15)',
+                  border: '1px solid var(--accent-mint)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px'
                 }}>
-                  <Sparkles size={24} color="var(--accent-emerald)" />
+                  <Sparkles size={24} color="var(--accent-mint)" />
                   <div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--accent-mint)' }}>
                       +{growth.monthly_improvement_percentage}% Monthly Growth
                     </div>
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
@@ -267,12 +260,12 @@ export default function ClassChallenges() {
                   <div style={{
                     padding: '14px',
                     borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-space)',
+                    background: 'var(--bg-soft-blue)',
                     border: '1px solid var(--border-subtle)',
                     textAlign: 'center'
                   }}>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>My Quiz Accuracy</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
                       {growth.average_accuracy}%
                     </div>
                   </div>
@@ -280,12 +273,12 @@ export default function ClassChallenges() {
                   <div style={{
                     padding: '14px',
                     borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-space)',
+                    background: 'var(--bg-soft-blue)',
                     border: '1px solid var(--border-subtle)',
                     textAlign: 'center'
                   }}>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Class XP Contribution</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-gold)' }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-yellow)' }}>
                       {growth.current_xp} XP
                     </div>
                   </div>
@@ -294,15 +287,15 @@ export default function ClassChallenges() {
                 <div style={{
                   padding: '14px',
                   borderRadius: 'var(--radius-md)',
-                  background: 'var(--bg-space)',
+                  background: 'var(--bg-soft-blue)',
                   border: '1px solid var(--border-subtle)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between'
                 }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Active Streak</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: 'var(--accent-rose)' }}>
-                    <Flame size={16} /> {growth.streak_days} Days Streak
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: 'var(--accent-coral)' }}>
+                    <Flame size={16} color="var(--accent-coral)" /> {growth.streak_days} Days Streak
                   </span>
                 </div>
               </div>
@@ -317,7 +310,7 @@ export default function ClassChallenges() {
             marginTop: '24px',
             padding: '12px 16px',
             borderRadius: 'var(--radius-md)',
-            background: 'var(--bg-space)',
+            background: 'var(--bg-soft-blue)',
             border: '1px solid var(--border-subtle)',
             display: 'flex',
             alignItems: 'center',
@@ -325,7 +318,7 @@ export default function ClassChallenges() {
             fontSize: '0.8rem',
             color: 'var(--text-muted)'
           }}>
-            <ShieldCheck size={16} color="var(--accent-emerald)" />
+            <ShieldCheck size={16} color="var(--accent-mint)" />
             <span>DPDP & COPPA compliant: Child data is protected and never ranked publicly.</span>
           </div>
         </div>

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, List
 
 from app.database import get_db
-from app.models.models import User, ContentItem, StudentProfile
+from app.models.models import User, ContentItem, StudentProfile, SafetyIncident
 from app.schemas.schemas import TutorAskRequest, TutorResponse
 from app.core.security import RoleChecker
 from app.safety.engine import SafetyEngine
@@ -45,6 +45,21 @@ def ask_ai_tutor(
     # 1. Safety Hard Gate check on student's prompt
     safety_audit = SafetyEngine.audit_content(request.question, target_age=target_age)
     if not safety_audit["is_safe"]:
+        # Record real safety incident for parental visibility
+        incident = SafetyIncident(
+            student_user_id=current_user.id,
+            source="ai_tutor_input",
+            category=safety_audit["matched_rules"][0] if safety_audit.get("matched_rules") else "PROHIBITED_QUERY",
+            severity="high" if safety_audit.get("safety_score", 50) < 30 else "medium",
+            blocked=True,
+            flagged_snippet=request.question[:250],
+            reason=safety_audit.get("explanation", "Student query blocked by fail-closed safety gate"),
+            action_taken="STEERED",
+            parent_notified=True
+        )
+        db.add(incident)
+        db.commit()
+
         return TutorResponse(
             answer="I am your Edufeedia Socratic study guide! I am designed to assist you with curriculum subjects, math, science, and coding concepts. Let's redirect our focus back to the lesson topic.",
             socratic_cue="What specific formula or idea in this module would you like to review?",
@@ -99,6 +114,20 @@ def ask_ai_tutor(
         AIBudgetManager.refund_reservation(reservation)
         raise e
     if not output_audit["is_safe"]:
+        out_incident = SafetyIncident(
+            student_user_id=current_user.id,
+            source="ai_tutor_output",
+            category=output_audit["matched_rules"][0] if output_audit.get("matched_rules") else "LLM_SAFETY_VIOLATION",
+            severity="critical",
+            blocked=True,
+            flagged_snippet=rag_result["answer"][:250],
+            reason="AI Tutor output intercepted by fail-closed safety gate",
+            action_taken="STEERED",
+            parent_notified=True
+        )
+        db.add(out_incident)
+        db.commit()
+
         return TutorResponse(
             answer="Let's focus on the foundational principles of this lesson. What core definition would you like to review together?",
             socratic_cue="Can you explain the problem in your own words?",

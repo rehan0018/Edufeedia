@@ -22,6 +22,18 @@ class SafetyEngine:
         # Step 1: Rule-based evaluation
         rule_blocked, matched_categories, matched_keywords = evaluate_rules(combined_text)
 
+        # Step 1.5: Multilingual, Hinglish & Leetspeak Hard Gate
+        from app.safety.multilingual_safety import MultilingualSafetyEngine
+        multi_eval = MultilingualSafetyEngine.evaluate(combined_text)
+        if not multi_eval["is_safe"]:
+            rule_blocked = True
+            for cat in multi_eval["flagged_categories"]:
+                if cat not in matched_categories:
+                    matched_categories.append(cat)
+            for pat in multi_eval["matched_patterns"]:
+                if pat not in matched_keywords:
+                    matched_keywords.append(pat)
+
         # Step 2: Classifier prediction
         classification = classify_text(combined_text)
 

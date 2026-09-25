@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User, KeyRound, CheckCircle2, Sun, Moon } from 'lucide-react';
 import { apiLogin, apiRegister, apiForgotPassword, apiResetPassword } from '../services/api';
 
-export default function AuthScreen({ onLoginSuccess }) {
+export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
   const [isRegister, setIsRegister] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState(1); // 1: enter email, 2: enter token & new password
@@ -147,12 +147,35 @@ export default function AuthScreen({ onLoginSuccess }) {
       padding: '24px 16px',
       position: 'relative'
     }}>
+      {toggleTheme && (
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="btn btn-outline btn-sm"
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            padding: '6px 12px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+          title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+        >
+          {theme === 'dark' ? <Sun size={16} color="var(--accent-coral)" /> : <Moon size={16} color="var(--brand-primary)" />}
+          <span style={{ fontSize: '0.8rem' }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        </button>
+      )}
+
       <div className="glass-panel" style={{
         width: '100%',
         maxWidth: isRegister ? '520px' : '440px',
         padding: '36px 32px',
         background: 'var(--bg-card-solid)',
-        border: '1px solid var(--border-glow)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: 'var(--shadow-md)',
         transition: 'all 0.2s ease-in-out'
       }}>
         {/* Brand Header */}
@@ -161,16 +184,18 @@ export default function AuthScreen({ onLoginSuccess }) {
             width: '48px',
             height: '48px',
             borderRadius: '14px',
-            background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
+            background: 'var(--gradient-hero)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 12px auto',
-            boxShadow: 'var(--shadow-glow-cyan)'
+            boxShadow: '0 4px 14px rgba(232, 90, 79, 0.25)'
           }}>
-            <Sparkles size={26} color="#0a0f1d" />
+            <Sparkles size={24} color="#FFFFFF" />
           </div>
-          <h1 style={{ fontSize: '1.8rem', marginBottom: '6px' }}>Edufeedia</h1>
+          <h1 style={{ fontSize: '1.8rem', marginBottom: '6px' }}>
+            Edu<span style={{ color: 'var(--brand-primary)' }}>feedia</span>
+          </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
             Safe, curriculum-aligned learning & revision for K-12 students.
           </p>
@@ -179,7 +204,7 @@ export default function AuthScreen({ onLoginSuccess }) {
         {/* Tab Toggle: Login vs Register */}
         <div style={{
           display: 'flex',
-          background: 'var(--bg-space)',
+          background: 'var(--bg-soft-blue)',
           padding: '4px',
           borderRadius: 'var(--radius-md)',
           marginBottom: '20px',
@@ -193,8 +218,8 @@ export default function AuthScreen({ onLoginSuccess }) {
               padding: '8px 12px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: !isRegister ? 'var(--accent-cyan)' : 'transparent',
-              color: !isRegister ? '#0a0f1d' : 'var(--text-secondary)',
+              background: !isRegister ? 'var(--brand-primary)' : 'transparent',
+              color: !isRegister ? '#FFFFFF' : 'var(--text-secondary)',
               fontWeight: 600,
               fontSize: '0.88rem',
               cursor: 'pointer',
@@ -211,8 +236,8 @@ export default function AuthScreen({ onLoginSuccess }) {
               padding: '8px 12px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: isRegister ? 'var(--accent-cyan)' : 'transparent',
-              color: isRegister ? '#0a0f1d' : 'var(--text-secondary)',
+              background: isRegister ? 'var(--brand-primary)' : 'transparent',
+              color: isRegister ? '#FFFFFF' : 'var(--text-secondary)',
               fontWeight: 600,
               fontSize: '0.88rem',
               cursor: 'pointer',
@@ -748,9 +773,9 @@ export default function AuthScreen({ onLoginSuccess }) {
                     style={{
                       padding: '8px 4px',
                       borderRadius: 'var(--radius-sm)',
-                      background: 'hsla(187, 85%, 53%, 0.1)',
-                      border: '1px solid var(--accent-cyan)',
-                      color: 'var(--accent-cyan)',
+                      background: 'rgba(232, 90, 79, 0.12)',
+                      border: '1px solid var(--brand-primary)',
+                      color: 'var(--brand-primary)',
                       fontSize: '0.78rem',
                       fontWeight: 600,
                       cursor: 'pointer'
@@ -764,9 +789,9 @@ export default function AuthScreen({ onLoginSuccess }) {
                     style={{
                       padding: '8px 4px',
                       borderRadius: 'var(--radius-sm)',
-                      background: 'hsla(263, 70%, 66%, 0.1)',
-                      border: '1px solid var(--accent-purple)',
-                      color: 'var(--accent-purple)',
+                      background: 'rgba(142, 141, 138, 0.15)',
+                      border: '1px solid var(--accent-stone)',
+                      color: 'var(--accent-stone)',
                       fontSize: '0.78rem',
                       fontWeight: 600,
                       cursor: 'pointer'
@@ -780,9 +805,9 @@ export default function AuthScreen({ onLoginSuccess }) {
                     style={{
                       padding: '8px 4px',
                       borderRadius: 'var(--radius-sm)',
-                      background: 'hsla(158, 64%, 52%, 0.1)',
-                      border: '1px solid var(--accent-emerald)',
-                      color: 'var(--accent-emerald)',
+                      background: 'rgba(233, 128, 116, 0.15)',
+                      border: '1px solid var(--accent-coral)',
+                      color: 'var(--accent-coral)',
                       fontSize: '0.78rem',
                       fontWeight: 600,
                       cursor: 'pointer'

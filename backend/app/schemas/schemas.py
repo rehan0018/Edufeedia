@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional, Dict, Any
 import datetime
+from datetime import date
 
 # --- AUTH SCHEMAS ---
 
@@ -572,3 +573,203 @@ class ScreenTimeAnalyticsOut(BaseModel):
     recent_activities: List[ContentActivityItem]
     early_action_alerts: List[EarlyActionAlert]
     ai_tutor_minutes_today: int
+
+
+# ==============================================================================
+# EduFeedia Kids & Parent Supervision Architecture Schemas
+# ==============================================================================
+
+class ParentRegister(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+    parent_pin: Optional[str] = Field(None, min_length=4, max_length=6)
+
+class ParentPinSet(BaseModel):
+    pin: str = Field(..., min_length=4, max_length=6)
+
+class ParentPinVerify(BaseModel):
+    pin: str
+
+class ParentPinOut(BaseModel):
+    verified: bool
+    message: str
+
+class ChildProfileCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    date_of_birth: Optional[date] = None
+    age: Optional[int] = None
+    preferred_language: Optional[str] = "en"
+    secondary_language: Optional[str] = None
+    learning_level: Optional[str] = "beginner"
+    avatar_mascot: Optional[str] = "space_explorer"
+    school_name: Optional[str] = None
+    grade_or_class: Optional[str] = None
+    interests: Optional[List[str]] = []
+    allowed_categories: Optional[List[str]] = [
+        "STEM", "Creativity", "World", "Life Skills", "Philosophy & Values", "World Traditions"
+    ]
+    blocked_categories: Optional[List[str]] = []
+    allowed_content_types: Optional[List[str]] = ["video", "story", "activity", "quiz", "game"]
+    parent_approved_only: Optional[bool] = False
+    daily_limit_minutes: Optional[int] = 45
+    curfew_start_time: Optional[str] = "20:00"
+    curfew_end_time: Optional[str] = "07:00"
+    curfew_enabled: Optional[bool] = True
+
+class ChildProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    age: Optional[int] = None
+    preferred_language: Optional[str] = None
+    secondary_language: Optional[str] = None
+    learning_level: Optional[str] = None
+    avatar_mascot: Optional[str] = None
+    school_name: Optional[str] = None
+    grade_or_class: Optional[str] = None
+    interests: Optional[List[str]] = None
+    allowed_categories: Optional[List[str]] = None
+    blocked_categories: Optional[List[str]] = None
+    allowed_content_types: Optional[List[str]] = None
+    parent_approved_only: Optional[bool] = None
+    daily_limit_minutes: Optional[int] = None
+    curfew_start_time: Optional[str] = None
+    curfew_end_time: Optional[str] = None
+    curfew_enabled: Optional[bool] = None
+
+class ChildProfileOut(BaseModel):
+    id: str
+    parent_user_id: str
+    name: str
+    date_of_birth: str
+    age: int
+    age_band_key: str
+    age_band_name: str
+    preferred_language: str
+    secondary_language: Optional[str] = None
+    learning_level: str
+    avatar_mascot: str
+    interests: List[str]
+    allowed_categories: List[str]
+    blocked_categories: List[str]
+    allowed_content_types: List[str]
+    parent_approved_only: bool
+    daily_limit_minutes: int
+    curfew_start_time: str
+    curfew_end_time: str
+    curfew_enabled: bool
+    is_curfew_active: bool
+    today_screen_time_minutes: int
+    xp_score: int
+    streak_count: int
+    stars_count: int
+    created_at: str
+
+class ChildControlsUpdate(BaseModel):
+    allowed_categories: Optional[List[str]] = None
+    blocked_categories: Optional[List[str]] = None
+    allowed_content_types: Optional[List[str]] = None
+    interests: Optional[List[str]] = None
+    learning_level: Optional[str] = None
+    preferred_language: Optional[str] = None
+    secondary_language: Optional[str] = None
+    parent_approved_only: Optional[bool] = None
+
+class ChildScreenTimeUpdate(BaseModel):
+    daily_limit_minutes: Optional[int] = Field(None, ge=10, le=180)
+    curfew_start_time: Optional[str] = None
+    curfew_end_time: Optional[str] = None
+    curfew_enabled: Optional[bool] = None
+
+class ChildContentApprovalRequest(BaseModel):
+    content_item_id: str
+    status: str # 'APPROVED', 'BLOCKED'
+    notes: Optional[str] = None
+
+class ChildActivityCreate(BaseModel):
+    content_item_id: str
+    activity_type: str # 'video', 'story', 'game', 'creative_task', 'experiment', 'quiz'
+    dwell_time_seconds: Optional[int] = 0
+    completed: Optional[bool] = True
+    child_reaction: Optional[str] = None # 'loved', 'good', 'okay', 'confused'
+
+class ChildActivityOut(BaseModel):
+    id: str
+    child_profile_id: str
+    content_item_id: str
+    activity_type: str
+    dwell_time_seconds: int
+    completed: bool
+    child_reaction: Optional[str] = None
+    stars_earned: int = 1
+    created_at: str
+
+class KidsQuizQuestion(BaseModel):
+    id: str
+    question_text: str
+    options: List[str]
+    correct_answer: str
+    explanation: Optional[str] = None
+
+class KidsQuizSubmit(BaseModel):
+    quiz_id: str
+    selected_option: str
+
+class KidsQuizResultOut(BaseModel):
+    is_correct: bool
+    selected_option: str
+    correct_answer: str
+    positive_feedback: str
+    stars_awarded: int
+    fun_fact: Optional[str] = None
+
+class KidsAdventureStep(BaseModel):
+    step_number: int
+    step_type: str # 'watch_cartoon', 'understand_concept', 'interactive_activity', 'mini_quiz', 'earn_badge'
+    title: str
+    description: str
+    icon: str
+    status: str # 'completed', 'active', 'locked'
+    content_item_id: Optional[str] = None
+    duration_label: str
+
+class KidsAdventureOut(BaseModel):
+    adventure_id: str
+    theme_title: str
+    mascot_name: str
+    mascot_avatar: str
+    greeting: str
+    steps: List[KidsAdventureStep]
+    total_stars_available: int
+    progress_percentage: int
+
+class WhySeeingThisOut(BaseModel):
+    content_id: str
+    title: str
+    category: str
+    reasons: List[str]
+    age_match: str
+    parent_allowed: bool
+    learning_balance_note: str
+
+class ChildDashboardOut(BaseModel):
+    child_id: str
+    child_name: str
+    age: int
+    avatar_mascot: str
+    today_learning_minutes: int
+    daily_limit_minutes: int
+    percent_used: int
+    is_over_limit: bool
+    is_curfew_active: bool
+    videos_completed: int
+    quizzes_completed: int
+    activities_completed: int
+    stars_earned: int
+    current_streak: int
+    category_time_breakdown: List[Dict[str, Any]]
+    observed_interests: List[Dict[str, Any]]
+    recent_activities: List[Dict[str, Any]]
+    parent_alerts: List[Dict[str, Any]]
+

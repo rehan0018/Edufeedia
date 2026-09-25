@@ -13,7 +13,17 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
       <div className="glass-panel" style={{ padding: '28px 32px', marginBottom: '32px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'var(--brand-primary)',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              marginBottom: '8px'
+            }}>
               <Sparkles size={16} /> Curated Curriculum • Grade 10 CBSE
             </div>
             <h1 style={{ fontSize: '2.2rem', marginBottom: '6px' }}>{dailyPlan?.greeting || 'Good morning! 👋'}</h1>
@@ -23,7 +33,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
           </div>
 
           <div style={{
-            background: 'hsla(222, 40%, 10%, 0.8)',
+            background: 'var(--bg-soft-blue)',
             padding: '16px 24px',
             borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-subtle)',
@@ -31,14 +41,14 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.88rem' }}>
               <span style={{ color: 'var(--text-secondary)' }}>Today's Progress</span>
-              <span style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}>{progressPct}%</span>
+              <span style={{ fontWeight: 700, color: 'var(--brand-primary)' }}>{progressPct}%</span>
             </div>
             <div className="progress-bar-track">
               <div className="progress-bar-fill" style={{ width: `${progressPct}%` }}></div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
               <span>{completedCount} of {items.length} completed</span>
-              <span>{dailyPlan?.xp ?? 0} XP earned</span>
+              <span style={{ fontWeight: 600, color: 'var(--accent-mint)' }}>{dailyPlan?.xp ?? 0} XP earned</span>
             </div>
           </div>
         </div>
@@ -46,7 +56,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
 
       {/* Loading State */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--accent-cyan)' }}>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--brand-primary)' }}>
           <Loader2 size={32} className="spin" style={{ margin: '0 auto 12px auto' }} />
           <p>Generating personalized learning plan from recommendation engine...</p>
         </div>
@@ -57,9 +67,9 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
         <div style={{
           padding: '18px 24px',
           borderRadius: 'var(--radius-md)',
-          background: 'hsla(346, 84%, 61%, 0.15)',
-          border: '1px solid var(--accent-rose)',
-          color: 'var(--accent-rose)',
+          background: 'rgba(255, 122, 89, 0.12)',
+          border: '1px solid var(--accent-coral)',
+          color: 'var(--accent-coral)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -81,7 +91,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
               <h2 style={{ fontSize: '1.45rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Target size={22} color="var(--accent-cyan)" /> Today's Learning Plan
+                <Target size={22} color="var(--brand-primary)" /> Today's Learning Plan
               </h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                 High-yield lessons scheduled from your diagnostic quiz results and retention intervals.
@@ -89,7 +99,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
             </div>
 
             {items.length > 0 && (
-              <button className="btn btn-accent btn-sm" onClick={() => onSelectLesson(items[0])}>
+              <button className="btn btn-primary btn-sm" onClick={() => onSelectLesson(items[0])}>
                 <Brain size={16} /> Start Daily Learning
               </button>
             )}
@@ -111,7 +121,11 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '20px',
-                    borderLeft: isSpaced ? '4px solid var(--accent-amber)' : isWeak ? '4px solid var(--accent-rose)' : '4px solid var(--accent-cyan)',
+                    borderLeft: isSpaced
+                      ? '4px solid var(--accent-yellow)'
+                      : isWeak
+                      ? '4px solid var(--accent-coral)'
+                      : '4px solid var(--brand-primary)',
                     cursor: 'pointer'
                   }}
                   onClick={() => onSelectLesson(item)}
@@ -121,14 +135,18 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
                       width: '44px',
                       height: '44px',
                       borderRadius: '12px',
-                      background: 'var(--bg-card-solid)',
+                      background: 'var(--bg-soft-blue)',
                       border: '1px solid var(--border-subtle)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '1.1rem',
                       fontWeight: 800,
-                      color: isSpaced ? 'var(--accent-amber)' : 'var(--accent-cyan)'
+                      color: isSpaced
+                        ? 'var(--accent-yellow)'
+                        : isWeak
+                        ? 'var(--accent-coral)'
+                        : 'var(--brand-primary)'
                     }}>
                       {idx + 1}
                     </div>

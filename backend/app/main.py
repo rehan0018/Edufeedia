@@ -8,7 +8,7 @@ from app.database import engine, Base
 from app.config import settings
 from app.core.redis_client import redis_client
 from app.core.logging_config import logger
-from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin, ingestion, privacy, challenges
+from app.routers import auth, student, content, quiz, parent, teacher, flashcard, recommendations, tutor, admin, ingestion, privacy, challenges, kids, moderation, device_protection, vision_solver, curriculum
 
 from contextlib import asynccontextmanager
 
@@ -45,10 +45,15 @@ app.include_router(student.router, prefix="/api/v1")
 app.include_router(content.router, prefix="/api/v1")
 app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(parent.router, prefix="/api/v1")
+app.include_router(kids.router, prefix="/api/v1")
 app.include_router(teacher.router, prefix="/api/v1")
 app.include_router(flashcard.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
 app.include_router(tutor.router, prefix="/api/v1")
+app.include_router(vision_solver.router, prefix="/api/v1")
+app.include_router(moderation.router, prefix="/api/v1")
+app.include_router(device_protection.router, prefix="/api/v1")
+app.include_router(curriculum.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ingestion.router, prefix="/api/v1")
 app.include_router(privacy.router, prefix="/api/v1")

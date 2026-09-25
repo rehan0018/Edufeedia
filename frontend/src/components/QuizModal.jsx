@@ -35,7 +35,6 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
 
   const handleSelectOption = (opt) => {
     setSelectedOption(opt);
-    // Keep answers map updated
     const remaining = answers.filter(a => a.question_id !== currentQ.id);
     setAnswers([...remaining, { question_id: currentQ.id, selected_answer: opt }]);
   };
@@ -50,7 +49,6 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
       const prevAnswer = answers.find(a => a.question_id === nextQ?.id);
       setSelectedOption(prevAnswer ? prevAnswer.selected_answer : null);
     } else {
-      // Build final answers payload ensuring the last question is included
       const finalAnswers = [
         ...answers.filter(a => a.question_id !== currentQ.id),
         { question_id: currentQ.id, selected_answer: selectedOption }
@@ -78,8 +76,9 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
         maxHeight: '90vh',
         overflowY: 'auto',
         padding: '32px',
-        background: 'var(--bg-card-solid)',
-        border: '1px solid var(--border-glow)'
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: 'var(--shadow-lg)'
       }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -92,7 +91,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                 </span>
               )}
             </div>
-            <h2 style={{ fontSize: '1.35rem' }}>{quiz?.title || lesson?.title || 'Interactive Assessment'}</h2>
+            <h2 style={{ fontSize: '1.35rem', color: 'var(--text-primary)' }}>{quiz?.title || lesson?.title || 'Interactive Assessment'}</h2>
           </div>
           <button className="btn btn-outline btn-sm" onClick={onClose} style={{ padding: '6px' }}>
             <X size={20} />
@@ -100,7 +99,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--accent-cyan)' }}>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--brand-primary)' }}>
             <Loader2 size={32} className="spin" style={{ margin: '0 auto 12px auto' }} />
             <p>Loading curriculum assessment from learning server...</p>
           </div>
@@ -110,9 +109,9 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
           <div style={{
             padding: '16px',
             borderRadius: 'var(--radius-md)',
-            background: 'hsla(346, 84%, 61%, 0.15)',
-            border: '1px solid var(--accent-rose)',
-            color: 'var(--accent-rose)',
+            background: 'rgba(255, 122, 89, 0.12)',
+            border: '1px solid var(--accent-coral)',
+            color: 'var(--accent-coral)',
             display: 'flex',
             alignItems: 'center',
             gap: '10px'
@@ -132,16 +131,15 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                 fontWeight: 700,
                 padding: '4px 10px',
                 borderRadius: 'var(--radius-full)',
-                background: 'hsla(265, 89%, 66%, 0.18)',
-                color: 'var(--accent-purple)',
-                border: '1px solid hsla(265, 89%, 66%, 0.4)'
+                background: 'rgba(37, 99, 235, 0.12)',
+                color: 'var(--brand-primary)',
+                border: '1px solid var(--border-subtle)'
               }}>
                 Difficulty: {currentQ.difficulty || 'Medium'}
               </span>
             </div>
 
-            {/* Question Text */}
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '22px', lineHeight: '1.4' }}>
+            <h3 style={{ fontSize: '1.15rem', marginBottom: '20px', lineHeight: 1.45, color: 'var(--text-primary)' }}>
               {currentQ.question_text}
             </h3>
 
@@ -155,9 +153,10 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                     style={{
                       padding: '14px 18px',
                       borderRadius: 'var(--radius-md)',
-                      border: isSelected ? '2px solid var(--accent-cyan)' : '1px solid var(--border-subtle)',
-                      background: isSelected ? 'hsla(188, 95%, 53%, 0.12)' : 'var(--bg-space)',
-                      color: isSelected ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                      border: isSelected ? '2px solid var(--brand-primary)' : '1px solid var(--border-subtle)',
+                      background: isSelected ? 'var(--bg-soft-blue)' : 'var(--bg-card)',
+                      color: isSelected ? 'var(--brand-primary)' : 'var(--text-primary)',
+                      fontWeight: isSelected ? 600 : 400,
                       fontSize: '0.98rem',
                       display: 'flex',
                       alignItems: 'center',
@@ -168,7 +167,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                     onClick={() => handleSelectOption(opt)}
                   >
                     <span>{opt}</span>
-                    {isSelected && <CheckCircle2 size={20} color="var(--accent-cyan)" />}
+                    {isSelected && <CheckCircle2 size={20} color="var(--brand-primary)" />}
                   </div>
                 );
               })}
@@ -204,16 +203,17 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                 width: '64px',
                 height: '64px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, var(--accent-amber), var(--accent-purple))',
+                background: 'var(--gradient-fun)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 12px auto'
+                margin: '0 auto 12px auto',
+                boxShadow: '0 4px 14px rgba(255, 122, 89, 0.25)'
               }}>
-                <Trophy size={32} color="#0a0f1d" />
+                <Trophy size={32} color="#FFFFFF" />
               </div>
 
-              <h3 style={{ fontSize: '1.6rem', marginBottom: '4px' }}>Quiz Evaluated! 🎉</h3>
+              <h3 style={{ fontSize: '1.6rem', marginBottom: '4px', color: 'var(--text-primary)' }}>Quiz Evaluated! 🎉</h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                 Your responses have been recorded in the database, updating topic mastery and SM-2 schedules.
               </p>
@@ -226,23 +226,23 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
               gap: '12px',
               marginBottom: '24px'
             }}>
-              <div style={{ padding: '12px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ padding: '12px', background: 'var(--bg-soft-blue)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Score</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
                   {backendResult.score} / {backendResult.max_score}
                 </div>
               </div>
 
-              <div style={{ padding: '12px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ padding: '12px', background: 'var(--bg-soft-blue)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Accuracy</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-mint)' }}>
                   {Math.round(backendResult.accuracy_percentage)}%
                 </div>
               </div>
 
-              <div style={{ padding: '12px', background: 'var(--bg-space)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ padding: '12px', background: 'var(--bg-soft-blue)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>XP Earned</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-yellow)' }}>
                   +{backendResult.xp_gained} XP
                 </div>
               </div>
@@ -259,27 +259,27 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                     style={{
                       padding: '14px 18px',
                       borderRadius: 'var(--radius-md)',
-                      background: 'var(--bg-space)',
-                      borderLeft: `4px solid ${res.is_correct ? 'var(--accent-emerald)' : 'var(--accent-rose)'}`
+                      background: 'var(--bg-soft-blue)',
+                      borderLeft: `4px solid ${res.is_correct ? 'var(--accent-mint)' : 'var(--accent-coral)'}`
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: res.is_correct ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: res.is_correct ? 'var(--accent-mint)' : 'var(--accent-coral)' }}>
                         {res.is_correct ? '✓ Correct' : '✗ Incorrect'}
                       </span>
                       <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Question {idx + 1}</span>
                     </div>
 
-                    <p style={{ fontSize: '0.92rem', marginBottom: '6px', fontWeight: 600 }}>
+                    <p style={{ fontSize: '0.92rem', marginBottom: '6px', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {qObj?.question_text || `Question ${idx + 1}`}
                     </p>
 
                     <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                      Your Answer: <span style={{ color: res.is_correct ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{res.selected_answer}</span>
+                      Your Answer: <span style={{ color: res.is_correct ? 'var(--accent-mint)' : 'var(--accent-coral)', fontWeight: 600 }}>{res.selected_answer}</span>
                     </div>
 
                     {!res.is_correct && (
-                      <div style={{ fontSize: '0.84rem', color: 'var(--accent-emerald)', marginBottom: '4px' }}>
+                      <div style={{ fontSize: '0.84rem', color: 'var(--accent-mint)', marginBottom: '4px', fontWeight: 600 }}>
                         Correct Answer: {res.correct_answer}
                       </div>
                     )}

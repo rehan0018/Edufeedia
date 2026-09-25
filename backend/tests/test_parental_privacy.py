@@ -116,6 +116,11 @@ class TestParentalPrivacyAndConsent(unittest.TestCase):
         self.assertIn("activity_breakdown", st_data)
         self.assertIn("early_action_alerts", st_data)
         self.assertTrue(len(st_data["early_action_alerts"]) > 0)
+        # Data-integrity verification: verify no fabricated artificial floors (0 AI queries today = 0 AI minutes)
+        self.assertIn("ai_tutor_minutes_today", st_data)
+        self.assertEqual(st_data["ai_tutor_minutes_today"], 0)
+        act_percentages = [a["percentage"] for a in st_data["activity_breakdown"]]
+        self.assertIn(round(sum(act_percentages)), [0, 100])
 
         # 3. Update screen time policy
         pol_res = client.post(

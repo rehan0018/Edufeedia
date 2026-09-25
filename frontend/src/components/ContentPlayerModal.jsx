@@ -55,8 +55,9 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
         maxHeight: '90vh',
         overflowY: 'auto',
         padding: '28px',
-        background: 'var(--bg-card-solid)',
-        border: '1px solid var(--border-glow)'
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: 'var(--shadow-lg)'
       }}>
         {/* Modal Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -67,7 +68,7 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
                 Grade {lesson.grade_level || 10} • {lesson.topic}
               </span>
             </div>
-            <h2 style={{ fontSize: '1.45rem' }}>{lesson.title}</h2>
+            <h2 style={{ fontSize: '1.45rem', color: 'var(--text-primary)' }}>{lesson.title}</h2>
           </div>
           <button className="btn btn-outline btn-sm" onClick={onClose} style={{ padding: '6px' }}>
             <X size={20} />
@@ -99,13 +100,13 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
           <div style={{
             padding: '36px 24px',
             textAlign: 'center',
-            background: 'var(--bg-space)',
+            background: 'var(--bg-soft-blue)',
             borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-subtle)',
             marginBottom: '20px'
           }}>
-            <Sparkles size={36} color="var(--accent-cyan)" style={{ margin: '0 auto 12px auto' }} />
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '6px' }}>Interactive Curriculum Notes & Lesson Module</h3>
+            <Sparkles size={36} color="var(--brand-primary)" style={{ margin: '0 auto 12px auto' }} />
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '6px', color: 'var(--text-primary)' }}>Interactive Curriculum Notes & Lesson Module</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '480px', margin: '0 auto' }}>
               Review the conceptual summary and formula takeaways below before proceeding to the Bloom's taxonomy assessment quiz.
             </p>
@@ -114,13 +115,13 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
 
         {/* Pedagogical Summary & Key Notes */}
         <div style={{
-          background: 'hsla(222, 40%, 10%, 0.8)',
+          background: 'var(--bg-soft-blue)',
           padding: '18px 22px',
           borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-subtle)',
           marginBottom: '24px'
         }}>
-          <h4 style={{ fontSize: '1.05rem', color: 'var(--accent-cyan)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h4 style={{ fontSize: '1.05rem', color: 'var(--brand-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={16} /> Key Learning Takeaways
           </h4>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: '1.5' }}>
@@ -130,7 +131,7 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
 
         {/* Action Footer */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-          <button className="btn btn-accent" onClick={() => onOpenTutor(lesson.topic)}>
+          <button className="btn btn-outline" onClick={() => onOpenTutor(lesson.topic)}>
             <Brain size={18} /> Ask Socratic AI Tutor
           </button>
 

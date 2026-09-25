@@ -19,7 +19,7 @@ PATTERNS = [
     ("GitHub Personal Access Token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{36}\b")),
     ("GitHub Fine-Grained Token", re.compile(r"\bgithub_pat_[a-zA-Z0-9_]{82}\b")),
     ("Hardcoded Database URL with Password", re.compile(r"(?:postgresql|postgres|mysql|mongodb)://[a-zA-Z0-9_\-]+:[a-zA-Z0-9!@#$%^&*()_+]{4,}@[a-zA-Z0-9_\-\.]+:[0-9]+")),
-    ("Hardcoded Production JWT Secret", re.compile(r"(?i)(?:jwt_secret|secret_key)\s*[:=]\s*['\"][a-zA-Z0-9!@#$%^&*()_+]{16,}['\"]"))
+    ("Hardcoded Production JWT Secret", re.compile(r"(?i)(?:jwt_secret|secret_key)\s*[:=]\s*(?:(?:\${[A-Z0-9_]+:-)?['\"]?([a-zA-Z0-9_\-!@#$%^&*()+]{16,})['\"]?)"))
 ]
 
 # Known non-secret placeholders used in templates and docs
@@ -28,6 +28,15 @@ SAFE_PLACEHOLDERS = {
     "generate_a_secure_postgres_password_here",
     "generate_a_secure_64_character_hex_secret_key",
     "test_secret_key_for_ci_pipeline_verification_only_64_characters_long",
+    "ci-test-secret-key-must-be-at-least-32-chars-long",
+    "test_ci_secret_key_for_edufeedia_platform",
+    "your-32-character-random-secret-key",
+    "edufeedia-prod-cryptographic-strong-key-2026-secure",
+    "edufeedia-super-secret-secure-key-change-in-production",
+    "edufeedia-dev-only-insecure-test-signing-key-32chars",
+    "edufeedia_dev_jwt_secret_key_2026",
+    "edufeedia_dev_secret_change_in_prod",
+    "edufeedia_dev_password_only",
     "edufeedia_pass",
     "Student123!",
     "Teacher123!",

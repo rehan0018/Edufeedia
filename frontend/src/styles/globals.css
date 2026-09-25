@@ -1,33 +1,58 @@
 :root {
-  --font-heading: 'Outfit', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  /* Premium HSL Color Palette */
-  --bg-space: hsl(222, 47%, 9%);
-  --bg-card: hsla(222, 40%, 14%, 0.75);
-  --bg-card-hover: hsla(222, 40%, 18%, 0.85);
-  --bg-card-solid: hsl(222, 40%, 15%);
-  --bg-overlay: rgba(10, 15, 29, 0.85);
+  /* EduFeedia "Minimal Yet Warm" Palette - Light Mode (Default) */
+  /* Exact Theme Tokens: #EAE7DC, #D8C3A5, #8E8D8A, #E98074, #E85A4F */
+  --bg-main: #EAE7DC;
+  --bg-space: #EAE7DC;
+  --bg-soft-blue: #E2DACD;
+  --bg-card: #FFFFFF;
+  --bg-card-solid: #FFFFFF;
+  --bg-card-hover: #F7F5EE;
+  --bg-overlay: rgba(43, 39, 37, 0.65);
 
-  --accent-cyan: hsl(188, 95%, 53%);
-  --accent-purple: hsl(265, 89%, 66%);
-  --accent-blue: hsl(217, 91%, 60%);
-  --accent-emerald: hsl(152, 76%, 50%);
-  --accent-amber: hsl(43, 96%, 56%);
-  --accent-rose: hsl(346, 84%, 61%);
+  --brand-primary: #E85A4F;
+  --brand-dark: #8E8D8A;
+  --accent-mint: #D8C3A5;
+  --accent-yellow: #D8C3A5;
+  --accent-coral: #E98074;
+  --accent-stone: #8E8D8A;
 
-  --text-primary: hsl(210, 40%, 98%);
-  --text-secondary: hsl(215, 20%, 72%);
-  --text-muted: hsl(215, 16%, 52%);
+  /* Backward-compatible aliases mapped to warm brand system */
+  --accent-cyan: #E85A4F;
+  --accent-purple: #8E8D8A;
+  --accent-blue: #E85A4F;
+  --accent-emerald: #D8C3A5;
+  --accent-amber: #D8C3A5;
+  --accent-rose: #E98074;
+  --accent-blue-subtle: #E2DACD;
 
-  --border-subtle: hsla(217, 33%, 24%, 0.6);
-  --border-glow: hsla(188, 95%, 53%, 0.35);
-  --border-active: hsla(265, 89%, 66%, 0.5);
+  --text-primary: #2B2725;
+  --text-secondary: #5E5B57;
+  --text-muted: #8E8D8A;
 
-  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --shadow-glow-cyan: 0 0 20px hsla(188, 95%, 53%, 0.25);
-  --shadow-glow-purple: 0 0 20px hsla(265, 89%, 66%, 0.25);
+  --border-subtle: rgba(142, 141, 138, 0.32);
+  --border-glow: rgba(232, 90, 79, 0.35);
+  --border-active: #E85A4F;
+
+  --shadow-sm: 0 2px 8px rgba(43, 39, 37, 0.05);
+  --shadow-md: 0 8px 24px rgba(43, 39, 37, 0.08);
+  --shadow-lg: 0 16px 36px rgba(43, 39, 37, 0.12);
+  --shadow-glow-cyan: 0 0 20px rgba(232, 90, 79, 0.22);
+  --shadow-glow-purple: 0 0 20px rgba(233, 128, 116, 0.22);
+
+  --btn-primary-bg: #E85A4F;
+  --btn-primary-hover: #D3473C;
+  --btn-primary-text: #FFFFFF;
+
+  /* Warm Minimalist Gradients */
+  --gradient-hero: linear-gradient(135deg, #E85A4F 0%, #E98074 52%, #D8C3A5 100%);
+  --gradient-fun: linear-gradient(135deg, #E85A4F 0%, #E98074 100%);
+  --gradient-learning: linear-gradient(135deg, #E98074 0%, #D8C3A5 100%);
+
+  --orb-1-color: rgba(232, 90, 79, 0.12);
+  --orb-2-color: rgba(216, 195, 165, 0.28);
 
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -38,6 +63,58 @@
   --transition-smooth: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* EduFeedia "Minimal Yet Warm" Palette - Dark Mode */
+[data-theme="dark"] {
+  --bg-main: #1D1B1A;
+  --bg-space: #1D1B1A;
+  --bg-soft-blue: #2E2A27;
+  --bg-card: #262321;
+  --bg-card-solid: #262321;
+  --bg-card-hover: #332F2C;
+  --bg-overlay: rgba(18, 16, 15, 0.88);
+
+  --brand-primary: #E85A4F;
+  --brand-dark: #9C352D;
+  --accent-mint: #D8C3A5;
+  --accent-yellow: #D8C3A5;
+  --accent-coral: #E98074;
+  --accent-stone: #8E8D8A;
+
+  /* Backward-compatible aliases in dark mode */
+  --accent-cyan: #E85A4F;
+  --accent-purple: #8E8D8A;
+  --accent-blue: #E85A4F;
+  --accent-emerald: #D8C3A5;
+  --accent-amber: #D8C3A5;
+  --accent-rose: #E98074;
+  --accent-blue-subtle: #2E2A27;
+
+  --text-primary: #EAE7DC;
+  --text-secondary: #D8C3A5;
+  --text-muted: #8E8D8A;
+
+  --border-subtle: rgba(216, 195, 165, 0.22);
+  --border-glow: rgba(232, 90, 79, 0.4);
+  --border-active: #E85A4F;
+
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.55);
+  --shadow-glow-cyan: 0 0 20px rgba(232, 90, 79, 0.28);
+  --shadow-glow-purple: 0 0 20px rgba(233, 128, 116, 0.25);
+
+  --btn-primary-bg: #E85A4F;
+  --btn-primary-hover: #F06E64;
+  --btn-primary-text: #FFFFFF;
+
+  --gradient-hero: linear-gradient(135deg, #E85A4F 0%, #E98074 52%, #D8C3A5 100%);
+  --gradient-fun: linear-gradient(135deg, #E85A4F 0%, #E98074 100%);
+  --gradient-learning: linear-gradient(135deg, #E98074 0%, #D8C3A5 100%);
+
+  --orb-1-color: rgba(232, 90, 79, 0.22);
+  --orb-2-color: rgba(216, 195, 165, 0.18);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -45,55 +122,56 @@
 }
 
 body {
-  background-color: var(--bg-space);
+  background-color: var(--bg-main);
   color: var(--text-primary);
   font-family: var(--font-body);
   min-height: 100vh;
   overflow-x: hidden;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  transition: background-color var(--transition-smooth), color var(--transition-smooth);
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 /* Ambient Background Light Orbs */
 .bg-ambient-orb {
   position: fixed;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(140px);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.45;
   animation: pulse-orb 12s infinite alternate ease-in-out;
 }
 
 .orb-1 {
-  width: 480px;
-  height: 480px;
-  top: -100px;
-  left: -100px;
-  background: radial-gradient(circle, var(--accent-purple), transparent 70%);
+  width: 520px;
+  height: 520px;
+  top: -120px;
+  left: -120px;
+  background: radial-gradient(circle, var(--orb-1-color), transparent 70%);
 }
 
 .orb-2 {
-  width: 520px;
-  height: 520px;
+  width: 560px;
+  height: 560px;
   bottom: -150px;
-  right: -100px;
-  background: radial-gradient(circle, var(--accent-cyan), transparent 70%);
+  right: -120px;
+  background: radial-gradient(circle, var(--orb-2-color), transparent 70%);
   animation-delay: -6s;
 }
 
 @keyframes pulse-orb {
-  0% { transform: scale(1) translate(0, 0); opacity: 0.35; }
-  100% { transform: scale(1.15) translate(30px, 40px); opacity: 0.55; }
+  0% { transform: scale(1) translate(0, 0); opacity: 0.8; }
+  100% { transform: scale(1.15) translate(30px, 40px); opacity: 1; }
 }
 
-/* Glassmorphic Panel Utility */
+/* Clean Card & Panel Utility */
 .glass-panel {
   background: var(--bg-card);
   backdrop-filter: blur(16px);
@@ -106,7 +184,33 @@ h1, h2, h3, h4, h5, h6 {
 
 .glass-panel:hover {
   border-color: var(--border-glow);
-  box-shadow: var(--shadow-md), var(--shadow-glow-cyan);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Gradient Utility Classes */
+.gradient-hero {
+  background: var(--gradient-hero);
+}
+
+.gradient-fun {
+  background: var(--gradient-fun);
+}
+
+.gradient-learning {
+  background: var(--gradient-learning);
+}
+
+/* Gradient Text */
+.gradient-text-hero {
+  background: var(--gradient-hero);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-fun {
+  background: var(--gradient-fun);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Buttons */
@@ -131,26 +235,37 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-  color: hsl(222, 47%, 9%);
-  box-shadow: 0 4px 16px hsla(188, 95%, 53%, 0.35);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  box-shadow: 0 4px 14px rgba(232, 90, 79, 0.28);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, hsl(188, 100%, 60%), hsl(217, 100%, 68%));
-  box-shadow: 0 6px 20px hsla(188, 95%, 53%, 0.5);
+  background: var(--btn-primary-hover);
+  box-shadow: 0 6px 20px rgba(232, 90, 79, 0.4);
   transform: translateY(-1px);
 }
 
 .btn-accent {
-  background: linear-gradient(135deg, var(--accent-purple), hsl(280, 85%, 60%));
-  color: white;
-  box-shadow: 0 4px 16px hsla(265, 89%, 66%, 0.35);
+  background: var(--gradient-hero);
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(232, 90, 79, 0.25);
 }
 
 .btn-accent:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px hsla(265, 89%, 66%, 0.5);
+  box-shadow: 0 6px 20px rgba(233, 128, 116, 0.35);
+}
+
+.btn-fun {
+  background: var(--gradient-fun);
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(233, 128, 116, 0.25);
+}
+
+.btn-fun:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(233, 128, 116, 0.4);
 }
 
 .btn-outline {
@@ -160,9 +275,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-outline:hover {
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-  background: hsla(188, 95%, 53%, 0.08);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  background: var(--bg-soft-blue);
 }
 
 .btn-sm {
@@ -184,48 +299,75 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.04em;
 }
 
+/* Learning / Subject Badges */
 .badge-subject-science {
-  background: hsla(152, 76%, 50%, 0.15);
-  color: var(--accent-emerald);
-  border: 1px solid hsla(152, 76%, 50%, 0.3);
+  background: rgba(233, 128, 116, 0.16);
+  color: var(--accent-coral);
+  border: 1px solid rgba(233, 128, 116, 0.4);
 }
 
 .badge-subject-math {
-  background: hsla(217, 91%, 60%, 0.15);
-  color: var(--accent-blue);
-  border: 1px solid hsla(217, 91%, 60%, 0.3);
+  background: rgba(232, 90, 79, 0.14);
+  color: var(--brand-primary);
+  border: 1px solid rgba(232, 90, 79, 0.35);
 }
 
 .badge-subject-coding {
-  background: hsla(265, 89%, 66%, 0.15);
-  color: var(--accent-purple);
-  border: 1px solid hsla(265, 89%, 66%, 0.3);
+  background: rgba(216, 195, 165, 0.25);
+  color: #7A664E;
+  border: 1px solid rgba(216, 195, 165, 0.55);
 }
 
-.badge-spaced-due {
-  background: hsla(43, 96%, 56%, 0.18);
-  color: var(--accent-amber);
-  border: 1px solid hsla(43, 96%, 56%, 0.4);
+[data-theme="dark"] .badge-subject-coding {
+  color: #E2D1B9;
 }
 
-.badge-weak-topic {
-  background: hsla(346, 84%, 61%, 0.18);
-  color: var(--accent-rose);
-  border: 1px solid hsla(346, 84%, 61%, 0.4);
+/* Semantic Badges */
+.badge-achievement, .badge-spaced-due {
+  background: rgba(216, 195, 165, 0.28);
+  color: #8C6D46;
+  border: 1px solid rgba(216, 195, 165, 0.6);
+}
+
+[data-theme="dark"] .badge-achievement,
+[data-theme="dark"] .badge-spaced-due {
+  color: #E2D1B9;
+  background: rgba(216, 195, 165, 0.18);
+}
+
+.badge-success {
+  background: rgba(216, 195, 165, 0.25);
+  color: #61513D;
+  border: 1px solid rgba(216, 195, 165, 0.5);
+}
+
+[data-theme="dark"] .badge-success {
+  color: #D8C3A5;
+}
+
+.badge-attention, .badge-weak-topic {
+  background: rgba(232, 90, 79, 0.14);
+  color: #BD3C32;
+  border: 1px solid rgba(232, 90, 79, 0.45);
+}
+
+[data-theme="dark"] .badge-attention,
+[data-theme="dark"] .badge-weak-topic {
+  color: #E98074;
 }
 
 /* Animated Progress Bar */
 .progress-bar-track {
   width: 100%;
   height: 8px;
-  background: hsla(217, 33%, 20%, 0.6);
+  background: var(--border-subtle);
   border-radius: var(--radius-full);
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+  background: var(--gradient-hero);
   border-radius: var(--radius-full);
   transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -256,7 +398,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-space);
+  background: var(--bg-main);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -267,3 +409,160 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ==============================================================================
+   EDUFEEDIA KIDS DESIGN SYSTEM
+   Playful, cartoonish, friendly, warm, high-contrast, touch-first
+   ============================================================================== */
+
+.kids-mode-wrapper {
+  background: radial-gradient(circle at 10% 20%, rgba(255, 209, 102, 0.15) 0%, rgba(234, 231, 220, 0.8) 50%, rgba(232, 90, 79, 0.1) 100%);
+  min-height: 100vh;
+  font-family: 'Fredoka', 'Quicksand', 'Nunito', system-ui, -apple-system, sans-serif;
+  color: #2D3748;
+}
+
+[data-theme='dark'] .kids-mode-wrapper {
+  background: radial-gradient(circle at 50% 10%, #1e2640 0%, #111625 60%, #0d111c 100%);
+  color: #F8FAFC;
+}
+
+.kids-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 28px;
+  border: 3px solid #E2DED0;
+  box-shadow: 0 10px 25px -5px rgba(50, 50, 93, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+[data-theme='dark'] .kids-card {
+  background: rgba(30, 38, 56, 0.92);
+  border: 3px solid #2d3748;
+  box-shadow: 0 12px 28px -5px rgba(0, 0, 0, 0.4);
+}
+
+.kids-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 18px 32px -6px rgba(232, 90, 79, 0.18);
+}
+
+.kids-btn-fun {
+  background: linear-gradient(135deg, #FF7A59 0%, #E85A4F 100%);
+  color: #FFFFFF !important;
+  font-weight: 800;
+  font-size: 1.1rem;
+  padding: 14px 28px;
+  border-radius: 24px;
+  border: none;
+  box-shadow: 0 6px 16px rgba(232, 90, 79, 0.35), 0 3px 0 #C4382D;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kids-btn-fun:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(232, 90, 79, 0.45), 0 3px 0 #C4382D;
+}
+
+.kids-btn-fun:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 6px rgba(232, 90, 79, 0.35), 0 1px 0 #C4382D;
+}
+
+.kids-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  border: 2px solid transparent;
+}
+
+.mascot-avatar-frame {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFD166 0%, #FF7A59 100%);
+  border: 4px solid #FFFFFF;
+  box-shadow: 0 8px 20px rgba(255, 122, 89, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3.2rem;
+  animation: gentleBob 3s ease-in-out infinite;
+}
+
+@keyframes gentleBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.kids-reaction-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid #E2DED0;
+  cursor: pointer;
+  font-size: 1.8rem;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-theme='dark'] .kids-reaction-btn {
+  background: rgba(30, 38, 56, 0.9);
+  border-color: #3b4660;
+}
+
+.kids-reaction-btn:hover {
+  transform: scale(1.15);
+  border-color: #E85A4F;
+  box-shadow: 0 8px 18px rgba(232, 90, 79, 0.25);
+}
+
+.kids-adventure-step {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 22px;
+  background: #FFFFFF;
+  border: 2px solid #E8E5D8;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+[data-theme='dark'] .kids-adventure-step {
+  background: #1A2133;
+  border-color: #2F3B52;
+}
+
+.kids-adventure-step.active {
+  border-color: #E85A4F;
+  background: #FFF9F8;
+  box-shadow: 0 6px 18px rgba(232, 90, 79, 0.15);
+}
+
+[data-theme='dark'] .kids-adventure-step.active {
+  background: #251e24;
+}
+
+.kids-adventure-step.completed {
+  border-color: #34BFA3;
+  background: #F4FBF9;
+}
+
+[data-theme='dark'] .kids-adventure-step.completed {
+  background: #142824;
+}
+

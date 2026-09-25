@@ -376,6 +376,7 @@ def upgrade() -> None:
     if is_postgres and HAS_PGVECTOR:
         try:
             op.execute("CREATE INDEX IF NOT EXISTS ix_curriculum_chunks_embedding ON curriculum_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);")
+            op.execute("CREATE INDEX IF NOT EXISTS ix_content_items_embedding ON content_items USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);")
         except Exception:
             pass
 
@@ -383,6 +384,7 @@ def downgrade() -> None:
     conn = op.get_bind()
     if conn.dialect.name == "postgresql" and HAS_PGVECTOR:
         try:
+            op.execute("DROP INDEX IF EXISTS ix_content_items_embedding;")
             op.execute("DROP INDEX IF EXISTS ix_curriculum_chunks_embedding;")
         except Exception:
             pass
