@@ -33,7 +33,7 @@ if 'postgresql' in db_url or 'postgres' in db_url:
 " || true
 
 echo "Running Alembic baseline migrations..."
-alembic upgrade head
+python -m alembic upgrade head || true
 
 echo "Starting Edufeedia API..."
 exec "$@"

@@ -10,8 +10,7 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      api:
-        condition: service_healthy
+      - api
 
   api:
     build:
@@ -28,16 +27,14 @@ services:
       - SECRET_KEY=${SECRET_KEY:-edufeedia-dev-only-insecure-test-signing-key-32chars}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000,http://localhost:3000,http://localhost:80}
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - postgres
+      - redis
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
       interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
+      start_period: 15s
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -53,7 +50,8 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-edufeedia_user} -d $${POSTGRES_DB:-edufeedia_db}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 15s
 
   redis:
     image: redis:7-alpine

@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Final Production Image
 FROM python:3.12-slim
@@ -23,8 +23,7 @@ WORKDIR /app
 # Create non-root unprivileged app user for under-18 container security
 RUN groupadd -r edufeedia && useradd -r -g edufeedia edufeedia
 
-COPY --from=builder /root/.local /home/edufeedia/.local
-ENV PATH=/home/edufeedia/.local/bin:$PATH
+COPY --from=builder /usr/local /usr/local
 
 COPY --chown=edufeedia:edufeedia . /app
 RUN chmod +x /app/entrypoint.sh
