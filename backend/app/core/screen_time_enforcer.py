@@ -36,7 +36,7 @@ class ScreenTimePolicyEnforcer:
                 daily_limit_minutes=90,
                 curfew_start_time="21:30",
                 curfew_end_time="06:30",
-                curfew_enabled=True,
+                curfew_enabled=False,
                 ai_tutor_max_daily_minutes=30,
                 break_interval_minutes=45
             )

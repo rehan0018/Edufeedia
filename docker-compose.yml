@@ -24,6 +24,7 @@ services:
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER:-edufeedia_user}:${POSTGRES_PASSWORD:-edufeedia_dev_password_only}@postgres:5432/${POSTGRES_DB:-edufeedia_db}}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SECRET_KEY=${SECRET_KEY:-edufeedia-dev-only-insecure-test-signing-key-32chars}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000,http://localhost:3000,http://localhost:80}
     depends_on:
