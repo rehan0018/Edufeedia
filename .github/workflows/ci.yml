@@ -135,14 +135,18 @@ jobs:
       - name: Launch Docker Stack
         run: |
           docker compose up -d --build
-          sleep 15
+          sleep 20
           docker compose ps
 
       - name: Probe API Health and Ready Endpoints
         run: |
-          curl --fail --retry 5 --retry-delay 3 http://localhost:8000/health || exit 1
-          curl --fail --retry 5 --retry-delay 3 http://localhost:8000/ready || exit 1
+          curl --fail --retry 10 --retry-delay 3 http://localhost:8000/health || exit 1
+          curl --fail --retry 10 --retry-delay 3 http://localhost:8000/ready || exit 1
           echo "Docker Compose services healthy and endpoints verified."
+
+      - name: Dump Docker Logs on Failure
+        if: failure()
+        run: docker compose logs
 
       - name: Teardown Docker Compose
         if: always()

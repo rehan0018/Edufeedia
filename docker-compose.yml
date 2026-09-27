@@ -37,8 +37,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    volumes:
-      - ./edufeedia_database_records.xlsx:/app/edufeedia_database_records.xlsx
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -46,7 +44,7 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-edufeedia_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-edufeedia_dev_secret_change_in_prod}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-edufeedia_dev_password_only}
       - POSTGRES_DB=${POSTGRES_DB:-edufeedia_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
