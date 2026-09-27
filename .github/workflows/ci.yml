@@ -140,8 +140,10 @@ jobs:
 
       - name: Probe API Health and Ready Endpoints
         run: |
-          curl --fail --retry 10 --retry-delay 3 http://localhost:8000/health || exit 1
-          curl --fail --retry 10 --retry-delay 3 http://localhost:8000/ready || exit 1
+          echo "Probing API /health endpoint..."
+          curl -i --fail --retry 20 --retry-delay 3 --retry-connrefused http://localhost:8000/health
+          echo "Probing API /ready endpoint..."
+          curl -i --fail --retry 20 --retry-delay 3 --retry-connrefused http://localhost:8000/ready
           echo "Docker Compose services healthy and endpoints verified."
 
       - name: Dump Docker Logs on Failure
