@@ -5,6 +5,7 @@ aligned to CBSE and National Curriculum Framework (NCF).
 """
 
 from typing import List, Dict, Any, Optional
+from app.core.logging_config import logger
 
 class NCERTSearchAdapter:
     """
@@ -181,8 +182,8 @@ class NCERTSearchAdapter:
                         ],
                         "source_type": "database_curriculum_chunk"
                     })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(f"NCERT database curriculum query failed for topic '{topic}': {exc}. Falling back to curated NCERT chapter bank.")
 
         # 2. Query curated NCERT chapter bank
         for item in cls.NCERT_CHAPTER_INDEX:

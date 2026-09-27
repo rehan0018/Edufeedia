@@ -286,6 +286,51 @@ class TestAuditHardening(unittest.TestCase):
         self.assertLessEqual(len(pool), 15)
         db.close()
 
+    def test_07_concurrent_resource_session_telemetry_isolation(self):
+        """Telemetry Integrity: Independent session tracking per resource prevents cross-resource clock interference."""
+        db = self.SessionLocal()
+        student = db.query(User).filter(User.id == "student-audit-test").first()
+
+        # Session 1: Math resource
+        req_math = ResourceEngagementRequest(
+            resource_id="math-session-res-1",
+            session_id="session-math-alpha",
+            topic="Quadratic Equations",
+            subject="Mathematics",
+            dwell_time_seconds=45,
+            action_type="viewed"
+        )
+        res_math = LearningLoopManager.record_resource_engagement(db, student, req_math)
+        self.assertEqual(res_math["dwell_time_seconds"], 45)
+        self.assertEqual(res_math["session_accumulated_seconds"], 45)
+
+        # Session 2: Science resource (started concurrently in another tab)
+        req_sci = ResourceEngagementRequest(
+            resource_id="sci-session-res-2",
+            session_id="session-sci-beta",
+            topic="Photosynthesis",
+            subject="Biology",
+            dwell_time_seconds=60,
+            action_type="viewed"
+        )
+        res_sci = LearningLoopManager.record_resource_engagement(db, student, req_sci)
+        self.assertEqual(res_sci["dwell_time_seconds"], 60)
+        self.assertEqual(res_sci["session_accumulated_seconds"], 60)
+
+        # Immediate replay attempt on Math session (milliseconds later)
+        req_math_replay = ResourceEngagementRequest(
+            resource_id="math-session-res-1",
+            session_id="session-math-alpha",
+            topic="Quadratic Equations",
+            subject="Mathematics",
+            dwell_time_seconds=120,
+            action_type="viewed"
+        )
+        res_math_replay = LearningLoopManager.record_resource_engagement(db, student, req_math_replay)
+        # Server must clamp to 0 verified seconds due to anti-replay threshold on this session
+        self.assertEqual(res_math_replay["dwell_time_seconds"], 0)
+        db.close()
+
 
 if __name__ == "__main__":
     unittest.main()

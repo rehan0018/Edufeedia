@@ -210,6 +210,16 @@ class LearningLoopManager:
             recommended_next_step=recommended_next_step
         )
 
+    # Server-authoritative session state registry:
+    # Keyed by session_key: f"{student_id}:{session_id or resource_id}" -> {
+    #     "started_at": datetime,
+    #     "last_heartbeat_at": datetime,
+    #     "accumulated_seconds": int,
+    #     "heartbeat_count": int,
+    #     "resource_id": str
+    # }
+    _ACTIVE_SESSIONS: Dict[str, Dict[str, Any]] = {}
+
     @classmethod
     def record_resource_engagement(
         cls,
@@ -219,48 +229,58 @@ class LearningLoopManager:
     ) -> Dict[str, Any]:
         """
         Records student engagement with a discovered resource (dwell time, completion).
-        Enforces verified session bounds: client dwell time is clamped to incremental heartbeat limits
-        (max 180 seconds per submission) to protect against telemetry fabrication.
+        Enforces session-isolated server-authoritative bounds:
+        Dwell time is tracked per (student, resource, session) tuple so multiple concurrent
+        tabs or different resources do not cross-pollinate or corrupt timestamps.
+        Heartbeats are clamped to physical server elapsed time and anti-replay rate bounds.
         """
         if not student_user:
             raise ValueError("Student must be authenticated to record engagement telemetry.")
 
         student_id = student_user.id
         now_utc = datetime.datetime.now(datetime.timezone.utc)
-
-        # Server-authoritative dwell verification:
-        # Check student's most recent LearningEvent to calculate physical elapsed time
-        # since the server last recorded engagement. Telemetry cannot claim more seconds
-        # than physically elapsed on the server clock.
-        last_event = db.query(LearningEvent).filter(
-            LearningEvent.student_user_id == student_id
-        ).order_by(LearningEvent.created_at.desc()).first()
-
+        session_key = f"{student_id}:{request.session_id or request.resource_id}"
         raw_dwell = max(0, int(request.dwell_time_seconds))
 
-        if last_event and last_event.created_at:
-            last_created = last_event.created_at
+        if session_key in cls._ACTIVE_SESSIONS:
+            sess = cls._ACTIVE_SESSIONS[session_key]
+            last_created = sess["last_heartbeat_at"]
             if last_created.tzinfo is None:
                 last_created = last_created.replace(tzinfo=datetime.timezone.utc)
             elapsed_server_seconds = max(0.0, (now_utc - last_created).total_seconds())
 
-            # Anti-replay / rapid-fire attack check:
-            # If a client sends an event within 2 seconds of the previous event, physical elapsed time is negligible
+            # Anti-replay / rapid-fire attack check on this specific resource session:
+            # If client sends another event within 2 seconds, physical elapsed time is negligible
             if elapsed_server_seconds < 2.0:
                 verified_dwell = 0
             else:
                 verified_dwell = min(raw_dwell, int(elapsed_server_seconds), 180)
+
+            sess["last_heartbeat_at"] = now_utc
+            sess["accumulated_seconds"] += verified_dwell
+            sess["heartbeat_count"] += 1
+            session_accumulated = sess["accumulated_seconds"]
+            hb_count = sess["heartbeat_count"]
         else:
-            # Initial event for session: clamped to single heartbeat ceiling (180s)
+            # Initial heartbeat in this resource session
             verified_dwell = min(raw_dwell, 180)
+            session_accumulated = verified_dwell
+            hb_count = 1
+            cls._ACTIVE_SESSIONS[session_key] = {
+                "started_at": now_utc,
+                "last_heartbeat_at": now_utc,
+                "accumulated_seconds": session_accumulated,
+                "heartbeat_count": hb_count,
+                "resource_id": request.resource_id
+            }
 
         event = LearningEvent(
             student_user_id=student_id,
-            content_item_id=None,
+            content_item_id=request.resource_id if len(request.resource_id) == 36 else None,
             event_type="progress_checkpoint" if request.action_type == "viewed" else "completion_verified",
-            progress_percentage=100 if request.action_type == "completed" else min(90, int(verified_dwell / 2)),
+            progress_percentage=100 if request.action_type == "completed" else min(90, int(session_accumulated / 2)),
             verified_seconds=verified_dwell,
-            heartbeat_count=max(1, verified_dwell // 30),
+            heartbeat_count=hb_count,
             client_timestamp=now_utc
         )
         db.add(event)
@@ -285,9 +305,11 @@ class LearningLoopManager:
 
         return {
             "status": "recorded",
+            "session_id": request.session_id or session_key,
             "resource_id": request.resource_id,
             "topic": request.topic,
             "dwell_time_seconds": verified_dwell,
+            "session_accumulated_seconds": session_accumulated,
             "action_type": request.action_type,
             "xp_awarded": xp_bonus
         }

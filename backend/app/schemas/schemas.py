@@ -901,4 +901,5 @@ class ResourceEngagementRequest(BaseModel):
     subject: str
     dwell_time_seconds: int
     action_type: str # 'viewed', 'completed', 'bookmarked', 'shared'
+    session_id: Optional[str] = None
 

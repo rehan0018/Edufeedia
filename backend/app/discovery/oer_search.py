@@ -5,6 +5,7 @@ and open-licensed STEM activities.
 """
 
 from typing import List, Dict, Any, Optional
+from app.core.logging_config import logger
 
 class OERSearchAdapter:
     """
@@ -198,8 +199,8 @@ class OERSearchAdapter:
                         "learning_gain_potential": 0.93,
                         "source_type": "database_content_item"
                     })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(f"OER database catalog query failed for topic '{topic}': {exc}. Falling back to vetted OER catalog.")
 
         # 2. Query verified OER simulation catalog
         for item in cls.OER_SIMULATION_INDEX:

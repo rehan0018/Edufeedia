@@ -11,6 +11,7 @@ from app.discovery.ncert_search import NCERTSearchAdapter
 from app.discovery.oer_search import OERSearchAdapter
 from app.discovery.youtube_search import YouTubeDiscoveryAdapter
 from app.schemas.schemas import InterpretedIntent
+from app.core.logging_config import logger
 
 class CandidateBuilder:
     """
@@ -105,8 +106,8 @@ class CandidateBuilder:
                     "provenance_metadata": item.provenance_metadata or {},
                     "origin": "catalog"
                 })
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"Edufeedia internal catalog retrieval failed for topic '{intent.topic}': {exc}")
 
         # 2. NCERT Official Chapter Readings
         ncert_results = NCERTSearchAdapter.search(
