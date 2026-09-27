@@ -80,7 +80,8 @@ class TestDiscoveryEngine(unittest.TestCase):
             role="student",
             is_verified=True,
             email_verified=True,
-            account_status="ACTIVE"
+            account_status="ACTIVE",
+            token_version=1
         )
         self.db.add(self.student)
 
@@ -108,7 +109,13 @@ class TestDiscoveryEngine(unittest.TestCase):
         self.db.add(self.mastery)
         self.db.commit()
 
+        from app.core.security import create_access_token
+        self.token = create_access_token({"sub": self.student.email, "role": "student", "token_version": 1})
+        self.auth_headers = {"Authorization": f"Bearer {self.token}"}
+
     def tearDown(self):
+        from app.models.models import EducationalSource
+        self.db.query(EducationalSource).delete()
         self.db.query(StudentMasteryHistory).delete()
         self.db.query(TopicMastery).delete()
         self.db.query(RewardLedger).delete()
@@ -384,6 +391,125 @@ class TestDiscoveryEngine(unittest.TestCase):
         self.assertEqual(data["policy_version"], "v1.0")
         self.assertIn("weights", data)
         self.assertGreaterEqual(data["safety_threshold"], 0.90)
+
+    # --------------------------------------------------------------------------
+    # 9. P0 Security, Telemetry Integrity, and Data Governance Tests
+    # --------------------------------------------------------------------------
+    def test_anonymous_quiz_submit_rejected_with_401(self):
+        """Anonymous requests must not mutate student mastery indices."""
+        req_payload = {
+            "quiz_id": "quiz-check-8-photosynthesis",
+            "topic": "Photosynthesis",
+            "subject": "Science",
+            "grade_level": 8,
+            "answers": {"q1": 1}
+        }
+        res_public = self.client.post("/api/v1/discovery/quiz-submit", json=req_payload)
+        self.assertEqual(res_public.status_code, 401)
+
+        res_student = self.client.post("/api/v1/students/discovery/quiz-submit", json=req_payload)
+        self.assertEqual(res_student.status_code, 401)
+
+    def test_authenticated_quiz_submit_succeeds(self):
+        """Authenticated student requests succeed and record progress."""
+        req_payload = {
+            "quiz_id": "quiz-check-8-photosynthesis",
+            "topic": "Photosynthesis",
+            "subject": "Science",
+            "grade_level": 8,
+            "answers": {"q1": 1, "q2": 1, "q3": 1, "q4": 2, "q5": 0}
+        }
+        res = self.client.post(
+            "/api/v1/students/discovery/quiz-submit",
+            json=req_payload,
+            headers=self.auth_headers
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["score"], 5)
+        self.assertGreater(data["new_mastery"], data["prior_mastery"])
+
+    def test_anonymous_engagement_rejected_with_401(self):
+        """Anonymous engagement submissions are rejected."""
+        req_payload = {
+            "resource_id": "phet-photosynthesis",
+            "topic": "Photosynthesis",
+            "subject": "Science",
+            "dwell_time_seconds": 60,
+            "action_type": "viewed"
+        }
+        res = self.client.post("/api/v1/discovery/resource-engagement", json=req_payload)
+        self.assertEqual(res.status_code, 401)
+
+    def test_dwell_time_clamped_at_180_seconds(self):
+        """Client-reported dwell time is bounded to incremental thresholds (max 180s) to prevent spoofing."""
+        req_payload = {
+            "resource_id": "phet-photosynthesis",
+            "topic": "Photosynthesis",
+            "subject": "Science",
+            "dwell_time_seconds": 99999,  # Attempted spoof
+            "action_type": "viewed"
+        }
+        res = self.client.post(
+            "/api/v1/students/discovery/resource-engagement",
+            json=req_payload,
+            headers=self.auth_headers
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["dwell_time_seconds"], 180)
+
+    def test_iso8601_duration_parsing(self):
+        """YouTube ISO 8601 duration parser accurately parses days, hours, minutes, and seconds."""
+        from app.discovery.youtube_search import parse_iso8601_duration
+        self.assertEqual(parse_iso8601_duration("PT8M32S"), 9)
+        self.assertEqual(parse_iso8601_duration("PT1H2M10S"), 62)
+        self.assertEqual(parse_iso8601_duration("PT45S"), 1)
+        self.assertEqual(parse_iso8601_duration("PT10M"), 10)
+        self.assertEqual(parse_iso8601_duration("P1DT2H"), 1560)
+        self.assertEqual(parse_iso8601_duration(""), 8)
+
+    def test_db_backed_educational_source_seeding_and_lookup(self):
+        """SourceAuthorityRegistry seeds EducationalSource table and looks up from DB."""
+        from app.models.models import EducationalSource
+
+        # Ensure seeded
+        SourceAuthorityRegistry.ensure_default_sources_seeded(self.db)
+        count = self.db.query(EducationalSource).count()
+        self.assertGreaterEqual(count, 5)
+
+        # Lookup by creator
+        eval_res = SourceAuthorityRegistry.evaluate_source(
+            url="https://www.youtube.com/watch?v=123",
+            creator_name="Khan Academy India",
+            db=self.db
+        )
+        self.assertEqual(eval_res["authority_tier"], "TIER_B")
+        self.assertIn("Database verified source", eval_res["reason"])
+        self.assertEqual(eval_res["verification_method"], "curriculum_review")
+
+    def test_provenance_evidence_chain_structure(self):
+        """ProvenanceGenerator produces structured evidence chain with verification and curriculum details."""
+        intent = QueryUnderstandingEngine.interpret_query("Explain photosynthesis for Class 8 CBSE")
+        candidate = {
+            "source_name": "NCERT Official",
+            "source_platform": "NCERT",
+            "authority_tier": "TIER_A",
+            "grade_level": 8,
+            "board": "CBSE",
+            "subject": "Science",
+            "topic": "Photosynthesis",
+            "chapter": "Chapter 1: Nutrition in Plants",
+            "verification_method": "government_accreditation"
+        }
+        evidence = ProvenanceGenerator.generate_provenance_evidence(candidate, intent)
+        self.assertEqual(evidence["source"], "NCERT Official")
+        self.assertEqual(evidence["authority_tier"], "TIER_A")
+        self.assertEqual(evidence["chapter"], "Chapter 1: Nutrition in Plants")
+        self.assertIn("curriculum_alignment", evidence)
+        self.assertEqual(evidence["curriculum_alignment"]["board"], "CBSE")
+        self.assertIn("creator_verification", evidence)
+        self.assertIn("content_verification", evidence)
+        self.assertEqual(evidence["content_verification"]["safety_audit_status"], "PASSED_HARD_GATE")
 
 
 if __name__ == "__main__":

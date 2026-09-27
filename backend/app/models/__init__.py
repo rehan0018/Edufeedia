@@ -23,5 +23,12 @@ from app.models.models import (
     PrerequisiteEdge,
     MisconceptionLog,
     AuditEvent,
-    ConsentRecord
+    ConsentRecord,
+    EducationalSource,
+    DiscoveryQueryLog,
+    StudentMasteryHistory,
+    ChildProfile,
+    SystemSetting,
+    SafetyIncident,
+    ContentModerationItem
 )

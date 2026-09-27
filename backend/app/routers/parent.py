@@ -671,7 +671,7 @@ def serialize_child_profile(child: ChildProfile, db: Session) -> Dict[str, Any]:
         ChildActivity.created_at >= today_start
     ).all()
     today_seconds = sum(a.dwell_time_seconds for a in activities_today if a.dwell_time_seconds)
-    today_mins = max(int(today_seconds / 60), len(activities_today) * 5)
+    today_mins = int(today_seconds / 60)
 
     return {
         "id": child.id,
@@ -1053,7 +1053,7 @@ def get_child_dashboard_for_parent(
         ChildActivity.created_at >= today_start
     ).all()
     today_seconds = sum(a.dwell_time_seconds for a in activities_today if a.dwell_time_seconds)
-    today_mins = max(int(today_seconds / 60), len(activities_today) * 5)
+    today_mins = int(today_seconds / 60)
     daily_limit = child.daily_limit_minutes or 45
     percent_used = min(100, int((today_mins / daily_limit) * 100)) if daily_limit > 0 else 0
     is_over_limit = today_mins > daily_limit

@@ -59,6 +59,7 @@ app.include_router(ingestion.router, prefix="/api/v1")
 app.include_router(privacy.router, prefix="/api/v1")
 app.include_router(challenges.router, prefix="/api/v1")
 app.include_router(discovery.router, prefix="/api/v1")
+app.include_router(discovery.student_router, prefix="/api/v1")
 
 
 import uuid

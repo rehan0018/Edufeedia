@@ -26,14 +26,14 @@ export default function ParentGateModal({ isOpen, onClose, onSuccess }) {
         onSuccess();
         onClose();
       } else {
-        setError(res.message || 'Incorrect PIN. Default demo PIN is 1234.');
+        setError(res.message || 'Incorrect parent PIN. Please try again.');
       }
     } catch (err) {
-      if (pin === '1234') {
+      if (import.meta.env.VITE_DEMO_MODE === 'true' && pin === '1234') {
         onSuccess();
         onClose();
       } else {
-        setError(err.message || 'Verification failed. Try default PIN: 1234');
+        setError(err.message || 'PIN verification failed. Please try again.');
       }
     } finally {
       setLoading(false);

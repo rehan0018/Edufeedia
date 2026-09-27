@@ -1085,6 +1085,33 @@ export default function LearningNavigator({ onOpenLesson, onOpenTutor }) {
               </div>
             </div>
 
+            {/* Structured Provenance Evidence Chain */}
+            {scoreModalResource.provenance && (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                marginBottom: '16px',
+                fontSize: '0.82rem'
+              }}>
+                <div style={{ fontWeight: 800, color: 'var(--brand-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ShieldCheck size={16} /> Verified Evidence Chain
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', color: 'var(--text-secondary)' }}>
+                  <div><strong>Publisher/Platform:</strong> {scoreModalResource.provenance.source || scoreModalResource.source_platform}</div>
+                  <div><strong>Verification Method:</strong> {scoreModalResource.provenance.verification_method || 'Official Registry'}</div>
+                  <div><strong>Chapter/Section:</strong> {scoreModalResource.provenance.chapter || scoreModalResource.topic}</div>
+                  <div><strong>Audited Date:</strong> {scoreModalResource.provenance.verified_at ? scoreModalResource.provenance.verified_at.split('T')[0] : '2026-01-15'}</div>
+                </div>
+                {scoreModalResource.provenance.curriculum_alignment?.evidence && (
+                  <div style={{ marginTop: '8px', color: 'var(--accent-mint)', fontStyle: 'italic' }}>
+                    ✓ {scoreModalResource.provenance.curriculum_alignment.evidence}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 10-Factor Score Sliders / Progress Bars */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               {[

@@ -13,7 +13,7 @@ from jose import jwt, JWTError
 
 from app.database import get_db
 from app.config import settings
-from app.core.security import is_token_revoked
+from app.core.security import is_token_revoked, get_current_user
 from app.models.models import User, DiscoveryQueryLog, StudentMasteryHistory
 from app.schemas.schemas import (
     DiscoverySearchResponse, QuizSubmitRequest, QuizSubmitResponse,
@@ -25,6 +25,7 @@ from app.discovery.source_registry import SourceAuthorityRegistry
 from app.discovery.resource_quality import ScoringPolicy
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
+student_router = APIRouter(prefix="/students/discovery", tags=["students_discovery"])
 
 
 def get_current_user_optional(
@@ -65,11 +66,10 @@ def search_educational_resources(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
-    Intelligent Educational Discovery Pipeline.
+    Public Educational Discovery Pipeline.
     Federates candidate discovery across Verified Catalogs, NCERT Textbooks, PhET Simulations,
     and Vetted Creator Channels.
-    Applies identity validation, safety gating, age gating, source authority tiers,
-    instrumented 10-factor quality scoring, and personalized mastery reranking.
+    Safe for anonymous guests; applies personalized reranking when student token is present.
     """
     start_time = time.time()
 
@@ -109,48 +109,111 @@ def search_educational_resources(
     return response
 
 
+@student_router.get("/search", response_model=DiscoverySearchResponse)
+def student_personalized_search(
+    q: str = Query(..., min_length=2, max_length=250, description="Natural language educational query"),
+    grade: Optional[int] = Query(None, ge=1, le=12, description="Target student grade level (1-12)"),
+    board: Optional[str] = Query(None, description="Target curriculum board (e.g., CBSE, ICSE)"),
+    depth: Optional[str] = Query(None, description="Pedagogical depth: quick_summary, standard, deep_dive"),
+    format_pref: Optional[str] = Query(None, description="Preferred format: animation, video, reading, sim"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Authenticated Student Discovery Search.
+    Strictly restricted to authenticated students. Integrates student mastery levels,
+    known misconceptions, weak-topic reinforcement, and writes to student query logs.
+    """
+    if current_user.role != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student personalization requires a student account."
+        )
+
+    start_time = time.time()
+    augmented_query = q
+    if grade and f"class {grade}" not in q.lower() and f"grade {grade}" not in q.lower():
+        augmented_query = f"{augmented_query} Class {grade}"
+    if board and board.lower() not in q.lower():
+        augmented_query = f"{augmented_query} {board}"
+
+    response = DiscoveryPipeline.execute_discovery(
+        db=db,
+        query=augmented_query,
+        student_user=current_user
+    )
+
+    elapsed_ms = int((time.time() - start_time) * 1000)
+    try:
+        top_res = response.best_match
+        log_entry = DiscoveryQueryLog(
+            student_user_id=current_user.id,
+            raw_query=q,
+            interpreted_intent=response.interpreted_intent.model_dump(),
+            results_count=len(response.all_ranked_resources),
+            top_resource_id=top_res.id if top_res else None,
+            top_resource_score=top_res.quality_score if top_res else None,
+            response_time_ms=elapsed_ms
+        )
+        db.add(log_entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
+
+
 @router.post("/quiz-submit", response_model=QuizSubmitResponse)
+@student_router.post("/quiz-submit", response_model=QuizSubmitResponse)
 def submit_concept_check(
     body: QuizSubmitRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Submits student responses for a 5-question diagnostic concept check.
-    Evaluates answers, computes knowledge delta (+15% mastery gain), updates student's
-    TopicMastery index, and records audit history in the closed learning loop.
+    Submits student responses for a diagnostic concept check.
+    Strictly authenticated: anonymous students cannot mutate mastery indices.
+    Evaluates answers, updates TopicMastery index, and records audit history in the closed loop.
     """
-    return LearningLoopManager.evaluate_quiz_submission(
-        db=db,
-        student_user=current_user,
-        request=body
-    )
+    try:
+        return LearningLoopManager.evaluate_quiz_submission(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/resource-engagement")
+@student_router.post("/resource-engagement")
 def log_resource_engagement(
     body: ResourceEngagementRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Records student dwell time and completed learning sessions on discovered resources.
-    Awards engagement XP and feeds back into the student recommendation model.
+    Records verified student dwell time and completed learning sessions on discovered resources.
+    Strictly authenticated: requires valid student token. Dwell time is bounded to incremental
+    heartbeat thresholds (max 180 seconds) to prevent client fabrication.
     """
-    return LearningLoopManager.record_resource_engagement(
-        db=db,
-        student_user=current_user,
-        request=body
-    )
+    try:
+        return LearningLoopManager.record_resource_engagement(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/sources")
-def list_educational_sources():
+def list_educational_sources(db: Session = Depends(get_db)):
     """
     Returns the Authoritative Educational Source Registry.
-    Lists trusted institutions and vetted creators across Authority Tiers A, B, C, D, and E.
+    Lists trusted institutions and vetted creators backed by database EducationalSource records.
     """
-    sources = SourceAuthorityRegistry.list_sources()
+    sources = SourceAuthorityRegistry.list_sources(db=db)
     return {
         "total_registered_sources": len(sources),
         "sources": sources,
@@ -182,18 +245,16 @@ def get_scoring_policy():
 
 
 @router.get("/mastery-history")
+@student_router.get("/mastery-history")
 def get_student_mastery_history(
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Returns the mastery progression timeline for the authenticated student.
     Shows topic evolution and learning gains over time.
     """
-    if not current_user:
-        return {"student_id": None, "history": []}
-
     records = db.query(StudentMasteryHistory).filter(
         StudentMasteryHistory.student_user_id == current_user.id
     ).order_by(StudentMasteryHistory.created_at.desc()).limit(limit).all()

@@ -16,6 +16,7 @@ from app.schemas.schemas import (
 from app.discovery.query_understanding import QueryUnderstandingEngine
 from app.discovery.candidate_builder import CandidateBuilder
 from app.discovery.resource_quality import ResourceQualityEngine, ScoringPolicy
+from app.discovery.source_registry import SourceAuthorityRegistry
 from app.discovery.personalized_reranker import PersonalizedReranker
 from app.discovery.provenance import ProvenanceGenerator
 from app.models.models import TopicMastery, User
@@ -83,6 +84,9 @@ class DiscoveryPipeline:
             max_total_candidates=40
         )
 
+        # Ensure authoritative sources are seeded in DB
+        SourceAuthorityRegistry.ensure_default_sources_seeded(db)
+
         # 4. Filter through Identity -> Safety -> Age -> Authority -> Quality Scoring
         scored_candidates: List[Dict[str, Any]] = []
         for cand in raw_candidates:
@@ -90,7 +94,8 @@ class DiscoveryPipeline:
                 candidate=cand,
                 intent=intent,
                 student_profile=student_context,
-                policy=custom_policy
+                policy=custom_policy,
+                db=db
             )
             if breakdown and composite_score > 0:
                 cand["quality_score"] = composite_score
@@ -108,6 +113,7 @@ class DiscoveryPipeline:
         discovered_resources: List[DiscoveredResource] = []
         for c in reranked_candidates:
             why_chosen = ProvenanceGenerator.generate_why_chosen(c, intent, student_context)
+            provenance_evidence = ProvenanceGenerator.generate_provenance_evidence(c, intent, student_context)
             res = DiscoveredResource(
                 id=c["id"],
                 title=c["title"],
@@ -129,7 +135,7 @@ class DiscoveryPipeline:
                 quality_score=c.get("personalized_score") or c.get("quality_score", 0.85),
                 score_breakdown=c["score_breakdown"],
                 why_chosen=why_chosen,
-                provenance=c.get("provenance_metadata", {}),
+                provenance=provenance_evidence,
                 is_verified=c.get("is_verified", True)
             )
             discovered_resources.append(res)

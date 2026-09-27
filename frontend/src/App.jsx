@@ -16,9 +16,11 @@ import BedtimeCurfewScreen from './components/BedtimeCurfewScreen';
 import LearningNavigator from './components/LearningNavigator';
 import { getSession, clearAuthSession, fetchDailyPlanFeed, fetchStudentScreenTimeStatus, sendStudentHeartbeat } from './services/api';
 
+const IS_DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 export default function App() {
   const [session, setSession] = useState(() => {
-    if (typeof window !== 'undefined') {
+    if (IS_DEMO_MODE && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const demo = params.get('demo');
       const mode = params.get('mode');
@@ -109,7 +111,7 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (IS_DEMO_MODE && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const demo = params.get('demo') || params.get('mode');
       if (demo) {

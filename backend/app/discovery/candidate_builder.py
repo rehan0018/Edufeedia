@@ -70,44 +70,13 @@ class CandidateBuilder:
         except Exception:
             pass
 
-        # If no DB animation found for this topic, inject synthesized Edufeedia Cartoon Animation candidate
-        has_animation = any(c.get("resource_type") == "animation" or c.get("is_cartoon") for c in candidates)
-        if not has_animation:
-            candidates.append({
-                "id": f"edufeedia-anim-{intent.grade_level}-{intent.topic.lower().replace(' ', '-')}",
-                "title": f"The Story of {intent.topic}: Visual Socratic Cartoon",
-                "description": f"An engaging 6-minute animated adventure breaking down {intent.topic} step-by-step for Class {intent.grade_level} students.",
-                "source_url": f"https://edufeedia.com/learn/animations/{intent.topic.lower().replace(' ', '-')}",
-                "embed_url": "https://edufeedia.com/embed/animation/photosynthesis",
-                "source_name": "Edufeedia Originals",
-                "source_platform": "Edufeedia Studio",
-                "creator_name": "Edufeedia Curriculum Team",
-                "creator_id": "edufeedia_studio",
-                "resource_type": "animation",
-                "subject": intent.subject,
-                "topic": intent.topic,
-                "grade_level": intent.grade_level,
-                "board": intent.board,
-                "language": intent.language,
-                "duration_minutes": 6,
-                "view_count": 48200,
-                "is_cartoon": True,
-                "transcript_text": f"Welcome young scientists! Today we unlock the secret of {intent.topic}. Watch how nature works step by step.",
-                "provenance_metadata": {
-                    "script_source": [f"NCERT Class {intent.grade_level} {intent.subject}"],
-                    "fact_checked": True,
-                    "teacher_reviewed": True,
-                    "safety_checked": True
-                },
-                "origin": "edufeedia_animation"
-            })
-
         # 2. NCERT Official Chapter Readings
         ncert_results = NCERTSearchAdapter.search(
             topic=intent.topic,
             grade_level=intent.grade_level,
             board=intent.board,
-            subject=intent.subject
+            subject=intent.subject,
+            db=db
         )
         for nr in ncert_results:
             candidates.append({
@@ -141,7 +110,8 @@ class CandidateBuilder:
         oer_results = OERSearchAdapter.search(
             topic=intent.topic,
             grade_level=intent.grade_level,
-            preferred_format=intent.format_preference
+            preferred_format=intent.format_preference,
+            db=db
         )
         for or_item in oer_results:
             candidates.append({

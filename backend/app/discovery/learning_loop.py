@@ -80,27 +80,28 @@ class LearningLoopManager:
 
         accuracy_pct = round((correct_count / max(1, total_questions)) * 100.0, 1)
 
-        # 3. Retrieve or initialize student's topic mastery
-        student_id = student_user.id if student_user else "anonymous-student"
+        # 3. Retrieve student's topic mastery (requires authenticated student)
+        if not student_user:
+            raise ValueError("Student must be authenticated to submit concept-check quizzes and record mastery progression.")
+
+        student_id = student_user.id
         prior_mastery = 40.0
 
-        topic_record = None
-        if student_user:
+        topic_record = db.query(TopicMastery).filter(
+            TopicMastery.student_user_id == student_id,
+            TopicMastery.subject.ilike(f"%{request.subject}%"),
+            TopicMastery.topic.ilike(f"%{request.topic}%")
+        ).first()
+
+        if not topic_record:
+            # Fallback to topic search across subjects
             topic_record = db.query(TopicMastery).filter(
                 TopicMastery.student_user_id == student_id,
-                TopicMastery.subject.ilike(f"%{request.subject}%"),
                 TopicMastery.topic.ilike(f"%{request.topic}%")
             ).first()
 
-            if not topic_record:
-                # Fallback to topic search across subjects
-                topic_record = db.query(TopicMastery).filter(
-                    TopicMastery.student_user_id == student_id,
-                    TopicMastery.topic.ilike(f"%{request.topic}%")
-                ).first()
-
-            if topic_record:
-                prior_mastery = float(topic_record.mastery_score or 0.0)
+        if topic_record:
+            prior_mastery = float(topic_record.mastery_score or 0.0)
 
         # 4. Calculate adaptive mastery delta (Bayesian Knowledge Tracing inspired)
         # High score: large gain. Low score: minor adjustment to protect motivation while identifying weakness.
@@ -123,67 +124,66 @@ class LearningLoopManager:
         # 5. Persist TopicMastery and StudentMasteryHistory in database
         xp_earned = int(40 + (correct_count * 12) + (20 if accuracy_pct >= 80 else 0))
 
-        if student_user:
-            now_utc = datetime.datetime.now(datetime.timezone.utc)
-            if topic_record:
-                topic_record.mastery_score = new_mastery
-                topic_record.attempt_count = (topic_record.attempt_count or 0) + 1
-                topic_record.trend = trend
-                topic_record.last_assessed_at = now_utc
-            else:
-                topic_record = TopicMastery(
-                    student_user_id=student_id,
-                    board="CBSE",
-                    grade_level=request.grade_level,
-                    subject=request.subject or "Science",
-                    topic=request.topic,
-                    mastery_score=new_mastery,
-                    confidence=0.75 if accuracy_pct >= 60 else 0.45,
-                    attempt_count=1,
-                    trend=trend,
-                    last_assessed_at=now_utc
-                )
-                db.add(topic_record)
-
-            # Record mastery history row
-            history_entry = StudentMasteryHistory(
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        if topic_record:
+            topic_record.mastery_score = new_mastery
+            topic_record.attempt_count = (topic_record.attempt_count or 0) + 1
+            topic_record.trend = trend
+            topic_record.last_assessed_at = now_utc
+        else:
+            topic_record = TopicMastery(
                 student_user_id=student_id,
-                topic=request.topic,
+                board="CBSE",
+                grade_level=request.grade_level,
                 subject=request.subject or "Science",
-                prior_mastery=prior_mastery,
-                new_mastery=new_mastery,
-                learning_gain=actual_gain,
-                quiz_score_pct=accuracy_pct
+                topic=request.topic,
+                mastery_score=new_mastery,
+                confidence=0.75 if accuracy_pct >= 60 else 0.45,
+                attempt_count=1,
+                trend=trend,
+                last_assessed_at=now_utc
             )
-            db.add(history_entry)
+            db.add(topic_record)
 
-            # Log learning event
-            event = LearningEvent(
-                student_user_id=student_id,
-                event_type="quiz_submission",
-                progress_percentage=int(accuracy_pct),
-                verified_seconds=90,
-                heartbeat_count=3,
-                client_timestamp=now_utc
-            )
-            db.add(event)
+        # Record mastery history row
+        history_entry = StudentMasteryHistory(
+            student_user_id=student_id,
+            topic=request.topic,
+            subject=request.subject or "Science",
+            prior_mastery=prior_mastery,
+            new_mastery=new_mastery,
+            learning_gain=actual_gain,
+            quiz_score_pct=accuracy_pct
+        )
+        db.add(history_entry)
 
-            # Credit reward ledger idempotently
-            unique_key = f"xp:discovery_quiz:{student_id}:{request.quiz_id}:{int(time.time() // 60)}"
-            ledger_entry = RewardLedger(
-                student_user_id=student_id,
-                reward_type="QUIZ_MASTERY_XP",
-                xp_amount=xp_earned,
-                unique_reward_key=unique_key
-            )
-            db.add(ledger_entry)
+        # Log learning event
+        event = LearningEvent(
+            student_user_id=student_id,
+            event_type="quiz_submission",
+            progress_percentage=int(accuracy_pct),
+            verified_seconds=90,
+            heartbeat_count=3,
+            client_timestamp=now_utc
+        )
+        db.add(event)
 
-            # Update student profile XP if present
-            profile = getattr(student_user, "student_profile", None)
-            if profile:
-                profile.xp_score = (profile.xp_score or 0) + xp_earned
+        # Credit reward ledger idempotently
+        unique_key = f"xp:discovery_quiz:{student_id}:{request.quiz_id}:{int(time.time() // 60)}"
+        ledger_entry = RewardLedger(
+            student_user_id=student_id,
+            reward_type="QUIZ_MASTERY_XP",
+            xp_amount=xp_earned,
+            unique_reward_key=unique_key
+        )
+        db.add(ledger_entry)
 
-            db.commit()
+        # Update student profile XP if present
+        profile = getattr(student_user, "student_profile", None)
+        if profile:
+            profile.xp_score = (profile.xp_score or 0) + xp_earned
+
+        db.commit()
 
         # 6. Socratic Feedback and Recommended Next Step
         if accuracy_pct >= 80.0:
@@ -219,45 +219,53 @@ class LearningLoopManager:
     ) -> Dict[str, Any]:
         """
         Records student engagement with a discovered resource (dwell time, completion).
+        Enforces verified session bounds: client dwell time is clamped to incremental heartbeat limits
+        (max 180 seconds per submission) to protect against telemetry fabrication.
         """
-        student_id = student_user.id if student_user else "anonymous-student"
+        if not student_user:
+            raise ValueError("Student must be authenticated to record engagement telemetry.")
+
+        student_id = student_user.id
         now_utc = datetime.datetime.now(datetime.timezone.utc)
 
-        if student_user:
-            event = LearningEvent(
+        # Server-enforced dwell time bounds: cap incremental dwell time at 180 seconds
+        raw_dwell = max(1, int(request.dwell_time_seconds))
+        verified_dwell = min(180, raw_dwell)
+
+        event = LearningEvent(
+            student_user_id=student_id,
+            content_item_id=None,
+            event_type="progress_checkpoint" if request.action_type == "viewed" else "completion_verified",
+            progress_percentage=100 if request.action_type == "completed" else min(90, int(verified_dwell / 2)),
+            verified_seconds=verified_dwell,
+            heartbeat_count=max(1, verified_dwell // 30),
+            client_timestamp=now_utc
+        )
+        db.add(event)
+
+        # If student completed a resource or spent >= 180 seconds, provide an engagement XP reward
+        xp_bonus = 0
+        if request.action_type == "completed" or verified_dwell >= 180:
+            xp_bonus = 20
+            unique_key = f"xp:resource_engagement:{student_id}:{request.resource_id}:{int(time.time() // 300)}"
+            ledger = RewardLedger(
                 student_user_id=student_id,
-                content_item_id=None,
-                event_type="progress_checkpoint" if request.action_type == "viewed" else "completion_verified",
-                progress_percentage=100 if request.action_type == "completed" else min(90, int(request.dwell_time_seconds / 3)),
-                verified_seconds=request.dwell_time_seconds,
-                heartbeat_count=max(1, request.dwell_time_seconds // 30),
-                client_timestamp=now_utc
+                reward_type="CONTENT_COMPLETION_XP",
+                xp_amount=xp_bonus,
+                unique_reward_key=unique_key
             )
-            db.add(event)
+            db.add(ledger)
+            profile = getattr(student_user, "student_profile", None)
+            if profile:
+                profile.xp_score = (profile.xp_score or 0) + xp_bonus
 
-            # If student completed a resource or spent > 3 minutes, provide an engagement XP reward
-            xp_bonus = 0
-            if request.action_type == "completed" or request.dwell_time_seconds >= 180:
-                xp_bonus = 20
-                unique_key = f"xp:resource_engagement:{student_id}:{request.resource_id}:{int(time.time() // 300)}"
-                ledger = RewardLedger(
-                    student_user_id=student_id,
-                    reward_type="CONTENT_COMPLETION_XP",
-                    xp_amount=xp_bonus,
-                    unique_reward_key=unique_key
-                )
-                db.add(ledger)
-                profile = getattr(student_user, "student_profile", None)
-                if profile:
-                    profile.xp_score = (profile.xp_score or 0) + xp_bonus
-
-            db.commit()
+        db.commit()
 
         return {
             "status": "recorded",
             "resource_id": request.resource_id,
             "topic": request.topic,
-            "dwell_time_seconds": request.dwell_time_seconds,
+            "dwell_time_seconds": verified_dwell,
             "action_type": request.action_type,
-            "xp_awarded": 20 if (request.action_type == "completed" or request.dwell_time_seconds >= 180) else 0
+            "xp_awarded": xp_bonus
         }

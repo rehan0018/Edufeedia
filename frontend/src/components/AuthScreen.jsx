@@ -737,86 +737,90 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
         {/* Demo Personas (Build-time gated for security: only bundled when VITE_DEMO_MODE=true) */}
         {import.meta.env.VITE_DEMO_MODE === 'true' && (
           <div style={{ textAlign: 'center', marginTop: '16px' }}>
-            <button
-              type="button"
-              onClick={() => setShowDemoPersonas(!showDemoPersonas)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              {showDemoPersonas ? 'Hide Demo Personas ▲' : 'Show Demo Personas ▼'}
-            </button>
+            {import.meta.env.VITE_DEMO_MODE === 'true' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowDemoPersonas(!showDemoPersonas)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {showDemoPersonas ? 'Hide Demo Personas ▲' : 'Show Demo Personas ▼'}
+                </button>
 
-            {showDemoPersonas && (
-              <div style={{
-                marginTop: '12px',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-space)',
-                border: '1px solid var(--border-subtle)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                  Instant Access for Evaluation:
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectDemo('rahul@apexschool.edu', 'Student123!')}
-                    style={{
-                      padding: '8px 4px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(232, 90, 79, 0.12)',
-                      border: '1px solid var(--brand-primary)',
-                      color: 'var(--brand-primary)',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Student
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectDemo('sharma@apexschool.edu', 'Teacher123!')}
-                    style={{
-                      padding: '8px 4px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(142, 141, 138, 0.15)',
-                      border: '1px solid var(--accent-stone)',
-                      color: 'var(--accent-stone)',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Teacher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectDemo('parent@gmail.com', 'Parent123!')}
-                    style={{
-                      padding: '8px 4px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(233, 128, 116, 0.15)',
-                      border: '1px solid var(--accent-coral)',
-                      color: 'var(--accent-coral)',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Parent
-                  </button>
-                </div>
-              </div>
+                {showDemoPersonas && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-space)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Instant Access for Evaluation:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDemo('rahul@apexschool.edu', 'Student123!')}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(232, 90, 79, 0.12)',
+                          border: '1px solid var(--brand-primary)',
+                          color: 'var(--brand-primary)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Student
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDemo('sharma@apexschool.edu', 'Teacher123!')}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(142, 141, 138, 0.15)',
+                          border: '1px solid var(--accent-stone)',
+                          color: 'var(--accent-stone)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Teacher
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDemo('parent@gmail.com', 'Parent123!')}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(233, 128, 116, 0.15)',
+                          border: '1px solid var(--accent-coral)',
+                          color: 'var(--accent-coral)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Parent
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

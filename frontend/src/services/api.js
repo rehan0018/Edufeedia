@@ -553,18 +553,22 @@ export const discoverySearch = async ({ query, grade, board, depth, formatPref }
   if (board) params.append('board', board);
   if (depth) params.append('depth', depth);
   if (formatPref) params.append('format_pref', formatPref);
-  return await apiFetch(`/discovery/search?${params.toString()}`);
+
+  const token = localStorage.getItem('token');
+  const role = localStorage.getItem('userRole');
+  const endpoint = (token && role === 'student') ? '/students/discovery/search' : '/discovery/search';
+  return await apiFetch(`${endpoint}?${params.toString()}`);
 };
 
 export const submitDiscoveryQuiz = async (quizSubmission) => {
-  return await apiFetch('/discovery/quiz-submit', {
+  return await apiFetch('/students/discovery/quiz-submit', {
     method: 'POST',
     body: JSON.stringify(quizSubmission)
   });
 };
 
 export const recordDiscoveryEngagement = async (engagementData) => {
-  return await apiFetch('/discovery/resource-engagement', {
+  return await apiFetch('/students/discovery/resource-engagement', {
     method: 'POST',
     body: JSON.stringify(engagementData)
   });
@@ -579,7 +583,7 @@ export const fetchDiscoveryPolicy = async () => {
 };
 
 export const fetchMasteryHistory = async (limit = 20) => {
-  return await apiFetch(`/discovery/mastery-history?limit=${limit}`);
+  return await apiFetch(`/students/discovery/mastery-history?limit=${limit}`);
 };
 
 

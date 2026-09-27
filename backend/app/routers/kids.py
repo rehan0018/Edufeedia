@@ -280,7 +280,7 @@ def get_screen_time_status(
         ChildActivity.created_at >= today_start
     ).all()
     today_seconds = sum(a.dwell_time_seconds for a in activities_today if a.dwell_time_seconds)
-    today_mins = max(int(today_seconds / 60), len(activities_today) * 5)
+    today_mins = int(today_seconds / 60)
     daily_limit = child.daily_limit_minutes or 45
 
     is_over_limit = today_mins >= daily_limit
