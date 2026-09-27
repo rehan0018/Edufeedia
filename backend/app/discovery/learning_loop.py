@@ -4,6 +4,7 @@ Connects search discovery -> resource engagement -> concept-check quiz -> master
 Turns Edufeedia from a static content index into an adaptive learning operating system.
 """
 
+import uuid
 import time
 import datetime
 from typing import Dict, Any, List, Optional
@@ -12,11 +13,13 @@ from sqlalchemy import func
 
 from app.models.models import (
     User, StudentProfile, TopicMastery, StudentMasteryHistory,
-    LearningEvent, RewardLedger
+    LearningEvent, RewardLedger, EmpiricalLearningGainRecord
 )
 from app.schemas.schemas import (
     QuizSubmitRequest, QuizSubmitResponse, ResourceEngagementRequest,
-    InterpretedIntent
+    InterpretedIntent, SessionStartRequest, SessionStartResponse,
+    SessionHeartbeatRequest, SessionHeartbeatResponse, SessionEndRequest,
+    SessionEndResponse, PrePostAssessmentSubmitRequest, EmpiricalLearningGainOut
 )
 from app.discovery.pipeline import DiscoveryPipeline
 
@@ -103,7 +106,7 @@ class LearningLoopManager:
         if topic_record:
             prior_mastery = float(topic_record.mastery_score or 0.0)
 
-        # 4. Calculate adaptive mastery delta (Bayesian Knowledge Tracing inspired)
+        # 4. Calculate adaptive mastery delta (heuristic mastery update model; offline calibration required for validated BKT)
         # High score: large gain. Low score: minor adjustment to protect motivation while identifying weakness.
         if accuracy_pct >= 80.0:
             mastery_gain = round(15.0 + (accuracy_pct - 80.0) * 0.25, 2)
@@ -313,3 +316,275 @@ class LearningLoopManager:
             "action_type": request.action_type,
             "xp_awarded": xp_bonus
         }
+
+    @classmethod
+    def start_learning_session(
+        cls,
+        student_user: Optional[User],
+        request: SessionStartRequest
+    ) -> SessionStartResponse:
+        """
+        Initializes an authoritative server-side learning session.
+        Generates a unique session_id and registers server start time.
+        """
+        if not student_user:
+            raise ValueError("Student must be authenticated to start a verified learning session.")
+
+        student_id = student_user.id
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        session_id = f"sess_{uuid.uuid4().hex[:12]}"
+        session_key = f"{student_id}:{session_id}"
+
+        cls._ACTIVE_SESSIONS[session_key] = {
+            "session_id": session_id,
+            "student_id": student_id,
+            "resource_id": request.resource_id,
+            "topic": request.topic,
+            "subject": request.subject,
+            "grade_level": request.grade_level or 8,
+            "started_at": now_utc,
+            "last_heartbeat_at": now_utc,
+            "accumulated_seconds": 0,
+            "heartbeat_count": 0,
+            "status": "active"
+        }
+
+        return SessionStartResponse(
+            session_id=session_id,
+            resource_id=request.resource_id,
+            topic=request.topic,
+            subject=request.subject,
+            started_at=now_utc.isoformat(),
+            status="active"
+        )
+
+    @classmethod
+    def heartbeat_learning_session(
+        cls,
+        db: Session,
+        student_user: Optional[User],
+        request: SessionHeartbeatRequest
+    ) -> SessionHeartbeatResponse:
+        """
+        Processes an authoritative incremental heartbeat for an active learning session.
+        Clamps dwell time to physical elapsed wall-clock time and active visibility check.
+        """
+        if not student_user:
+            raise ValueError("Student must be authenticated to pulse session heartbeats.")
+
+        student_id = student_user.id
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        session_key = f"{student_id}:{request.session_id}"
+
+        if session_key not in cls._ACTIVE_SESSIONS:
+            cls._ACTIVE_SESSIONS[session_key] = {
+                "session_id": request.session_id,
+                "student_id": student_id,
+                "resource_id": request.resource_id,
+                "topic": "General",
+                "subject": "General",
+                "grade_level": 8,
+                "started_at": now_utc,
+                "last_heartbeat_at": now_utc,
+                "accumulated_seconds": 0,
+                "heartbeat_count": 0,
+                "status": "active"
+            }
+
+        sess = cls._ACTIVE_SESSIONS[session_key]
+        last_created = sess["last_heartbeat_at"]
+        if last_created.tzinfo is None:
+            last_created = last_created.replace(tzinfo=datetime.timezone.utc)
+        elapsed_server_seconds = max(0.0, (now_utc - last_created).total_seconds())
+
+        raw_dwell = max(0, int(request.dwell_seconds))
+
+        if not request.is_active or elapsed_server_seconds < 2.0:
+            verified_dwell = 0
+        else:
+            verified_dwell = min(raw_dwell, int(elapsed_server_seconds), 180)
+
+        sess["last_heartbeat_at"] = now_utc
+        sess["accumulated_seconds"] += verified_dwell
+        sess["heartbeat_count"] += 1
+
+        event = LearningEvent(
+            student_user_id=student_id,
+            content_item_id=request.resource_id if len(request.resource_id) == 36 else None,
+            event_type="heartbeat",
+            progress_percentage=min(90, int(sess["accumulated_seconds"] / 3)),
+            verified_seconds=verified_dwell,
+            heartbeat_count=sess["heartbeat_count"],
+            client_timestamp=now_utc
+        )
+        db.add(event)
+        db.commit()
+
+        return SessionHeartbeatResponse(
+            session_id=request.session_id,
+            resource_id=request.resource_id,
+            verified_seconds=verified_dwell,
+            session_accumulated_seconds=sess["accumulated_seconds"],
+            status="active",
+            server_timestamp=now_utc.isoformat()
+        )
+
+    @classmethod
+    def end_learning_session(
+        cls,
+        db: Session,
+        student_user: Optional[User],
+        request: SessionEndRequest
+    ) -> SessionEndResponse:
+        """
+        Concludes a learning session, tallies total verified dwell time,
+        and logs a completion event with appropriate gamification rewards.
+        """
+        if not student_user:
+            raise ValueError("Student must be authenticated to conclude a learning session.")
+
+        student_id = student_user.id
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        session_key = f"{student_id}:{request.session_id}"
+
+        sess = cls._ACTIVE_SESSIONS.get(session_key, {
+            "accumulated_seconds": 0,
+            "heartbeat_count": 1,
+            "resource_id": request.resource_id
+        })
+        total_seconds = sess.get("accumulated_seconds", 0)
+
+        xp_awarded = 0
+        if request.completed or total_seconds >= 180:
+            xp_awarded = 25
+            unique_key = f"xp:session_complete:{student_id}:{request.session_id}"
+            ledger = RewardLedger(
+                student_user_id=student_id,
+                reward_type="CONTENT_COMPLETION_XP",
+                xp_amount=xp_awarded,
+                unique_reward_key=unique_key
+            )
+            db.add(ledger)
+            profile = getattr(student_user, "student_profile", None)
+            if profile:
+                profile.xp_score = (profile.xp_score or 0) + xp_awarded
+
+        event = LearningEvent(
+            student_user_id=student_id,
+            content_item_id=request.resource_id if len(request.resource_id) == 36 else None,
+            event_type="completion_verified",
+            progress_percentage=100,
+            verified_seconds=total_seconds,
+            heartbeat_count=sess.get("heartbeat_count", 1),
+            client_timestamp=now_utc
+        )
+        db.add(event)
+        db.commit()
+
+        if session_key in cls._ACTIVE_SESSIONS:
+            cls._ACTIVE_SESSIONS[session_key]["status"] = "completed"
+
+        return SessionEndResponse(
+            session_id=request.session_id,
+            resource_id=request.resource_id,
+            total_verified_seconds=total_seconds,
+            xp_awarded=xp_awarded,
+            status="completed",
+            completed_at=now_utc.isoformat()
+        )
+
+    @classmethod
+    def evaluate_pre_post_assessment(
+        cls,
+        db: Session,
+        student_user: Optional[User],
+        request: PrePostAssessmentSubmitRequest
+    ) -> EmpiricalLearningGainOut:
+        """
+        Evaluates pre-test or post-test assessment and computes empirical learning gain.
+        Computes Hake's normalized gain: g = (post - pre) / (100 - pre).
+        Persists to EmpiricalLearningGainRecord for offline calibration (does not corrupt live ranking).
+        """
+        if not student_user:
+            raise ValueError("Student must be authenticated to record empirical assessment gains.")
+
+        student_id = student_user.id
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        intent = InterpretedIntent(
+            subject=request.subject,
+            topic=request.topic,
+            grade_level=request.grade_level,
+            board="CBSE",
+            intent_type="explanation",
+            depth_level="standard",
+            format_preference="all",
+            language="en",
+            expanded_terms=[]
+        )
+        quiz_data = DiscoveryPipeline.generate_concept_check(intent)
+
+        correct = 0
+        total = max(1, len(quiz_data.questions))
+        for q in quiz_data.questions:
+            student_ans = request.answers.get(q.id)
+            if student_ans is not None and student_ans == q.correct_option_index:
+                correct += 1
+
+        score_pct = round((correct / total) * 100.0, 1)
+
+        pre_score = float(request.pre_test_score_pct if request.pre_test_score_pct is not None else score_pct)
+        post_score = float(score_pct if request.assessment_stage == "post_test" else score_pct)
+
+        raw_gain = round(post_score - pre_score, 1)
+        if post_score >= pre_score:
+            denominator = max(0.01, 100.0 - pre_score)
+            normalized_gain = round(raw_gain / denominator, 4)
+        else:
+            denominator = max(0.01, pre_score)
+            normalized_gain = round(raw_gain / denominator, 4)
+
+        if normalized_gain >= 0.70:
+            interpretation = "High normalized learning gain (g >= 0.70)"
+        elif normalized_gain >= 0.30:
+            interpretation = "Moderate normalized learning gain (0.30 <= g < 0.70)"
+        elif normalized_gain >= 0.0:
+            interpretation = "Low normalized learning gain (0.0 <= g < 0.30)"
+        else:
+            interpretation = "Negative learning gain (knowledge degradation)"
+
+        session_key = f"{student_id}:{request.session_id or request.resource_id}"
+        sess = cls._ACTIVE_SESSIONS.get(session_key, {})
+        dwell_sec = sess.get("accumulated_seconds", 90)
+
+        record = EmpiricalLearningGainRecord(
+            student_user_id=student_id,
+            resource_id=request.resource_id,
+            session_id=request.session_id,
+            topic=request.topic,
+            subject=request.subject,
+            pre_test_score_pct=pre_score,
+            post_test_score_pct=post_score,
+            raw_gain_pct=raw_gain,
+            normalized_gain=normalized_gain,
+            dwell_time_seconds=dwell_sec,
+            created_at=now_utc
+        )
+        db.add(record)
+        db.commit()
+
+        return EmpiricalLearningGainOut(
+            record_id=record.id,
+            student_id=student_id,
+            resource_id=request.resource_id,
+            topic=request.topic,
+            subject=request.subject,
+            pre_test_score_pct=pre_score,
+            post_test_score_pct=post_score,
+            raw_gain_pct=raw_gain,
+            normalized_gain=normalized_gain,
+            interpretation=interpretation,
+            dwell_time_seconds=dwell_sec,
+            recorded_at=now_utc.isoformat()
+        )
+

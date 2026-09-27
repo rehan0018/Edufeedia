@@ -30,5 +30,6 @@ from app.models.models import (
     ChildProfile,
     SystemSetting,
     SafetyIncident,
-    ContentModerationItem
+    ContentModerationItem,
+    EmpiricalLearningGainRecord
 )

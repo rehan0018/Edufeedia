@@ -1000,3 +1000,31 @@ class StudentMasteryHistory(Base):
     quiz_score_pct = Column(Numeric(5, 2), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
+
+class EmpiricalLearningGainRecord(Base):
+    """
+    Offline calibration ledger for measured empirical learning gains.
+    Pairs pre-test diagnostic with post-test evaluation around a verified resource.
+    Calculates Hake's normalized gain: g = (post% - pre%) / (100% - pre%).
+    Does not corrupt live ranking until statistically significant sample thresholds are achieved.
+    """
+    __tablename__ = "empirical_learning_gain_records"
+    __table_args__ = (
+        Index("ix_empirical_gain_resource_topic", "resource_id", "topic"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    resource_id = Column(String, nullable=False, index=True)
+    session_id = Column(String, nullable=True)
+    topic = Column(String, nullable=False, index=True)
+    subject = Column(String, nullable=False)
+    pre_test_score_pct = Column(Numeric(5, 2), nullable=False)
+    post_test_score_pct = Column(Numeric(5, 2), nullable=False)
+    raw_gain_pct = Column(Numeric(5, 2), nullable=False)
+    normalized_gain = Column(Numeric(5, 4), nullable=False)  # Hake's g (-1.0 to 1.0)
+    dwell_time_seconds = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+    student = relationship("User")
+
+

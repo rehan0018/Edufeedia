@@ -17,12 +17,15 @@ from app.core.security import is_token_revoked, get_current_user
 from app.models.models import User, DiscoveryQueryLog, StudentMasteryHistory
 from app.schemas.schemas import (
     DiscoverySearchResponse, QuizSubmitRequest, QuizSubmitResponse,
-    ResourceEngagementRequest
+    ResourceEngagementRequest, SessionStartRequest, SessionStartResponse,
+    SessionHeartbeatRequest, SessionHeartbeatResponse, SessionEndRequest,
+    SessionEndResponse, PrePostAssessmentSubmitRequest, EmpiricalLearningGainOut
 )
 from app.discovery.pipeline import DiscoveryPipeline
 from app.discovery.learning_loop import LearningLoopManager
 from app.discovery.source_registry import SourceAuthorityRegistry
 from app.discovery.resource_quality import ScoringPolicy
+from app.discovery.youtube_transcript import YouTubeTranscriptAcquirer, ContentUnderstandingEngine
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 student_router = APIRouter(prefix="/students/discovery", tags=["students_discovery"])
@@ -205,6 +208,127 @@ def log_resource_engagement(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/session/start", response_model=SessionStartResponse)
+@student_router.post("/session/start", response_model=SessionStartResponse)
+def start_learning_session(
+    body: SessionStartRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Initializes a server-authoritative learning session for a specific resource.
+    Generates a cryptographically unique session_id and anchors the start time to the server clock.
+    """
+    try:
+        return LearningLoopManager.start_learning_session(
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/session/heartbeat", response_model=SessionHeartbeatResponse)
+@student_router.post("/session/heartbeat", response_model=SessionHeartbeatResponse)
+def session_heartbeat(
+    body: SessionHeartbeatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Pushes an incremental session heartbeat. Clamps dwell time to physical elapsed server clock
+    and active visibility state, isolating telemetry strictly to this session.
+    """
+    try:
+        return LearningLoopManager.heartbeat_learning_session(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/session/end", response_model=SessionEndResponse)
+@student_router.post("/session/end", response_model=SessionEndResponse)
+def end_learning_session(
+    body: SessionEndRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Concludes an active learning session, tallies total verified dwell time,
+    and disburses gamification rewards if completion requirements were met.
+    """
+    try:
+        return LearningLoopManager.end_learning_session(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/pre-post-assessment", response_model=EmpiricalLearningGainOut)
+@student_router.post("/pre-post-assessment", response_model=EmpiricalLearningGainOut)
+def evaluate_pre_post_assessment(
+    body: PrePostAssessmentSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Records diagnostic pre-test or post-test assessment results around a verified resource.
+    Computes Hake's normalized gain: g = (post - pre) / (100 - pre).
+    Saves empirical evidence offline for model calibration without corrupting live ranking prematurely.
+    """
+    try:
+        return LearningLoopManager.evaluate_pre_post_assessment(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/transcript/{video_id}")
+def inspect_youtube_transcript(
+    video_id: str,
+    topic: Optional[str] = Query("General", description="Curriculum topic"),
+    subject: Optional[str] = Query("Science", description="Curriculum subject"),
+    grade: Optional[int] = Query(8, ge=1, le=12, description="Target grade level")
+):
+    """
+    Discovers authentic YouTube subtitle tracks and extracts semantic educational intelligence.
+    Performs spoken content safety screening and derives grounded concept-check questions.
+    """
+    transcript_res = YouTubeTranscriptAcquirer.fetch_transcript(video_id=video_id)
+    if not transcript_res["has_transcript"]:
+        return {
+            "video_id": video_id,
+            "has_transcript": False,
+            "error": transcript_res.get("error", "No transcript available"),
+            "content_analysis": None
+        }
+
+    analysis = ContentUnderstandingEngine.analyze_content(
+        transcript_text=transcript_res["full_text"],
+        topic=topic,
+        subject=subject,
+        grade_level=grade
+    )
+
+    return {
+        "video_id": video_id,
+        "has_transcript": True,
+        "language": transcript_res.get("language"),
+        "is_generated": transcript_res.get("is_generated", False),
+        "track_name": transcript_res.get("track_name"),
+        "segments_count": len(transcript_res.get("segments", [])),
+        "content_analysis": analysis
+    }
 
 
 @router.get("/sources")

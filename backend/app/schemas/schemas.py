@@ -903,3 +903,78 @@ class ResourceEngagementRequest(BaseModel):
     action_type: str # 'viewed', 'completed', 'bookmarked', 'shared'
     session_id: Optional[str] = None
 
+
+class SessionStartRequest(BaseModel):
+    resource_id: str
+    topic: str
+    subject: str
+    grade_level: Optional[int] = 8
+
+
+class SessionStartResponse(BaseModel):
+    session_id: str
+    resource_id: str
+    topic: str
+    subject: str
+    started_at: str
+    status: str = "active"
+
+
+class SessionHeartbeatRequest(BaseModel):
+    session_id: str
+    resource_id: str
+    dwell_seconds: int
+    is_active: bool = True
+
+
+class SessionHeartbeatResponse(BaseModel):
+    session_id: str
+    resource_id: str
+    verified_seconds: int
+    session_accumulated_seconds: int
+    status: str = "active"
+    server_timestamp: str
+
+
+class SessionEndRequest(BaseModel):
+    session_id: str
+    resource_id: str
+    final_dwell_seconds: Optional[int] = 0
+    completed: bool = False
+
+
+class SessionEndResponse(BaseModel):
+    session_id: str
+    resource_id: str
+    total_verified_seconds: int
+    xp_awarded: int
+    status: str = "completed"
+    completed_at: str
+
+
+class PrePostAssessmentSubmitRequest(BaseModel):
+    resource_id: str
+    session_id: Optional[str] = None
+    topic: str
+    subject: str
+    grade_level: int = 8
+    assessment_stage: str # 'pre_test' or 'post_test'
+    pre_test_score_pct: Optional[float] = None
+    answers: Dict[str, int] # question_id -> chosen_option_index
+
+
+class EmpiricalLearningGainOut(BaseModel):
+    record_id: str
+    student_id: str
+    resource_id: str
+    topic: str
+    subject: str
+    pre_test_score_pct: float
+    post_test_score_pct: float
+    raw_gain_pct: float
+    normalized_gain: float # Hake's g
+    interpretation: str
+    dwell_time_seconds: int
+    recorded_at: str
+
+
