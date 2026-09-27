@@ -13,6 +13,7 @@ import AuthScreen from './components/AuthScreen';
 import KidsDashboard from './components/KidsDashboard';
 import ParentGateModal from './components/ParentGateModal';
 import BedtimeCurfewScreen from './components/BedtimeCurfewScreen';
+import LearningNavigator from './components/LearningNavigator';
 import { getSession, clearAuthSession, fetchDailyPlanFeed, fetchStudentScreenTimeStatus, sendStudentHeartbeat } from './services/api';
 
 export default function App() {
@@ -350,6 +351,13 @@ export default function App() {
                   </div>
                 )}
               </div>
+            )}
+
+            {currentTab === 'navigator' && (
+              <LearningNavigator
+                onOpenLesson={handleSelectLesson}
+                onOpenTutor={(topic) => handleOpenTutorFromLesson(topic)}
+              />
             )}
 
             {currentTab === 'feed' && (

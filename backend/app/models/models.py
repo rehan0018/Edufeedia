@@ -170,6 +170,19 @@ class ContentItem(Base):
     human_reviewed = Column(Boolean, default=True)
     interactive_payload = Column(JSON, nullable=True)
 
+    # Discovery & Quality Intelligence Extensions
+    source_authority_tier = Column(String, default="TIER_B") # 'TIER_A', 'TIER_B', 'TIER_C', 'TIER_D', 'TIER_E'
+    creator_name = Column(String, nullable=True)
+    creator_id = Column(String, nullable=True)
+    creator_verified = Column(Boolean, default=False)
+    organization_name = Column(String, nullable=True)
+    organization_verified = Column(Boolean, default=False)
+    curriculum_alignment_score = Column(Numeric(4, 2), default=0.90)
+    pedagogical_score = Column(Numeric(4, 2), default=0.85)
+    resource_quality_score = Column(Numeric(4, 2), default=0.88)
+    why_recommended = Column(JSON, default=list)
+    scoring_breakdown = Column(JSON, default=dict)
+
     checked_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     school_id = Column(String, ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
@@ -914,4 +927,76 @@ class ContentModerationItem(Base):
 
     content_item = relationship("ContentItem")
     moderator = relationship("User", foreign_keys=[moderator_user_id])
+
+
+class EducationalSource(Base):
+    """
+    Authoritative Educational Source & Creator Registry.
+    Decouples platform trust (e.g. YouTube), creator trust (e.g. 3Blue1Brown, NCERT),
+    and resource trust. Assigns hierarchical Authority Tiers (A, B, C, D, E).
+    """
+    __tablename__ = "educational_sources"
+    __table_args__ = (
+        Index("ix_edu_source_domain", "domain"),
+        Index("ix_edu_source_tier", "authority_tier"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    name = Column(String, nullable=False) # e.g. "NCERT Official", "Khan Academy", "PhET Colorado"
+    domain = Column(String, nullable=False) # e.g. "ncert.nic.in", "khanacademy.org", "phet.colorado.edu", "youtube.com"
+    platform = Column(String, nullable=False, default="Web Portal") # 'NCERT', 'Khan Academy', 'PhET', 'YouTube', 'OpenStax'
+    authority_tier = Column(String, nullable=False, default="TIER_B") # 'TIER_A', 'TIER_B', 'TIER_C', 'TIER_D', 'TIER_E'
+    authority_score = Column(Numeric(4, 2), nullable=False, default=0.85) # 0.00 to 1.00
+    creator_id = Column(String, nullable=True) # Channel ID / handle
+    creator_name = Column(String, nullable=True) # "Khan Academy India", "Veritasium"
+    is_official = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
+    verification_method = Column(String, default="curriculum_review") # 'government_accreditation', 'curriculum_review', 'educator_audit'
+    supported_boards = Column(JSON, default=list) # e.g. ["CBSE", "ICSE", "NCERT"]
+    supported_grades = Column(JSON, default=list) # e.g. [6, 7, 8, 9, 10, 11, 12]
+    supported_subjects = Column(JSON, default=list) # e.g. ["Science", "Mathematics", "Physics", "Chemistry", "Biology"]
+    license_type = Column(String, default="Open Educational Resource")
+    embed_supported = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    last_verified_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+
+class DiscoveryQueryLog(Base):
+    """
+    Audit and intelligence log tracking search queries, parsed intent,
+    and retrieval metrics to monitor learning trends and candidate quality.
+    """
+    __tablename__ = "discovery_query_logs"
+    __table_args__ = (
+        Index("ix_discovery_query_student", "student_user_id"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    raw_query = Column(String, nullable=False)
+    interpreted_intent = Column(JSON, nullable=False) # {subject, topic, grade_level, board, depth, format}
+    results_count = Column(Integer, default=0)
+    top_resource_id = Column(String, nullable=True)
+    top_resource_score = Column(Numeric(4, 2), nullable=True)
+    response_time_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+
+class StudentMasteryHistory(Base):
+    """
+    Tracks how interactions and concept-check quizzes after discovery
+    shift the student's topic mastery score, creating the closed learning loop.
+    """
+    __tablename__ = "student_mastery_histories"
+    __table_args__ = (
+        Index("ix_mastery_history_student_topic", "student_user_id", "topic"),
+    )
+    id = Column(String, primary_key=True, default=generate_uuid)
+    student_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    topic = Column(String, nullable=False)
+    subject = Column(String, nullable=False)
+    prior_mastery = Column(Numeric(5, 2), default=0.0)
+    new_mastery = Column(Numeric(5, 2), default=0.0)
+    learning_gain = Column(Numeric(5, 2), default=0.0) # Delta (+15.00%)
+    source_resource_id = Column(String, nullable=True)
+    quiz_score_pct = Column(Numeric(5, 2), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 

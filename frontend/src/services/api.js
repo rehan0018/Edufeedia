@@ -546,4 +546,41 @@ export const sendStudentHeartbeat = async (contentItemId = null, activityType = 
   });
 };
 
+export const discoverySearch = async ({ query, grade, board, depth, formatPref } = {}) => {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  if (grade) params.append('grade', grade);
+  if (board) params.append('board', board);
+  if (depth) params.append('depth', depth);
+  if (formatPref) params.append('format_pref', formatPref);
+  return await apiFetch(`/discovery/search?${params.toString()}`);
+};
+
+export const submitDiscoveryQuiz = async (quizSubmission) => {
+  return await apiFetch('/discovery/quiz-submit', {
+    method: 'POST',
+    body: JSON.stringify(quizSubmission)
+  });
+};
+
+export const recordDiscoveryEngagement = async (engagementData) => {
+  return await apiFetch('/discovery/resource-engagement', {
+    method: 'POST',
+    body: JSON.stringify(engagementData)
+  });
+};
+
+export const fetchDiscoverySources = async () => {
+  return await apiFetch('/discovery/sources');
+};
+
+export const fetchDiscoveryPolicy = async () => {
+  return await apiFetch('/discovery/scoring-policy');
+};
+
+export const fetchMasteryHistory = async (limit = 20) => {
+  return await apiFetch(`/discovery/mastery-history?limit=${limit}`);
+};
+
+
 

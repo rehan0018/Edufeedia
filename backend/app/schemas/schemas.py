@@ -773,3 +773,132 @@ class ChildDashboardOut(BaseModel):
     recent_activities: List[Dict[str, Any]]
     parent_alerts: List[Dict[str, Any]]
 
+
+# ==============================================================================
+# Discovery & Learning Navigator Schemas
+# ==============================================================================
+
+class InterpretedIntent(BaseModel):
+    subject: str
+    topic: str
+    subtopic: Optional[str] = None
+    grade_level: int
+    board: str
+    intent_type: str # 'explanation', 'problem_solving', 'derivation', 'experiment', 'quiz', 'revision'
+    depth_level: str # 'introductory', 'standard', 'advanced'
+    format_preference: Optional[str] = None
+    language: str = "en"
+    expanded_terms: List[str] = Field(default_factory=list)
+    confidence: float = 1.0
+
+
+class QualityScoreBreakdown(BaseModel):
+    policy_version: str = "v1.0"
+    curriculum_alignment: float
+    source_authority: float
+    pedagogical_quality: float
+    student_level_match: float
+    transcript_quality: float
+    language_match: float
+    engagement_quality: float
+    completion_rate: float
+    student_learning_gain: float
+    total_score: float
+    is_safe: bool = True
+    age_appropriate: bool = True
+
+
+class DiscoveredResource(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = None
+    resource_type: str # 'video', 'reading', 'interactive_sim', 'animation', 'quiz'
+    source_name: str
+    source_platform: str
+    creator_name: Optional[str] = None
+    authority_tier: str # 'TIER_A', 'TIER_B', 'TIER_C', 'TIER_D', 'TIER_E'
+    authority_score: float
+    source_url: str
+    embed_url: Optional[str] = None
+    duration_minutes: int = 5
+    grade_level: int = 8
+    board: str = "CBSE"
+    subject: str
+    topic: str
+    language: str = "en"
+    quality_score: float
+    score_breakdown: QualityScoreBreakdown
+    why_chosen: List[str] = Field(default_factory=list)
+    provenance: Dict[str, Any] = Field(default_factory=dict)
+    is_verified: bool = True
+
+
+class KnowledgePathwayNode(BaseModel):
+    concept: str
+    depth: str # 'prerequisite', 'core', 'related', 'advanced'
+    relation: str # 'PREREQUISITE', 'TARGET_OBJECTIVE', 'COMPLEMENTARY', 'NEXT_LEVEL'
+    description: str
+    target_grade: int
+    resource_id: Optional[str] = None
+
+
+class ConceptCheckQuestion(BaseModel):
+    id: str
+    question_text: str
+    options: List[str]
+    correct_option_index: int
+    explanation: str
+    difficulty: str = "medium"
+
+
+class ConceptCheckQuiz(BaseModel):
+    quiz_id: str
+    topic: str
+    grade_level: int
+    questions: List[ConceptCheckQuestion]
+    total_questions: int = 5
+
+
+class DiscoverySearchResponse(BaseModel):
+    query: str
+    interpreted_intent: InterpretedIntent
+    understand_it: Dict[str, Any]
+    best_match: Optional[DiscoveredResource] = None
+    resources_by_category: Dict[str, List[DiscoveredResource]] = Field(default_factory=dict)
+    all_ranked_resources: List[DiscoveredResource] = Field(default_factory=list)
+    practice_quiz: Optional[ConceptCheckQuiz] = None
+    knowledge_pathway: List[KnowledgePathwayNode] = Field(default_factory=list)
+    student_context: Optional[Dict[str, Any]] = None
+    total_candidates_evaluated: int = 0
+    policy_version: str = "v1.0"
+
+
+class QuizSubmitRequest(BaseModel):
+    quiz_id: str
+    topic: str
+    subject: str
+    grade_level: int
+    answers: Dict[str, int] # question_id -> chosen option index (0-3)
+
+
+class QuizSubmitResponse(BaseModel):
+    quiz_id: str
+    score: int
+    total_questions: int
+    accuracy_percentage: float
+    prior_mastery: float
+    new_mastery: float
+    mastery_gain: float
+    xp_earned: int
+    feedback: str
+    question_results: List[Dict[str, Any]]
+    recommended_next_step: Optional[str] = None
+
+
+class ResourceEngagementRequest(BaseModel):
+    resource_id: str
+    topic: str
+    subject: str
+    dwell_time_seconds: int
+    action_type: str # 'viewed', 'completed', 'bookmarked', 'shared'
+

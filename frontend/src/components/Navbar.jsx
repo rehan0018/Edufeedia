@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Sparkles, BookOpen, Brain, Trophy, LogOut, Flame, Zap,
+  Compass, Sparkles, BookOpen, Brain, Trophy, LogOut, Flame, Zap,
   ShieldCheck, Sun, Moon, Lock, Star, Heart, ArrowLeft,
   GraduationCap, Users, LayoutDashboard
 } from 'lucide-react';
@@ -273,6 +273,14 @@ export default function Navbar({
       {/* Center Navigation Tabs (When in Student Mode) */}
       {experienceMode === 'student' && (
         <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            className={`btn ${currentTab === 'navigator' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setTab('navigator')}
+            style={{ padding: '7px 12px', fontSize: '0.84rem' }}
+          >
+            <Compass size={14} /> Navigator
+          </button>
+
           <button
             className={`btn ${currentTab === 'feed' ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setTab('feed')}
