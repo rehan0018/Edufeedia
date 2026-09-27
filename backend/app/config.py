@@ -23,13 +23,17 @@ class Settings:
     # Restricted CORS methods and headers
     CORS_ALLOW_METHODS: list = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: list = ["Authorization", "Content-Type", "X-Requested-With", "X-Request-ID", "Accept", "Origin"]
+    DEMO_MODE: bool = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes")
 
     def __init__(self):
         self.ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+        self.DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes")
         self.ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", self.DEFAULT_DEV_ORIGINS)
         env_secret = os.getenv("SECRET_KEY")
         if self.ENVIRONMENT == "production":
             errors = []
+            if self.DEMO_MODE:
+                errors.append("• DEMO_MODE: Demo mode cannot be enabled in production.")
             forbidden_patterns = ["change-in-production", "edufeedia_dev", "dev-only", "secret_key_2026", "insecure-test"]
             if not env_secret or len(env_secret) < 32 or any(p in env_secret.lower() for p in forbidden_patterns):
                 errors.append("• SECRET_KEY: Must be a strong, random 32+ character string (cannot use default development placeholders).")

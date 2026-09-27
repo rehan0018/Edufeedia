@@ -12,6 +12,89 @@ from typing import List, Dict, Any, Optional
 from app.core.logging_config import logger
 
 
+def infer_video_educational_context(
+    title: str,
+    description: str,
+    default_topic: str,
+    requested_subject: Optional[str] = None,
+    requested_board: Optional[str] = None,
+    requested_grade: int = 8
+) -> Dict[str, Any]:
+    """
+    Infers curriculum subject, board, grade level, and specific concept
+    from the video title, description, and query intent rather than blindly
+    defaulting to 'Science' and 'CBSE'.
+    """
+    text_corpus = f"{title} {description} {default_topic}".lower()
+
+    # 1. Subject Inference
+    math_keywords = [
+        "math", "algebra", "quadratic", "equation", "geometry", "trigonometry",
+        "calculus", "polynomial", "integral", "derivative", "fraction",
+        "arithmetic", "probability", "statistics", "matrix", "matrices",
+        "logarithm", "real number", "theorem", "surface area", "linear equation"
+    ]
+    physics_keywords = [
+        "physics", "force", "laws of motion", "newton", "gravity", "gravitation",
+        "electricity", "magnetism", "optics", "light", "thermodynamics", "sound",
+        "wave", "current", "friction", "kinetic", "potential energy", "electromagnetism",
+        "impulse", "momentum", "inertia"
+    ]
+    chemistry_keywords = [
+        "chemistry", "chemical reaction", "periodic table", "acid", "base", "salt",
+        "metal", "non-metal", "atom", "molecule", "chemical bonding", "carbon",
+        "compound", "electrochemistry", "stoichiometry", "catalyst"
+    ]
+    biology_keywords = [
+        "biology", "photosynthesis", "cell structure", "cell division", "respiration",
+        "dna", "genetics", "organism", "ecology", "digestive", "circulatory",
+        "evolution", "plant nutrition", "human body", "chloroplast", "reproduction"
+    ]
+    cs_keywords = [
+        "computer science", "python", "programming", "coding", "algorithm",
+        "data structure", "sql", "recursion", "binary search", "oop"
+    ]
+
+    subject_scores = {
+        "Mathematics": sum(1 for w in math_keywords if w in text_corpus),
+        "Physics": sum(1 for w in physics_keywords if w in text_corpus),
+        "Chemistry": sum(1 for w in chemistry_keywords if w in text_corpus),
+        "Biology": sum(1 for w in biology_keywords if w in text_corpus),
+        "Computer Science": sum(1 for w in cs_keywords if w in text_corpus),
+    }
+
+    best_subject, highest_score = max(subject_scores.items(), key=lambda x: x[1])
+    if highest_score > 0:
+        inferred_subject = best_subject
+    else:
+        inferred_subject = requested_subject or "Science"
+
+    # 2. Board Detection
+    inferred_board = requested_board or "CBSE"
+    for board_token in ["ICSE", "CBSE", "NCERT", "State Board", "IB", "IGCSE"]:
+        if re.search(rf"\b{board_token}\b", f"{title} {description}", re.IGNORECASE):
+            inferred_board = board_token.upper()
+            break
+
+    # 3. Grade Level Detection
+    inferred_grade = requested_grade
+    grade_match = re.search(r"\b(?:class|grade|std)\s*(\d{1,2})\b", f"{title} {description}", re.IGNORECASE)
+    if grade_match:
+        try:
+            detected_num = int(grade_match.group(1))
+            if 1 <= detected_num <= 12:
+                inferred_grade = detected_num
+        except Exception:
+            pass
+
+    return {
+        "subject": inferred_subject,
+        "board": inferred_board,
+        "grade_level": inferred_grade,
+        "topic": default_topic
+    }
+
+
 def parse_iso8601_duration(duration_str: str) -> int:
     """
     Parses ISO 8601 duration strings (e.g., 'PT15M33S', 'PT1H4M', 'PT45S')
@@ -200,12 +283,15 @@ class YouTubeDiscoveryAdapter:
         topic: str,
         grade_level: int,
         language: str = "en",
+        subject: Optional[str] = None,
+        board: Optional[str] = None,
         max_results: int = 10
     ) -> List[Dict[str, Any]]:
         """
-        Discovers YouTube educational video candidates matching the query and topic.
+        Discovers YouTube educational video candidates matching the query, topic, subject, and board.
         Uses 2-stage YouTube Data API v3 (search -> /videos batch) to fetch actual video duration,
         view counts, captions, and creator details when API key is provided.
+        Infuses dynamic content understanding to infer subject and grade from metadata.
         Falls back to vetted knowledge bank if live retrieval is unavailable or empty.
         """
         api_key = os.getenv("YOUTUBE_API_KEY")
@@ -215,10 +301,15 @@ class YouTubeDiscoveryAdapter:
             try:
                 # Stage 1: Live candidate search via YouTube Data API v3
                 search_url = "https://www.googleapis.com/youtube/v3/search"
+                q_terms = [topic, f"Class {grade_level}"]
+                if subject and subject.lower() not in ["general", "all"]:
+                    q_terms.append(subject)
+                q_terms.extend(["educational explanation", board or "CBSE"])
+
                 search_params = {
                     "key": api_key,
                     "part": "snippet",
-                    "q": f"{topic} Class {grade_level} educational explanation CBSE",
+                    "q": " ".join(q_terms),
                     "type": "video",
                     "videoEmbeddable": "true",
                     "videoCategoryId": "27",  # Education category
@@ -272,24 +363,37 @@ class YouTubeDiscoveryAdapter:
                             language
                         )[:2].lower()
 
+                        vid_title = snip.get("title", "")
+                        vid_desc = snip.get("description", "")
+                        edu_ctx = infer_video_educational_context(
+                            title=vid_title,
+                            description=vid_desc,
+                            default_topic=topic,
+                            requested_subject=subject,
+                            requested_board=board,
+                            requested_grade=grade_level
+                        )
+
                         candidates.append({
                             "id": f"yt-{vid_id}",
-                            "title": snip.get("title", ""),
-                            "description": snip.get("description", ""),
+                            "title": vid_title,
+                            "description": vid_desc,
                             "source_url": f"https://www.youtube.com/watch?v={vid_id}",
                             "embed_url": f"https://www.youtube.com/embed/{vid_id}",
                             "creator_name": snip.get("channelTitle", "Independent Educator"),
                             "creator_id": snip.get("channelId", ""),
                             "channel_title": snip.get("channelTitle", ""),
-                            "topic": topic,
-                            "subject": "Science",
-                            "grade_level": grade_level,
-                            "board": "CBSE",
+                            "topic": edu_ctx["topic"],
+                            "subject": edu_ctx["subject"],
+                            "grade_level": edu_ctx["grade_level"],
+                            "board": edu_ctx["board"],
                             "language": detected_lang,
                             "duration_minutes": duration_mins,
                             "view_count": view_count,
                             "has_captions": has_captions,
-                            "transcript_summary": snip.get("description", "")
+                            "has_transcript": has_captions,
+                            "transcript_summary": None,  # Transparent: raw description is not a transcript
+                            "metadata_source": "youtube_data_api_v3"
                         })
             except Exception as e:
                 logger.warning(f"YouTube Live API query failed: {e}. Falling back to vetted knowledge bank.")
@@ -303,7 +407,18 @@ class YouTubeDiscoveryAdapter:
                     topic_lower in vid["topic"].lower() or
                     any(w in vid["title"].lower() for w in topic_lower.split())
                 )
-                if is_match and abs(vid["grade_level"] - grade_level) <= 2:
+                is_grade_match = abs(vid["grade_level"] - grade_level) <= 2
+                is_sub_match = True
+                if subject and subject.lower() not in ["all", "general", "science"]:
+                    is_sub_match = vid.get("subject", "").lower() == subject.lower()
+
+                if is_match and is_grade_match and is_sub_match:
                     candidates.append(vid)
+
+            # If subject filter yielded 0, relax subject constraint
+            if not candidates:
+                for vid in cls.VETTED_YOUTUBE_KNOWLEDGE_BANK:
+                    if (vid["topic"].lower() in topic_lower or topic_lower in vid["topic"].lower()) and abs(vid["grade_level"] - grade_level) <= 2:
+                        candidates.append(vid)
 
         return candidates[:max_results]

@@ -228,9 +228,31 @@ class LearningLoopManager:
         student_id = student_user.id
         now_utc = datetime.datetime.now(datetime.timezone.utc)
 
-        # Server-enforced dwell time bounds: cap incremental dwell time at 180 seconds
-        raw_dwell = max(1, int(request.dwell_time_seconds))
-        verified_dwell = min(180, raw_dwell)
+        # Server-authoritative dwell verification:
+        # Check student's most recent LearningEvent to calculate physical elapsed time
+        # since the server last recorded engagement. Telemetry cannot claim more seconds
+        # than physically elapsed on the server clock.
+        last_event = db.query(LearningEvent).filter(
+            LearningEvent.student_user_id == student_id
+        ).order_by(LearningEvent.created_at.desc()).first()
+
+        raw_dwell = max(0, int(request.dwell_time_seconds))
+
+        if last_event and last_event.created_at:
+            last_created = last_event.created_at
+            if last_created.tzinfo is None:
+                last_created = last_created.replace(tzinfo=datetime.timezone.utc)
+            elapsed_server_seconds = max(0.0, (now_utc - last_created).total_seconds())
+
+            # Anti-replay / rapid-fire attack check:
+            # If a client sends an event within 2 seconds of the previous event, physical elapsed time is negligible
+            if elapsed_server_seconds < 2.0:
+                verified_dwell = 0
+            else:
+                verified_dwell = min(raw_dwell, int(elapsed_server_seconds), 180)
+        else:
+            # Initial event for session: clamped to single heartbeat ceiling (180s)
+            verified_dwell = min(raw_dwell, 180)
 
         event = LearningEvent(
             student_user_id=student_id,

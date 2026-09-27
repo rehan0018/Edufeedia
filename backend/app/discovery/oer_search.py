@@ -163,6 +163,7 @@ class OERSearchAdapter:
                 from app.models.models import ContentItem
 
                 db_items = db.query(ContentItem).filter(
+                    ContentItem.is_approved == True,
                     or_(
                         ContentItem.topic.ilike(f"%{topic}%"),
                         ContentItem.title.ilike(f"%{topic}%"),
@@ -170,8 +171,10 @@ class OERSearchAdapter:
                     )
                 ).filter(
                     or_(
-                        ContentItem.source_platform.in_(["phet", "khan_academy", "openstax", "oer", "sim"]),
-                        ContentItem.content_type.in_(["interactive_sim", "simulation", "reading"])
+                        ContentItem.source_platform.ilike("%phet%"),
+                        ContentItem.source_platform.ilike("%khan%"),
+                        ContentItem.source_platform.ilike("%oer%"),
+                        ContentItem.type.in_(["interactive_sim", "simulation", "interactive", "reading"])
                     )
                 ).limit(5).all()
 
@@ -182,14 +185,14 @@ class OERSearchAdapter:
                         "description": it.description or f"Interactive {it.topic} module on {it.source_platform}.",
                         "source_name": it.source_platform.title(),
                         "source_platform": it.source_platform,
-                        "resource_type": "interactive_sim" if "sim" in (it.content_type or "") else "reading",
+                        "resource_type": "interactive_sim" if ("sim" in (it.type or "").lower() or "interact" in (it.type or "").lower()) else "reading",
                         "subject": it.subject or "Science",
                         "topic": it.topic,
                         "grade_level": it.grade_level or grade_level,
-                        "board": "CBSE",
+                        "board": it.board or "CBSE",
                         "source_url": it.source_url or f"https://phet.colorado.edu/en/simulations/{it.topic.lower()}",
-                        "embed_url": it.embed_url,
-                        "duration_minutes": it.duration_seconds // 60 if it.duration_seconds else 10,
+                        "embed_url": it.embed_code or it.source_url,
+                        "duration_minutes": it.duration_minutes or 10,
                         "interactivity_type": "simulation_experiment",
                         "license": "CC-BY 4.0",
                         "learning_gain_potential": 0.93,

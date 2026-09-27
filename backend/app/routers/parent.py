@@ -21,6 +21,7 @@ from app.schemas.schemas import (
 from app.core.security import get_current_user, RoleChecker, get_password_hash, verify_password, create_access_token
 from app.core.access_policy import AccessPolicy
 from app.core.age_policy import AgeBandPolicy
+from app.config import settings
 
 router = APIRouter(prefix="/parents", tags=["parents"])
 
@@ -723,10 +724,16 @@ def verify_parent_pin(
 ):
     """Verifies the parent PIN to authorize crossing the Parent Gate from Kids Mode."""
     if not current_user.parent_pin_hash:
-        # If no PIN configured, fallback to checking if pin matches the user password or default demo PIN '1234'
-        if pin_data.pin in ["1234", "0000"] or verify_password(pin_data.pin, current_user.password_hash or ""):
-            return ParentPinOut(verified=True, message="PIN verified successfully.")
-        return ParentPinOut(verified=False, message="Incorrect PIN. Please use default 1234 or configure a PIN in settings.")
+        # In development or explicit demo mode, permit fallback with audit note
+        is_dev_or_demo = settings.ENVIRONMENT == "development" or getattr(settings, "DEMO_MODE", False)
+        if is_dev_or_demo and (pin_data.pin in ["1234", "0000"] or verify_password(pin_data.pin, current_user.password_hash or "")):
+            return ParentPinOut(verified=True, message="PIN verified successfully (Demo Mode).")
+
+        # Production / Staging: Strictly fail closed. Never allow default PIN fallback in production.
+        return ParentPinOut(
+            verified=False,
+            message="Parent PIN is not configured. Please set up a security PIN in settings."
+        )
 
     if verify_password(pin_data.pin, current_user.parent_pin_hash):
         return ParentPinOut(verified=True, message="PIN verified successfully.")

@@ -247,20 +247,26 @@ class ResourceQualityEngine:
             caption_factor = 0.05 if candidate.get("has_captions", True) else 0.0
             completion_rate = round(dur_retention + caption_factor, 2)
 
-        # Derived student learning gain: based on outcomes, interactivity, assessment availability
-        has_interactive = (res_type == "interactive_sim") or candidate.get("interactivity_type") in ["simulation_experiment", "guided_reading"]
-        has_assessment = bool(candidate.get("concept_check_available") or candidate.get("quiz_id") or res_type == "quiz")
+        # Predicted learning-value score (prior to empirical pre/post assessment data):
+        # If candidate has empirical measured learning gain from post-assessment telemetry, use it;
+        # otherwise, infer predicted pedagogical learning-value based on verified learning outcomes,
+        # cognitive interactivity, formative assessment availability, and source authority tier.
+        if candidate.get("observed_learning_gain") is not None:
+            student_learning_gain = round(float(candidate["observed_learning_gain"]), 2)
+        else:
+            has_interactive = (res_type == "interactive_sim") or candidate.get("interactivity_type") in ["simulation_experiment", "guided_reading"]
+            has_assessment = bool(candidate.get("concept_check_available") or candidate.get("quiz_id") or res_type == "quiz")
 
-        gain_score = 0.55
-        if has_outcomes:
-            gain_score += 0.15
-        if has_interactive:
-            gain_score += 0.14
-        if has_assessment:
-            gain_score += 0.10
-        if tier in ["TIER_A", "TIER_B"]:
-            gain_score += 0.06
-        student_learning_gain = min(0.98, max(0.45, round(gain_score, 2)))
+            gain_score = 0.55
+            if has_outcomes:
+                gain_score += 0.15
+            if has_interactive:
+                gain_score += 0.14
+            if has_assessment:
+                gain_score += 0.10
+            if tier in ["TIER_A", "TIER_B"]:
+                gain_score += 0.06
+            student_learning_gain = min(0.98, max(0.45, round(gain_score, 2)))
 
         # Composite Versioned Score Calculation
         composite_score = (

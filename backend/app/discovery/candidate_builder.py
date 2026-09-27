@@ -27,46 +27,84 @@ class CandidateBuilder:
         candidates: List[Dict[str, Any]] = []
         topic_lower = intent.topic.lower()
 
-        # 1. Internal Edufeedia Catalog (includes Socratic animated lessons)
+        # 1. Internal Edufeedia Catalog (SQL-filtered & bounded retrieval)
         try:
-            db_items = db.query(ContentItem).filter(
-                ContentItem.is_approved == True
-            ).all()
+            from sqlalchemy import or_, and_
+
+            # Grade band filter (intent grade ± 2)
+            min_grade = max(1, intent.grade_level - 2)
+            max_grade = intent.grade_level + 2
+
+            # Targeted SQL matching conditions
+            topic_clean = intent.topic.strip()
+            search_conditions = [
+                ContentItem.topic.ilike(f"%{topic_clean}%"),
+                ContentItem.title.ilike(f"%{topic_clean}%"),
+                ContentItem.description.ilike(f"%{topic_clean}%")
+            ]
+            if intent.subject:
+                search_conditions.append(ContentItem.subject.ilike(f"%{intent.subject}%"))
+
+            for term in (intent.expanded_terms or [])[:3]:
+                if term and len(term) > 2:
+                    search_conditions.append(ContentItem.title.ilike(f"%{term}%"))
+
+            # Primary query: Approved items within cognitive grade band matching search criteria
+            primary_query = db.query(ContentItem).filter(
+                ContentItem.is_approved == True,
+                ContentItem.grade_level.between(min_grade, max_grade),
+                or_(*search_conditions)
+            )
+
+            # Check if pgvector semantic search is available
+            db_items: List[ContentItem] = []
+            try:
+                from app.embeddings.embedder import embed_query
+                query_vec = embed_query(f"{intent.subject or ''} {intent.topic}")
+                # True pgvector cosine distance if supported
+                db_items = primary_query.order_by(ContentItem.embedding.cosine_distance(query_vec)).limit(20).all()
+            except Exception:
+                # Standard SQL indexed retrieval with limit
+                db_items = primary_query.limit(20).all()
+
+            # Broaden if catalog has few items within strict grade band
+            if len(db_items) < 3:
+                broad_items = db.query(ContentItem).filter(
+                    ContentItem.is_approved == True,
+                    or_(
+                        ContentItem.topic.ilike(f"%{topic_clean}%"),
+                        ContentItem.title.ilike(f"%{topic_clean}%")
+                    )
+                ).limit(10).all()
+                existing_ids = {it.id for it in db_items}
+                for bi in broad_items:
+                    if bi.id not in existing_ids:
+                        db_items.append(bi)
 
             for item in db_items:
-                # Match topic or subject
-                title_lower = (item.title or "").lower()
-                topic_match = (
-                    intent.topic.lower() in (item.topic or "").lower() or
-                    (item.topic or "").lower() in intent.topic.lower() or
-                    any(term.lower() in title_lower for term in intent.expanded_terms[:3])
-                )
-                grade_match = abs((item.grade_level or 8) - intent.grade_level) <= 2
-
-                if topic_match and grade_match:
-                    candidates.append({
-                        "id": item.id,
-                        "title": item.title,
-                        "description": item.description or f"Edufeedia interactive curriculum module for {item.topic}",
-                        "source_url": item.source_url,
-                        "embed_url": item.embed_code or item.source_url,
-                        "source_name": "Edufeedia Originals" if item.is_cartoon else item.source_platform,
-                        "source_platform": item.source_platform,
-                        "creator_name": "Edufeedia Curriculum Studio" if item.is_cartoon else (item.creator_name or "Edufeedia Certified Educator"),
-                        "creator_id": "edufeedia_studio",
-                        "resource_type": "animation" if item.is_cartoon else (item.type or "video"),
-                        "subject": item.subject or intent.subject,
-                        "topic": item.topic or intent.topic,
-                        "grade_level": item.grade_level or intent.grade_level,
-                        "board": item.board or intent.board,
-                        "language": item.language or intent.language,
-                        "duration_minutes": item.duration_minutes or 6,
-                        "view_count": item.view_count or 15000,
-                        "is_cartoon": item.is_cartoon or False,
-                        "transcript_text": item.transcript_text or "",
-                        "provenance_metadata": item.provenance_metadata or {},
-                        "origin": "catalog"
-                    })
+                candidates.append({
+                    "id": item.id,
+                    "title": item.title,
+                    "description": item.description or f"Edufeedia interactive curriculum module for {item.topic}",
+                    "source_url": item.source_url,
+                    "embed_url": item.embed_code or item.source_url,
+                    "source_name": "Edufeedia Originals" if item.is_cartoon else item.source_platform,
+                    "source_platform": item.source_platform,
+                    "creator_name": "Edufeedia Curriculum Studio" if item.is_cartoon else (item.creator_name or "Edufeedia Certified Educator"),
+                    "creator_id": "edufeedia_studio",
+                    "resource_type": "animation" if item.is_cartoon else (item.type or "video"),
+                    "subject": item.subject or intent.subject,
+                    "topic": item.topic or intent.topic,
+                    "grade_level": item.grade_level or intent.grade_level,
+                    "board": item.board or intent.board,
+                    "language": item.language or intent.language,
+                    "duration_minutes": item.duration_minutes or 6,
+                    "view_count": item.view_count or 15000,
+                    "is_cartoon": item.is_cartoon or False,
+                    "transcript_text": item.transcript_text or "",
+                    "provenance_metadata": item.provenance_metadata or {},
+                    "origin": "catalog"
+                })
         except Exception:
             pass
 
@@ -144,6 +182,8 @@ class CandidateBuilder:
             topic=intent.topic,
             grade_level=intent.grade_level,
             language=intent.language,
+            subject=intent.subject,
+            board=intent.board,
             max_results=8
         )
         for yr in yt_results:

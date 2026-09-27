@@ -77,30 +77,43 @@ class ProvenanceGenerator:
         """
         source_name = candidate.get("source_name") or candidate.get("source_platform", "Curriculum Authority")
         tier = candidate.get("authority_tier", "TIER_B")
-        chapter = (
-            candidate.get("chapter") or
-            candidate.get("provenance_metadata", {}).get("chapter") or
-            f"Chapter: {candidate.get('topic', intent.topic)}"
-        )
+        raw_chapter = candidate.get("chapter") or candidate.get("provenance_metadata", {}).get("chapter")
+        chapter = raw_chapter or f"Chapter: {candidate.get('topic', intent.topic)}"
         section = candidate.get("section") or f"Section: {candidate.get('topic', intent.topic)}"
+
+        # Truthful verification status and timestamp: Never fabricate a verification timestamp
+        raw_verified_at = candidate.get("verified_at")
+        is_verified_source = candidate.get("is_verified", False) or (tier in ["TIER_A", "TIER_B"])
+        verification_status = "verified" if (raw_verified_at or is_verified_source) else "pending_verification"
+        verification_method = candidate.get("verification_method") or ("official_source_registry" if is_verified_source else "community_submission")
+
+        # Grounded curriculum alignment evidence: distinguish formal textbook mappings from inferred query matches
+        origin = candidate.get("origin", "")
+        if origin == "ncert" or raw_chapter:
+            evidence_text = f"Mapped directly to official {candidate.get('board', intent.board)} Class {candidate.get('grade_level', intent.grade_level)} textbook ({chapter})."
+        elif origin == "oer":
+            evidence_text = f"Aligned with standard {candidate.get('subject', intent.subject)} learning outcomes via {source_name} interactive pedagogy."
+        else:
+            evidence_text = f"Inferred from creator educational taxonomy matching student search for {candidate.get('topic', intent.topic)}."
 
         return {
             "source": source_name,
             "platform": candidate.get("source_platform", "Web Portal"),
             "chapter": chapter,
             "section": section,
-            "verification_method": candidate.get("verification_method") or "official_source_registry",
-            "verified_at": candidate.get("verified_at") or "2026-01-15T00:00:00Z",
+            "verification_status": verification_status,
+            "verification_method": verification_method,
+            "verified_at": raw_verified_at,  # None when unverified, never a fabricated timestamp
             "authority_tier": tier,
             "curriculum_alignment": {
                 "board": candidate.get("board", intent.board),
                 "grade": candidate.get("grade_level", intent.grade_level),
                 "subject": candidate.get("subject", intent.subject),
-                "evidence": f"Formally indexed against {candidate.get('board', intent.board)} Class {candidate.get('grade_level', intent.grade_level)} syllabus."
+                "evidence": evidence_text
             },
             "creator_verification": {
                 "creator_name": candidate.get("creator_name", source_name),
-                "is_verified": candidate.get("is_verified", True),
+                "is_verified": is_verified_source,
                 "audit_method": "educator_curriculum_audit" if tier == "TIER_C" else "government_or_academic_charter"
             },
             "content_verification": {
