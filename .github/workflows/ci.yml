@@ -51,6 +51,7 @@ jobs:
 
       - name: Seed Database Test Fixtures
         env:
+          DATABASE_URL: sqlite:///./edufeedia_ci.db
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: test
           SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
@@ -59,6 +60,7 @@ jobs:
 
       - name: Run Backend Unit and Regression Test Suite
         env:
+          DATABASE_URL: sqlite:///./edufeedia_ci.db
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: test
           SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long

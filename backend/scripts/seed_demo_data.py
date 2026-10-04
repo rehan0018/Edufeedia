@@ -525,7 +525,7 @@ def seed_demo_data():
         db.add_all(flashcards)
 
         # 9. Mock Student Progress
-        now = datetime.datetime.now(datetime.UTC)
+        now = datetime.datetime.now(datetime.timezone.utc)
         db.add_all([
             StudentProgress(
                 student_user_id=student_rahul.id,
@@ -642,6 +642,8 @@ def seed_demo_data():
 
     except Exception as e:
         db.rollback()
+        import traceback
+        traceback.print_exc()
         print(f"[Demo Seeder Error]: {e}")
         raise
     finally:
@@ -651,4 +653,9 @@ def seed_demo_data():
 seed_database = seed_demo_data
 
 if __name__ == "__main__":
-    seed_demo_data()
+    try:
+        seed_demo_data()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

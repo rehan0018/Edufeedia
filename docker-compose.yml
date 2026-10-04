@@ -21,10 +21,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ENVIRONMENT=${ENVIRONMENT:-staging}
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://${POSTGRES_USER:-edufeedia_user}:${POSTGRES_PASSWORD:-edufeedia_dev_password_only}@postgres:5432/${POSTGRES_DB:-edufeedia_db}}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - SECRET_KEY=${SECRET_KEY:-edufeedia-dev-only-insecure-test-signing-key-32chars}
+      - SECRET_KEY=${SECRET_KEY:-test_secret_key_for_docker_smoke_test_only_64_chars_long}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000,http://localhost:3000,http://localhost:80}
     depends_on:
       - postgres
