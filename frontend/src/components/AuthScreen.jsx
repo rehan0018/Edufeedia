@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User, KeyRound, CheckCircle2, Sun, Moon, Eye, EyeOff } from 'lucide-react';
 import { apiLogin, apiRegister, apiForgotPassword, apiResetPassword } from '../services/api';
 
-export default function AuthScreen({ onLoginSuccess }) {
+export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
   const [isRegister, setIsRegister] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState(1); // 1: enter email, 2: enter token & new password
@@ -12,9 +12,11 @@ export default function AuthScreen({ onLoginSuccess }) {
   const [forgotSuccess, setForgotSuccess] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('2010-05-15');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [gradeLevel, setGradeLevel] = useState(10);
   const [board, setBoard] = useState('CBSE');
   const [parentEmail, setParentEmail] = useState('');
@@ -93,6 +95,12 @@ export default function AuthScreen({ onLoginSuccess }) {
     setLoading(true);
     setError('');
 
+    if (!dateOfBirth) {
+      setError('Please enter your date of birth to verify student age alignment.');
+      setLoading(false);
+      return;
+    }
+
     const age = calculateAge(dateOfBirth);
     if (age < 10 || age >= 18) {
       setError(`Student age ${age} is not supported. Edufeedia is designed specifically for students aged 10 to 17.`);
@@ -147,12 +155,35 @@ export default function AuthScreen({ onLoginSuccess }) {
       padding: '24px 16px',
       position: 'relative'
     }}>
+      {toggleTheme && (
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="btn btn-outline btn-sm"
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            padding: '6px 12px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+          title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+        >
+          {theme === 'dark' ? <Sun size={16} color="var(--accent-coral)" /> : <Moon size={16} color="var(--brand-primary)" />}
+          <span style={{ fontSize: '0.8rem' }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        </button>
+      )}
+
       <div className="glass-panel" style={{
         width: '100%',
         maxWidth: isRegister ? '520px' : '440px',
         padding: '36px 32px',
         background: 'var(--bg-card-solid)',
-        border: '1px solid var(--border-glow)',
+        border: '1px solid var(--border-subtle)',
+        boxShadow: 'var(--shadow-md)',
         transition: 'all 0.2s ease-in-out'
       }}>
         {/* Brand Header */}
@@ -161,16 +192,18 @@ export default function AuthScreen({ onLoginSuccess }) {
             width: '48px',
             height: '48px',
             borderRadius: '14px',
-            background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
+            background: 'var(--gradient-hero)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 12px auto',
-            boxShadow: 'var(--shadow-glow-cyan)'
+            boxShadow: '0 4px 14px rgba(232, 90, 79, 0.25)'
           }}>
-            <Sparkles size={26} color="#0a0f1d" />
+            <Sparkles size={24} color="#FFFFFF" />
           </div>
-          <h1 style={{ fontSize: '1.8rem', marginBottom: '6px' }}>Edufeedia</h1>
+          <h1 style={{ fontSize: '1.8rem', marginBottom: '6px' }}>
+            Edu<span style={{ color: 'var(--brand-primary)' }}>feedia</span>
+          </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
             Safe, curriculum-aligned learning & revision for K-12 students.
           </p>
@@ -179,7 +212,7 @@ export default function AuthScreen({ onLoginSuccess }) {
         {/* Tab Toggle: Login vs Register */}
         <div style={{
           display: 'flex',
-          background: 'var(--bg-space)',
+          background: 'var(--bg-soft-blue)',
           padding: '4px',
           borderRadius: 'var(--radius-md)',
           marginBottom: '20px',
@@ -193,8 +226,8 @@ export default function AuthScreen({ onLoginSuccess }) {
               padding: '8px 12px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: !isRegister ? 'var(--accent-cyan)' : 'transparent',
-              color: !isRegister ? '#0a0f1d' : 'var(--text-secondary)',
+              background: !isRegister ? 'var(--brand-primary)' : 'transparent',
+              color: !isRegister ? '#FFFFFF' : 'var(--text-secondary)',
               fontWeight: 600,
               fontSize: '0.88rem',
               cursor: 'pointer',
@@ -211,8 +244,8 @@ export default function AuthScreen({ onLoginSuccess }) {
               padding: '8px 12px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: isRegister ? 'var(--accent-cyan)' : 'transparent',
-              color: isRegister ? '#0a0f1d' : 'var(--text-secondary)',
+              background: isRegister ? 'var(--brand-primary)' : 'transparent',
+              color: isRegister ? '#FFFFFF' : 'var(--text-secondary)',
               fontWeight: 600,
               fontSize: '0.88rem',
               cursor: 'pointer',
@@ -282,12 +315,13 @@ export default function AuthScreen({ onLoginSuccess }) {
             {forgotStep === 1 ? (
               <form onSubmit={handleForgotPasswordRequest} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  <label htmlFor="forgot-email" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     Registered Email Address
                   </label>
                   <div style={{ position: 'relative' }}>
                     <Mail size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                     <input
+                      id="forgot-email"
                       type="email"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
@@ -319,10 +353,11 @@ export default function AuthScreen({ onLoginSuccess }) {
             ) : (
               <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  <label htmlFor="reset-token" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     Reset Token (from email)
                   </label>
                   <input
+                    id="reset-token"
                     type="text"
                     value={forgotToken}
                     onChange={(e) => setForgotToken(e.target.value)}
@@ -342,20 +377,21 @@ export default function AuthScreen({ onLoginSuccess }) {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  <label htmlFor="reset-password" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     New Password
                   </label>
                   <div style={{ position: 'relative' }}>
                     <Lock size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                     <input
-                      type="password"
+                      id="reset-password"
+                      type={showResetPassword ? 'text' : 'password'}
                       value={newResetPassword}
                       onChange={(e) => setNewResetPassword(e.target.value)}
                       placeholder="Min 8 chars, 1 uppercase, 1 number"
                       required
                       style={{
                         width: '100%',
-                        padding: '12px 14px 12px 42px',
+                        padding: '12px 42px 12px 42px',
                         borderRadius: 'var(--radius-md)',
                         background: 'var(--bg-space)',
                         border: '1px solid var(--border-subtle)',
@@ -364,6 +400,22 @@ export default function AuthScreen({ onLoginSuccess }) {
                         outline: 'none'
                       }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(prev => !prev)}
+                      aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '12px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)'
+                      }}
+                    >
+                      {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </div>
 
@@ -398,12 +450,13 @@ export default function AuthScreen({ onLoginSuccess }) {
           /* Sign In Form */
           <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+              <label htmlFor="login-email" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Email Address
               </label>
               <div style={{ position: 'relative' }}>
                 <Mail size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -425,7 +478,7 @@ export default function AuthScreen({ onLoginSuccess }) {
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                <label htmlFor="login-password" style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                   Password
                 </label>
                 <button
@@ -446,14 +499,15 @@ export default function AuthScreen({ onLoginSuccess }) {
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                 <input
-                  type="password"
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
                   style={{
                     width: '100%',
-                    padding: '12px 14px 12px 42px',
+                    padding: '12px 42px 12px 42px',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--bg-space)',
                     border: '1px solid var(--border-subtle)',
@@ -462,6 +516,22 @@ export default function AuthScreen({ onLoginSuccess }) {
                     outline: 'none'
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '12px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -488,12 +558,13 @@ export default function AuthScreen({ onLoginSuccess }) {
           <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-first-name" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   First Name
                 </label>
                 <div style={{ position: 'relative' }}>
                   <User size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                   <input
+                    id="register-first-name"
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
@@ -514,10 +585,11 @@ export default function AuthScreen({ onLoginSuccess }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-last-name" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Last Name
                 </label>
                 <input
+                  id="register-last-name"
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
@@ -538,12 +610,13 @@ export default function AuthScreen({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+              <label htmlFor="register-email" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                 Student Email Address
               </label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                 <input
+                  id="register-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -564,13 +637,14 @@ export default function AuthScreen({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+              <label htmlFor="register-password" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                 Password (min 6 characters)
               </label>
               <div style={{ position: 'relative' }}>
                 <Lock size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                 <input
-                  type="password"
+                  id="register-password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -578,7 +652,7 @@ export default function AuthScreen({ onLoginSuccess }) {
                   minLength={6}
                   style={{
                     width: '100%',
-                    padding: '10px 12px 10px 36px',
+                    padding: '10px 36px 10px 36px',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--bg-space)',
                     border: '1px solid var(--border-subtle)',
@@ -587,15 +661,32 @@ export default function AuthScreen({ onLoginSuccess }) {
                     outline: 'none'
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '10px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '10px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-dob" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Date of Birth
                 </label>
                 <input
+                  id="register-dob"
                   type="date"
                   value={dateOfBirth}
                   onChange={(e) => setDateOfBirth(e.target.value)}
@@ -614,10 +705,11 @@ export default function AuthScreen({ onLoginSuccess }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-grade" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Grade Level
                 </label>
                 <select
+                  id="register-grade"
                   value={gradeLevel}
                   onChange={(e) => setGradeLevel(e.target.value)}
                   style={{
@@ -638,10 +730,11 @@ export default function AuthScreen({ onLoginSuccess }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-board" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Board
                 </label>
                 <select
+                  id="register-board"
                   value={board}
                   onChange={(e) => setBoard(e.target.value)}
                   style={{
@@ -665,12 +758,13 @@ export default function AuthScreen({ onLoginSuccess }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+              <label htmlFor="register-parent-email" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                 Parent / Guardian Email (Optional)
               </label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                 <input
+                  id="register-parent-email"
                   type="email"
                   value={parentEmail}
                   onChange={(e) => setParentEmail(e.target.value)}
@@ -712,86 +806,90 @@ export default function AuthScreen({ onLoginSuccess }) {
         {/* Demo Personas (Build-time gated for security: only bundled when VITE_DEMO_MODE=true) */}
         {import.meta.env.VITE_DEMO_MODE === 'true' && (
           <div style={{ textAlign: 'center', marginTop: '16px' }}>
-            <button
-              type="button"
-              onClick={() => setShowDemoPersonas(!showDemoPersonas)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              {showDemoPersonas ? 'Hide Demo Personas ▲' : 'Show Demo Personas ▼'}
-            </button>
+            {import.meta.env.VITE_DEMO_MODE === 'true' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowDemoPersonas(!showDemoPersonas)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {showDemoPersonas ? 'Hide Demo Personas ▲' : 'Show Demo Personas ▼'}
+                </button>
 
-            {showDemoPersonas && (
-              <div style={{
-                marginTop: '12px',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-space)',
-                border: '1px solid var(--border-subtle)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                  Instant Access for Evaluation:
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectDemo('rahul@apexschool.edu', 'Student123!')}
-                    style={{
-                      padding: '8px 4px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'hsla(187, 85%, 53%, 0.1)',
-                      border: '1px solid var(--accent-cyan)',
-                      color: 'var(--accent-cyan)',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Student
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectDemo('sharma@apexschool.edu', 'Teacher123!')}
-                    style={{
-                      padding: '8px 4px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'hsla(263, 70%, 66%, 0.1)',
-                      border: '1px solid var(--accent-purple)',
-                      color: 'var(--accent-purple)',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Teacher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectDemo('parent@gmail.com', 'Parent123!')}
-                    style={{
-                      padding: '8px 4px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'hsla(158, 64%, 52%, 0.1)',
-                      border: '1px solid var(--accent-emerald)',
-                      color: 'var(--accent-emerald)',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Parent
-                  </button>
-                </div>
-              </div>
+                {showDemoPersonas && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-space)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Instant Access for Evaluation:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDemo('rahul@apexschool.edu', 'Student123!')}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(232, 90, 79, 0.12)',
+                          border: '1px solid var(--brand-primary)',
+                          color: 'var(--brand-primary)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Student
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDemo('sharma@apexschool.edu', 'Teacher123!')}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(142, 141, 138, 0.15)',
+                          border: '1px solid var(--accent-stone)',
+                          color: 'var(--accent-stone)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Teacher
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDemo('parent@gmail.com', 'Parent123!')}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(233, 128, 116, 0.15)',
+                          border: '1px solid var(--accent-coral)',
+                          color: 'var(--accent-coral)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Parent
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

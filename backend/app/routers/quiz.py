@@ -54,7 +54,11 @@ def submit_quiz(
         raise HTTPException(status_code=404, detail="Quiz not found")
     if not AccessPolicy.can_access_quiz(current_user, quiz, db):
         raise HTTPException(status_code=403, detail="Access denied: You are not authorized to submit this quiz.")
-        
+
+    # Screen Time & Bedtime Curfew Enforcement Gate
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+
     questions = {q.id: q for q in quiz.questions}
     if not questions:
         raise HTTPException(status_code=400, detail="Quiz has no questions")

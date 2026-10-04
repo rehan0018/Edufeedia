@@ -1,0 +1,418 @@
+"""
+Educational Discovery and Intelligence API Router.
+Exposes federated candidate search, authority registry, concept-check grading,
+and mastery index updates for Edufeedia's Learning Navigator.
+"""
+
+import time
+import datetime
+from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, Depends, Query, HTTPException, Request, status
+from sqlalchemy.orm import Session
+import jwt
+
+from app.database import get_db
+from app.config import settings
+from app.core.security import is_token_revoked, get_current_user
+from app.models.models import User, DiscoveryQueryLog, StudentMasteryHistory
+from app.schemas.schemas import (
+    DiscoverySearchResponse, QuizSubmitRequest, QuizSubmitResponse,
+    ResourceEngagementRequest, SessionStartRequest, SessionStartResponse,
+    SessionHeartbeatRequest, SessionHeartbeatResponse, SessionEndRequest,
+    SessionEndResponse, PrePostAssessmentSubmitRequest, EmpiricalLearningGainOut
+)
+from app.discovery.pipeline import DiscoveryPipeline
+from app.discovery.learning_loop import LearningLoopManager
+from app.discovery.source_registry import SourceAuthorityRegistry
+from app.discovery.resource_quality import ScoringPolicy
+from app.discovery.youtube_transcript import YouTubeTranscriptAcquirer, ContentUnderstandingEngine
+from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+
+router = APIRouter(prefix="/discovery", tags=["discovery"])
+student_router = APIRouter(prefix="/students/discovery", tags=["students_discovery"])
+
+
+def get_current_user_optional(
+    request: Request,
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    Extracts authenticated user if Bearer token is provided and valid.
+    Returns None for guest/unauthenticated users without throwing 401.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1]
+    try:
+        if is_token_revoked(token):
+            return None
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if not email:
+            return None
+        user = db.query(User).filter(User.email == email).first()
+        if user and user.account_status == "ACTIVE":
+            return user
+        return None
+    except (jwt.PyJWTError, Exception):
+        return None
+
+
+@router.get("/search", response_model=DiscoverySearchResponse)
+def search_educational_resources(
+    q: str = Query(..., min_length=2, max_length=250, description="Natural language educational query"),
+    grade: Optional[int] = Query(None, ge=1, le=12, description="Target student grade level (1-12)"),
+    board: Optional[str] = Query(None, description="Target curriculum board (e.g., CBSE, ICSE)"),
+    depth: Optional[str] = Query(None, description="Pedagogical depth: quick_summary, standard, deep_dive"),
+    format_pref: Optional[str] = Query(None, description="Preferred format: animation, video, reading, sim"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Public Educational Discovery Pipeline.
+    Federates candidate discovery across Verified Catalogs, NCERT Textbooks, PhET Simulations,
+    and Vetted Creator Channels.
+    Safe for anonymous guests; applies personalized reranking when student token is present.
+    """
+    start_time = time.time()
+
+    # Authoritative screen-time gating for authenticated students
+    if current_user and current_user.role == "student":
+        ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+
+    # Prepend grade or board context if passed as explicit URL params
+    augmented_query = q
+    if grade and f"class {grade}" not in q.lower() and f"grade {grade}" not in q.lower():
+        augmented_query = f"{augmented_query} Class {grade}"
+    if board and board.lower() not in q.lower():
+        augmented_query = f"{augmented_query} {board}"
+
+    # Execute discovery through authoritative pipeline
+    response = DiscoveryPipeline.execute_discovery(
+        db=db,
+        query=augmented_query,
+        student_user=current_user
+    )
+
+    elapsed_ms = int((time.time() - start_time) * 1000)
+
+    # Persist audit search log asynchronously/safely
+    try:
+        top_res = response.best_match
+        log_entry = DiscoveryQueryLog(
+            student_user_id=current_user.id if current_user else None,
+            raw_query=q,
+            interpreted_intent=response.interpreted_intent.model_dump(),
+            results_count=len(response.all_ranked_resources),
+            top_resource_id=top_res.id if top_res else None,
+            top_resource_score=top_res.quality_score if top_res else None,
+            response_time_ms=elapsed_ms
+        )
+        db.add(log_entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
+
+
+@student_router.get("/search", response_model=DiscoverySearchResponse)
+def student_personalized_search(
+    q: str = Query(..., min_length=2, max_length=250, description="Natural language educational query"),
+    grade: Optional[int] = Query(None, ge=1, le=12, description="Target student grade level (1-12)"),
+    board: Optional[str] = Query(None, description="Target curriculum board (e.g., CBSE, ICSE)"),
+    depth: Optional[str] = Query(None, description="Pedagogical depth: quick_summary, standard, deep_dive"),
+    format_pref: Optional[str] = Query(None, description="Preferred format: animation, video, reading, sim"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Authenticated Student Discovery Search.
+    Strictly restricted to authenticated students. Integrates student mastery levels,
+    known misconceptions, weak-topic reinforcement, and writes to student query logs.
+    """
+    if current_user.role != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student personalization requires a student account."
+        )
+
+    # Authoritative screen-time gating
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+
+    start_time = time.time()
+    augmented_query = q
+    if grade and f"class {grade}" not in q.lower() and f"grade {grade}" not in q.lower():
+        augmented_query = f"{augmented_query} Class {grade}"
+    if board and board.lower() not in q.lower():
+        augmented_query = f"{augmented_query} {board}"
+
+    response = DiscoveryPipeline.execute_discovery(
+        db=db,
+        query=augmented_query,
+        student_user=current_user
+    )
+
+    elapsed_ms = int((time.time() - start_time) * 1000)
+    try:
+        top_res = response.best_match
+        log_entry = DiscoveryQueryLog(
+            student_user_id=current_user.id,
+            raw_query=q,
+            interpreted_intent=response.interpreted_intent.model_dump(),
+            results_count=len(response.all_ranked_resources),
+            top_resource_id=top_res.id if top_res else None,
+            top_resource_score=top_res.quality_score if top_res else None,
+            response_time_ms=elapsed_ms
+        )
+        db.add(log_entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    return response
+
+
+@router.post("/quiz-submit", response_model=QuizSubmitResponse)
+@student_router.post("/quiz-submit", response_model=QuizSubmitResponse)
+def submit_concept_check(
+    body: QuizSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Submits student responses for a diagnostic concept check.
+    Strictly authenticated: anonymous students cannot mutate mastery indices.
+    Evaluates answers, updates TopicMastery index, and records audit history in the closed loop.
+    """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+    try:
+        return LearningLoopManager.evaluate_quiz_submission(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/resource-engagement")
+@student_router.post("/resource-engagement")
+def log_resource_engagement(
+    body: ResourceEngagementRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Records verified student dwell time and completed learning sessions on discovered resources.
+    Strictly authenticated: requires valid student token. Dwell time is bounded to incremental
+    heartbeat thresholds (max 180 seconds) to prevent client fabrication.
+    """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+    try:
+        return LearningLoopManager.record_resource_engagement(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/session/start", response_model=SessionStartResponse)
+@student_router.post("/session/start", response_model=SessionStartResponse)
+def start_learning_session(
+    body: SessionStartRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Initializes a server-authoritative learning session for a specific resource.
+    Generates a cryptographically unique session_id and anchors the start time to the server clock.
+    """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+    try:
+        return LearningLoopManager.start_learning_session(
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/session/heartbeat", response_model=SessionHeartbeatResponse)
+@student_router.post("/session/heartbeat", response_model=SessionHeartbeatResponse)
+def session_heartbeat(
+    body: SessionHeartbeatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Pushes an incremental session heartbeat. Clamps dwell time to physical elapsed server clock
+    and active visibility state, isolating telemetry strictly to this session.
+    """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+    try:
+        return LearningLoopManager.heartbeat_learning_session(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/session/end", response_model=SessionEndResponse)
+@student_router.post("/session/end", response_model=SessionEndResponse)
+def end_learning_session(
+    body: SessionEndRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Concludes an active learning session, tallies total verified dwell time,
+    and disburses gamification rewards if completion requirements were met.
+    """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+    try:
+        return LearningLoopManager.end_learning_session(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/pre-post-assessment", response_model=EmpiricalLearningGainOut)
+@student_router.post("/pre-post-assessment", response_model=EmpiricalLearningGainOut)
+def evaluate_pre_post_assessment(
+    body: PrePostAssessmentSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Records diagnostic pre-test or post-test assessment results around a verified resource.
+    Computes Hake's normalized gain: g = (post - pre) / (100 - pre).
+    Saves empirical evidence offline for model calibration without corrupting live ranking prematurely.
+    """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+    try:
+        return LearningLoopManager.evaluate_pre_post_assessment(
+            db=db,
+            student_user=current_user,
+            request=body
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/transcript/{video_id}")
+def inspect_youtube_transcript(
+    video_id: str,
+    topic: Optional[str] = Query("General", description="Curriculum topic"),
+    subject: Optional[str] = Query("Science", description="Curriculum subject"),
+    grade: Optional[int] = Query(8, ge=1, le=12, description="Target grade level")
+):
+    """
+    Discovers authentic YouTube subtitle tracks and extracts semantic educational intelligence.
+    Performs spoken content safety screening and derives grounded concept-check questions.
+    """
+    transcript_res = YouTubeTranscriptAcquirer.fetch_transcript(video_id=video_id)
+    if not transcript_res["has_transcript"]:
+        return {
+            "video_id": video_id,
+            "has_transcript": False,
+            "error": transcript_res.get("error", "No transcript available"),
+            "content_analysis": None
+        }
+
+    analysis = ContentUnderstandingEngine.analyze_content(
+        transcript_text=transcript_res["full_text"],
+        topic=topic,
+        subject=subject,
+        grade_level=grade
+    )
+
+    return {
+        "video_id": video_id,
+        "has_transcript": True,
+        "language": transcript_res.get("language"),
+        "is_generated": transcript_res.get("is_generated", False),
+        "track_name": transcript_res.get("track_name"),
+        "segments_count": len(transcript_res.get("segments", [])),
+        "content_analysis": analysis
+    }
+
+
+@router.get("/sources")
+def list_educational_sources(db: Session = Depends(get_db)):
+    """
+    Returns the Authoritative Educational Source Registry.
+    Lists trusted institutions and vetted creators backed by database EducationalSource records.
+    """
+    sources = SourceAuthorityRegistry.list_sources(db=db)
+    return {
+        "total_registered_sources": len(sources),
+        "sources": sources,
+        "tier_definitions": {
+            "TIER_A": "Official Curriculum Authorities & Government Publishers (NCERT, CBSE, State Boards)",
+            "TIER_B": "Accredited Universities, Global Non-Profits, and Peer-Reviewed OER (Khan Academy, PhET, MIT OpenCourseWare)",
+            "TIER_C": "Vetted Educational Content Creators with Proven Pedagogy (3Blue1Brown, Veritasium, Physics Wallah, MinutePhysics)",
+            "TIER_D": "Open Public Platforms & Unvetted User-Generated Content (Requires Human Moderation)",
+            "TIER_E": "Unverified, Promotional, Commercial Content or High-Risk Sources (Strictly Blocked)"
+        }
+    }
+
+
+@router.get("/scoring-policy")
+def get_scoring_policy():
+    """
+    Returns the versioned scoring policy weights and thresholds.
+    Ensures transparent, tunable algorithm governance (v1.0).
+    """
+    default_policy = ScoringPolicy()
+    return {
+        "policy_version": default_policy.policy_version,
+        "weights": default_policy.weights,
+        "safety_threshold": default_policy.safety_threshold,
+        "curriculum_match_threshold": default_policy.curriculum_match_threshold,
+        "age_gate_strict": default_policy.age_gate_strict,
+        "description": "Edufeedia v1.0 Multi-Factor Educational Quality & Pedagogical Alignment Scoring Policy"
+    }
+
+
+@router.get("/mastery-history")
+@student_router.get("/mastery-history")
+def get_student_mastery_history(
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns the mastery progression timeline for the authenticated student.
+    Shows topic evolution and learning gains over time.
+    """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+    records = db.query(StudentMasteryHistory).filter(
+        StudentMasteryHistory.student_user_id == current_user.id
+    ).order_by(StudentMasteryHistory.created_at.desc()).limit(limit).all()
+
+    return {
+        "student_id": current_user.id,
+        "total_records": len(records),
+        "history": [
+            {
+                "id": r.id,
+                "topic": r.topic,
+                "subject": r.subject,
+                "prior_mastery": float(r.prior_mastery or 0.0),
+                "new_mastery": float(r.new_mastery or 0.0),
+                "learning_gain": float(r.learning_gain or 0.0),
+                "quiz_score_pct": float(r.quiz_score_pct) if r.quiz_score_pct is not None else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None
+            }
+            for r in records
+        ]
+    }

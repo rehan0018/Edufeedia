@@ -4,9 +4,12 @@ from sqlalchemy.orm import Session
 from typing import Dict, Any, List
 
 from app.database import get_db
-from app.models.models import User, ContentItem, StudentProfile
-from app.schemas.schemas import TutorAskRequest, TutorResponse
+from app.models.models import (
+    User, ContentItem, StudentProfile, SafetyIncident, UserInteraction, LearningEvent, ContentReport
+)
+from app.schemas.schemas import TutorAskRequest, TutorResponse, TutorReportRequest, TutorReportResponse
 from app.core.security import RoleChecker
+from app.core.redis_client import redis_client
 from app.safety.engine import SafetyEngine
 
 router = APIRouter(prefix="/tutor", tags=["tutor"])
@@ -34,6 +37,17 @@ def ask_ai_tutor(
             detail="Guardian consent is required or has been revoked for AI Socratic tutoring under DPDP Act Section 9."
         )
 
+    # 0.2 Enforce burst rate limiting on AI Tutor requests (max 20 queries/min per student)
+    if not redis_client.check_rate_limit(f"tutor_burst_limit:{current_user.id}", max_requests=20, window_seconds=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many tutoring requests. Please pause a moment before asking another question."
+        )
+
+    # 0.5 Enforce parental screen time, bedtime curfew, and AI tutor daily quota
+    from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="ai_tutor")
+
     # Determine student target age dynamically via centralized Age Policy
     target_age = StudentAgePolicy.get_student_age(current_user.student_profile if current_user.role == "student" else None)
     grade_lvl = (
@@ -45,6 +59,21 @@ def ask_ai_tutor(
     # 1. Safety Hard Gate check on student's prompt
     safety_audit = SafetyEngine.audit_content(request.question, target_age=target_age)
     if not safety_audit["is_safe"]:
+        # Record real safety incident for parental visibility
+        incident = SafetyIncident(
+            student_user_id=current_user.id,
+            source="ai_tutor_input",
+            category=safety_audit["matched_rules"][0] if safety_audit.get("matched_rules") else "PROHIBITED_QUERY",
+            severity="high" if safety_audit.get("safety_score", 50) < 30 else "medium",
+            blocked=True,
+            flagged_snippet=request.question[:250],
+            reason=safety_audit.get("explanation", "Student query blocked by fail-closed safety gate"),
+            action_taken="STEERED",
+            parent_notified=True
+        )
+        db.add(incident)
+        db.commit()
+
         return TutorResponse(
             answer="I am your Edufeedia Socratic study guide! I am designed to assist you with curriculum subjects, math, science, and coding concepts. Let's redirect our focus back to the lesson topic.",
             socratic_cue="What specific formula or idea in this module would you like to review?",
@@ -71,13 +100,17 @@ def ask_ai_tutor(
                 valid_content_id = None
 
         board = current_user.student_profile.board if current_user.student_profile else "CBSE"
+        conv_hist = [m.model_dump() if hasattr(m, 'model_dump') else (m.dict() if hasattr(m, 'dict') else m) for m in (request.conversation_history or [])]
         rag_result = RAGEngine.query_rag_tutor(
             db=db,
             question=request.question,
             content_item_id=valid_content_id,
             student_grade=grade_lvl,
             student_id=current_user.id,
-            board=board
+            board=board,
+            conversation_history=conv_hist,
+            provider=request.provider,
+            resource_type=request.resource_type
         )
 
         # 3. Output Safety Gate — Validate synthesized LLM response before returning to minor
@@ -99,6 +132,20 @@ def ask_ai_tutor(
         AIBudgetManager.refund_reservation(reservation)
         raise e
     if not output_audit["is_safe"]:
+        out_incident = SafetyIncident(
+            student_user_id=current_user.id,
+            source="ai_tutor_output",
+            category=output_audit["matched_rules"][0] if output_audit.get("matched_rules") else "LLM_SAFETY_VIOLATION",
+            severity="critical",
+            blocked=True,
+            flagged_snippet=rag_result["answer"][:250],
+            reason="AI Tutor output intercepted by fail-closed safety gate",
+            action_taken="STEERED",
+            parent_notified=True
+        )
+        db.add(out_incident)
+        db.commit()
+
         return TutorResponse(
             answer="Let's focus on the foundational principles of this lesson. What core definition would you like to review together?",
             socratic_cue="Can you explain the problem in your own words?",
@@ -106,13 +153,89 @@ def ask_ai_tutor(
             is_safe=True
         )
 
+    # Record AI query telemetry for real screen-time and quota tracking
+    try:
+        target_id = valid_content_id
+        if not target_id:
+            first_item = db.query(ContentItem).first()
+            target_id = first_item.id if first_item else "general_tutor_dialog"
+
+        interaction = UserInteraction(
+            user_id=current_user.id,
+            content_item_id=target_id,
+            interaction_type="ai_query",
+            dwell_time_seconds=60
+        )
+        db.add(interaction)
+        db.add(LearningEvent(
+            student_user_id=current_user.id,
+            content_item_id=target_id,
+            event_type="ai_tutor_session",
+            verified_seconds=60
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    citations = rag_result.get("citations") or rag_result.get("retrieved_chunks", [])
     return TutorResponse(
-        answer=rag_result["answer"],
-        socratic_cue=rag_result["socratic_cue"],
-        follow_up_questions=rag_result["follow_up_questions"],
+        answer=rag_result.get("answer") or rag_result.get("socratic_guidance", ""),
+        socratic_cue=rag_result.get("socratic_cue", ""),
+        follow_up_questions=rag_result.get("follow_up_questions", []),
         is_safe=True,
         grounding_source=rag_result.get("grounding_source"),
         subject=rag_result.get("subject"),
         topic=rag_result.get("topic"),
-        curriculum_citations=rag_result.get("retrieved_chunks", [])
+        curriculum_citations=citations,
+        provider=rag_result.get("provider", request.provider or "auto"),
+        conversation_id=request.conversation_id
     )
+
+@router.post("/report", response_model=TutorReportResponse)
+def report_tutor_response(
+    report_req: TutorReportRequest,
+    current_user: User = Depends(require_ai_access),
+    db: Session = Depends(get_db)
+):
+    """
+    Submits a student flag or report on an AI Socratic tutor explanation.
+    Enters the incident into SafetyIncident and ContentReport for human educator review.
+    """
+    try:
+        incident = SafetyIncident(
+            student_user_id=current_user.id if current_user.role == "student" else None,
+            source="ai_tutor_output",
+            category="PEDAGOGICAL_FLAG",
+            severity="low",
+            blocked=False,
+            flagged_snippet=(report_req.response_text or "")[:500],
+            reason=f"Student flagged tutor response (topic: {report_req.topic or 'General'}): {report_req.reason}",
+            action_taken="QUEUED_FOR_EDUCATOR_REVIEW"
+        )
+        db.add(incident)
+
+        if report_req.content_item_id:
+            item = db.query(ContentItem).filter(ContentItem.id == report_req.content_item_id).first()
+            if item:
+                content_report = ContentReport(
+                    reporter_user_id=current_user.id,
+                    content_item_id=report_req.content_item_id,
+                    reason=report_req.reason or "Incorrect",
+                    details=f"Tutor response flagged on topic '{report_req.topic}': {report_req.response_text[:300]}",
+                    status="pending_review"
+                )
+                db.add(content_report)
+
+        db.commit()
+        db.refresh(incident)
+        return TutorReportResponse(
+            status="success",
+            message="Report submitted for educator review",
+            report_id=incident.id
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not submit tutor report: {str(e)}"
+        )

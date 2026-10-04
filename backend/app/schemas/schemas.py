@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional, Dict, Any
 import datetime
+from datetime import date
 
 # --- AUTH SCHEMAS ---
 
@@ -375,6 +376,9 @@ class TutorAskRequest(BaseModel):
     content_item_id: Optional[str] = None
     question: str
     conversation_history: Optional[List[TutorChatMessage]] = []
+    provider: Optional[str] = None  # 'auto', 'openai', 'gemini'
+    resource_type: Optional[str] = None  # 'all', 'paper', 'dataset', 'video', 'pdf'
+    conversation_id: Optional[str] = None
 
 class TutorResponse(BaseModel):
     answer: str
@@ -385,6 +389,22 @@ class TutorResponse(BaseModel):
     subject: Optional[str] = None
     topic: Optional[str] = None
     curriculum_citations: Optional[List[Dict[str, Any]]] = []
+    provider: Optional[str] = None
+    conversation_id: Optional[str] = None
+
+class TutorReportRequest(BaseModel):
+    conversation_id: Optional[str] = None
+    question: Optional[str] = None
+    response_text: str
+    reason: Optional[str] = "Inaccurate or out of syllabus"
+    topic: Optional[str] = None
+    content_item_id: Optional[str] = None
+    details: Optional[str] = None
+
+class TutorReportResponse(BaseModel):
+    status: str
+    message: str
+    report_id: Optional[str] = None
 
 # --- AI QUIZ GENERATOR SCHEMAS ---
 
@@ -515,3 +535,465 @@ class TeacherInterventionsResponse(BaseModel):
     total_interventions: int
     high_urgency_count: int
     interventions: List[TeacherInterventionItem]
+
+
+# --- PARENT SCREEN TIME & CONTENT BREAKDOWN SCHEMAS ---
+
+class ScreenTimePolicyUpdate(BaseModel):
+    daily_limit_minutes: Optional[int] = Field(None, ge=15, le=360)
+    curfew_start_time: Optional[str] = None
+    curfew_end_time: Optional[str] = None
+    curfew_enabled: Optional[bool] = None
+    ai_tutor_max_daily_minutes: Optional[int] = Field(None, ge=5, le=180)
+    break_interval_minutes: Optional[int] = Field(None, ge=15, le=120)
+
+class SubjectTimeBreakdown(BaseModel):
+    subject: str
+    minutes: int
+    percentage: float
+
+class ActivityFormatBreakdown(BaseModel):
+    activity_type: str
+    minutes: int
+    percentage: float
+
+class ContentActivityItem(BaseModel):
+    id: str
+    title: str
+    subject: str
+    topic: Optional[str] = None
+    activity_type: str
+    minutes_spent: int
+    completed: bool
+    timestamp: str
+
+class EarlyActionAlert(BaseModel):
+    severity: str # 'info', 'warning', 'positive', 'action_required'
+    type: str     # 'fatigue', 'distraction', 'balance', 'limit', 'ai_usage'
+    title: str
+    description: str
+    recommended_action: str
+
+class ScreenTimeAnalyticsOut(BaseModel):
+    student_id: str
+    student_name: str
+    today_screen_time_minutes: int
+    weekly_screen_time_minutes: int
+    daily_average_minutes: int
+    daily_limit_minutes: int
+    percent_limit_used: int
+    is_over_limit: bool
+    curfew_enabled: bool
+    curfew_start_time: str
+    curfew_end_time: str
+    is_curfew_active: bool
+    subject_breakdown: List[SubjectTimeBreakdown]
+    activity_breakdown: List[ActivityFormatBreakdown]
+    recent_activities: List[ContentActivityItem]
+    early_action_alerts: List[EarlyActionAlert]
+    ai_tutor_minutes_today: int
+
+
+# ==============================================================================
+# EduFeedia Kids & Parent Supervision Architecture Schemas
+# ==============================================================================
+
+class ParentRegister(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+    parent_pin: Optional[str] = Field(None, min_length=4, max_length=6)
+
+class ParentPinSet(BaseModel):
+    pin: str = Field(..., min_length=4, max_length=6)
+
+class ParentPinVerify(BaseModel):
+    pin: str
+
+class ParentPinOut(BaseModel):
+    verified: bool
+    message: str
+
+class ChildProfileCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    date_of_birth: Optional[date] = None
+    age: Optional[int] = None
+    preferred_language: Optional[str] = "en"
+    secondary_language: Optional[str] = None
+    learning_level: Optional[str] = "beginner"
+    avatar_mascot: Optional[str] = "space_explorer"
+    school_name: Optional[str] = None
+    grade_or_class: Optional[str] = None
+    interests: Optional[List[str]] = []
+    allowed_categories: Optional[List[str]] = [
+        "STEM", "Creativity", "World", "Life Skills", "Philosophy & Values", "World Traditions"
+    ]
+    blocked_categories: Optional[List[str]] = []
+    allowed_content_types: Optional[List[str]] = ["video", "story", "activity", "quiz", "game"]
+    parent_approved_only: Optional[bool] = False
+    daily_limit_minutes: Optional[int] = 45
+    curfew_start_time: Optional[str] = "20:00"
+    curfew_end_time: Optional[str] = "07:00"
+    curfew_enabled: Optional[bool] = True
+
+class ChildProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    age: Optional[int] = None
+    preferred_language: Optional[str] = None
+    secondary_language: Optional[str] = None
+    learning_level: Optional[str] = None
+    avatar_mascot: Optional[str] = None
+    school_name: Optional[str] = None
+    grade_or_class: Optional[str] = None
+    interests: Optional[List[str]] = None
+    allowed_categories: Optional[List[str]] = None
+    blocked_categories: Optional[List[str]] = None
+    allowed_content_types: Optional[List[str]] = None
+    parent_approved_only: Optional[bool] = None
+    daily_limit_minutes: Optional[int] = None
+    curfew_start_time: Optional[str] = None
+    curfew_end_time: Optional[str] = None
+    curfew_enabled: Optional[bool] = None
+
+class ChildProfileOut(BaseModel):
+    id: str
+    parent_user_id: str
+    name: str
+    date_of_birth: str
+    age: int
+    age_band_key: str
+    age_band_name: str
+    preferred_language: str
+    secondary_language: Optional[str] = None
+    learning_level: str
+    avatar_mascot: str
+    interests: List[str]
+    allowed_categories: List[str]
+    blocked_categories: List[str]
+    allowed_content_types: List[str]
+    parent_approved_only: bool
+    daily_limit_minutes: int
+    curfew_start_time: str
+    curfew_end_time: str
+    curfew_enabled: bool
+    is_curfew_active: bool
+    today_screen_time_minutes: int
+    xp_score: int
+    streak_count: int
+    stars_count: int
+    created_at: str
+
+class ChildControlsUpdate(BaseModel):
+    allowed_categories: Optional[List[str]] = None
+    blocked_categories: Optional[List[str]] = None
+    allowed_content_types: Optional[List[str]] = None
+    interests: Optional[List[str]] = None
+    learning_level: Optional[str] = None
+    preferred_language: Optional[str] = None
+    secondary_language: Optional[str] = None
+    parent_approved_only: Optional[bool] = None
+
+class ChildScreenTimeUpdate(BaseModel):
+    daily_limit_minutes: Optional[int] = Field(None, ge=10, le=180)
+    curfew_start_time: Optional[str] = None
+    curfew_end_time: Optional[str] = None
+    curfew_enabled: Optional[bool] = None
+
+class ChildContentApprovalRequest(BaseModel):
+    content_item_id: str
+    status: str # 'APPROVED', 'BLOCKED'
+    notes: Optional[str] = None
+
+class ChildActivityCreate(BaseModel):
+    content_item_id: str
+    activity_type: str # 'video', 'story', 'game', 'creative_task', 'experiment', 'quiz'
+    dwell_time_seconds: Optional[int] = 0
+    completed: Optional[bool] = True
+    child_reaction: Optional[str] = None # 'loved', 'good', 'okay', 'confused'
+
+class ChildActivityOut(BaseModel):
+    id: str
+    child_profile_id: str
+    content_item_id: str
+    activity_type: str
+    dwell_time_seconds: int
+    completed: bool
+    child_reaction: Optional[str] = None
+    stars_earned: int = 1
+    created_at: str
+
+class KidsQuizQuestion(BaseModel):
+    id: str
+    question_text: str
+    options: List[str]
+    correct_answer: str
+    explanation: Optional[str] = None
+
+class KidsQuizSubmit(BaseModel):
+    quiz_id: str
+    selected_option: str
+
+class KidsQuizResultOut(BaseModel):
+    is_correct: bool
+    selected_option: str
+    correct_answer: str
+    positive_feedback: str
+    stars_awarded: int
+    fun_fact: Optional[str] = None
+
+class KidsAdventureStep(BaseModel):
+    step_number: int
+    step_type: str # 'watch_cartoon', 'understand_concept', 'interactive_activity', 'mini_quiz', 'earn_badge'
+    title: str
+    description: str
+    icon: str
+    status: str # 'completed', 'active', 'locked'
+    content_item_id: Optional[str] = None
+    duration_label: str
+
+class KidsAdventureOut(BaseModel):
+    adventure_id: str
+    theme_title: str
+    mascot_name: str
+    mascot_avatar: str
+    greeting: str
+    steps: List[KidsAdventureStep]
+    total_stars_available: int
+    progress_percentage: int
+
+class WhySeeingThisOut(BaseModel):
+    content_id: str
+    title: str
+    category: str
+    reasons: List[str]
+    age_match: str
+    parent_allowed: bool
+    learning_balance_note: str
+
+class ChildDashboardOut(BaseModel):
+    child_id: str
+    child_name: str
+    age: int
+    avatar_mascot: str
+    today_learning_minutes: int
+    daily_limit_minutes: int
+    percent_used: int
+    is_over_limit: bool
+    is_curfew_active: bool
+    videos_completed: int
+    quizzes_completed: int
+    activities_completed: int
+    stars_earned: int
+    current_streak: int
+    category_time_breakdown: List[Dict[str, Any]]
+    observed_interests: List[Dict[str, Any]]
+    recent_activities: List[Dict[str, Any]]
+    parent_alerts: List[Dict[str, Any]]
+
+
+# ==============================================================================
+# Discovery & Learning Navigator Schemas
+# ==============================================================================
+
+class InterpretedIntent(BaseModel):
+    subject: str
+    topic: str
+    subtopic: Optional[str] = None
+    grade_level: int
+    board: str
+    intent_type: str # 'explanation', 'problem_solving', 'derivation', 'experiment', 'quiz', 'revision'
+    depth_level: str # 'introductory', 'standard', 'advanced'
+    format_preference: Optional[str] = None
+    language: str = "en"
+    expanded_terms: List[str] = Field(default_factory=list)
+    confidence: float = 1.0
+
+
+class QualityScoreBreakdown(BaseModel):
+    policy_version: str = "v1.0"
+    curriculum_alignment: float
+    source_authority: float
+    pedagogical_quality: float
+    student_level_match: float
+    transcript_quality: float
+    language_match: float
+    engagement_quality: float
+    completion_rate: float
+    student_learning_gain: float
+    total_score: float
+    is_safe: bool = True
+    age_appropriate: bool = True
+
+
+class DiscoveredResource(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = None
+    resource_type: str # 'video', 'reading', 'interactive_sim', 'animation', 'quiz'
+    source_name: str
+    source_platform: str
+    creator_name: Optional[str] = None
+    authority_tier: str # 'TIER_A', 'TIER_B', 'TIER_C', 'TIER_D', 'TIER_E'
+    authority_score: float
+    source_url: str
+    embed_url: Optional[str] = None
+    duration_minutes: int = 5
+    grade_level: int = 8
+    board: str = "CBSE"
+    subject: str
+    topic: str
+    language: str = "en"
+    quality_score: float
+    score_breakdown: QualityScoreBreakdown
+    why_chosen: List[str] = Field(default_factory=list)
+    provenance: Dict[str, Any] = Field(default_factory=dict)
+    is_verified: bool = True
+
+
+class KnowledgePathwayNode(BaseModel):
+    concept: str
+    depth: str # 'prerequisite', 'core', 'related', 'advanced'
+    relation: str # 'PREREQUISITE', 'TARGET_OBJECTIVE', 'COMPLEMENTARY', 'NEXT_LEVEL'
+    description: str
+    target_grade: int
+    resource_id: Optional[str] = None
+
+
+class ConceptCheckQuestion(BaseModel):
+    id: str
+    question_text: str
+    options: List[str]
+    correct_option_index: int
+    explanation: str
+    difficulty: str = "medium"
+
+
+class ConceptCheckQuiz(BaseModel):
+    quiz_id: str
+    topic: str
+    grade_level: int
+    questions: List[ConceptCheckQuestion]
+    total_questions: int = 5
+
+
+class DiscoverySearchResponse(BaseModel):
+    query: str
+    interpreted_intent: InterpretedIntent
+    understand_it: Dict[str, Any]
+    best_match: Optional[DiscoveredResource] = None
+    resources_by_category: Dict[str, List[DiscoveredResource]] = Field(default_factory=dict)
+    all_ranked_resources: List[DiscoveredResource] = Field(default_factory=list)
+    practice_quiz: Optional[ConceptCheckQuiz] = None
+    knowledge_pathway: List[KnowledgePathwayNode] = Field(default_factory=list)
+    student_context: Optional[Dict[str, Any]] = None
+    total_candidates_evaluated: int = 0
+    policy_version: str = "v1.0"
+
+
+class QuizSubmitRequest(BaseModel):
+    quiz_id: str
+    topic: str
+    subject: str
+    grade_level: int
+    answers: Dict[str, int] # question_id -> chosen option index (0-3)
+
+
+class QuizSubmitResponse(BaseModel):
+    quiz_id: str
+    score: int
+    total_questions: int
+    accuracy_percentage: float
+    prior_mastery: float
+    new_mastery: float
+    mastery_gain: float
+    xp_earned: int
+    feedback: str
+    question_results: List[Dict[str, Any]]
+    recommended_next_step: Optional[str] = None
+
+
+class ResourceEngagementRequest(BaseModel):
+    resource_id: str
+    topic: str
+    subject: str
+    dwell_time_seconds: int
+    action_type: str # 'viewed', 'completed', 'bookmarked', 'shared'
+    session_id: Optional[str] = None
+
+
+class SessionStartRequest(BaseModel):
+    resource_id: str
+    topic: str
+    subject: str
+    grade_level: Optional[int] = 8
+
+
+class SessionStartResponse(BaseModel):
+    session_id: str
+    resource_id: str
+    topic: str
+    subject: str
+    started_at: str
+    status: str = "active"
+
+
+class SessionHeartbeatRequest(BaseModel):
+    session_id: str
+    resource_id: str
+    dwell_seconds: int
+    is_active: bool = True
+
+
+class SessionHeartbeatResponse(BaseModel):
+    session_id: str
+    resource_id: str
+    verified_seconds: int
+    session_accumulated_seconds: int
+    status: str = "active"
+    server_timestamp: str
+
+
+class SessionEndRequest(BaseModel):
+    session_id: str
+    resource_id: str
+    final_dwell_seconds: Optional[int] = 0
+    completed: bool = False
+
+
+class SessionEndResponse(BaseModel):
+    session_id: str
+    resource_id: str
+    total_verified_seconds: int
+    xp_awarded: int
+    status: str = "completed"
+    completed_at: str
+
+
+class PrePostAssessmentSubmitRequest(BaseModel):
+    resource_id: str
+    session_id: Optional[str] = None
+    topic: str
+    subject: str
+    grade_level: int = 8
+    assessment_stage: str # 'pre_test' or 'post_test'
+    pre_test_score_pct: Optional[float] = None
+    answers: Dict[str, int] # question_id -> chosen_option_index
+
+
+class EmpiricalLearningGainOut(BaseModel):
+    record_id: str
+    student_id: str
+    resource_id: str
+    topic: str
+    subject: str
+    pre_test_score_pct: float
+    post_test_score_pct: float
+    raw_gain_pct: float
+    normalized_gain: float # Hake's g
+    interpretation: str
+    dwell_time_seconds: int
+    recorded_at: str
+
+

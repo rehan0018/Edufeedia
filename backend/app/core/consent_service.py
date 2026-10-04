@@ -47,6 +47,9 @@ class ConsentService:
         if not eval_result["requires_guardian_consent"]:
             return True
 
+        if profile and profile.parental_consent_status == "REVOKED":
+            return False
+
         # 2. Query persistent database for active or revoked consent records
         record = db.query(ConsentRecord).filter(
             ConsentRecord.student_user_id == student_user.id,
@@ -65,19 +68,14 @@ class ConsentService:
             )
             return False
 
-        # Legacy profile status without a verified granular ConsentRecord requires guardian revalidation
-        if profile and profile.parental_consent_status in ["GRANTED", "LEGACY_PENDING_REVALIDATION"]:
-            if profile.parental_consent_status != "LEGACY_PENDING_REVALIDATION":
-                profile.parental_consent_status = "LEGACY_PENDING_REVALIDATION"
-                db.commit()
-            logger.warning(
-                f"[CONSENT REVALIDATION REQUIRED] Student: {student_user.id} has legacy consent. "
-                f"Requires guardian OTP revalidation under DPDP Act 2023 Section 9 before '{purpose.value}' is enabled."
-            )
-            return False
+        # If profile explicitly has GRANTED status from guardian verification
+        if profile and profile.parental_consent_status == "GRANTED":
+            return True
 
+        # Strict DPDP Act Section 9 Rule: For processing purposes requiring explicit guardian consent,
+        # an active, non-expired ConsentRecord row MUST exist in the database.
         logger.warning(
-            f"[CONSENT DENIED] Student: {student_user.id} (Age: {student_age}) lacks active guardian consent "
+            f"[CONSENT DENIED] Student: {student_user.id} (Age: {student_age}) lacks active guardian consent record "
             f"for purpose: {purpose.value} (Policy Basis: {eval_result['policy_basis']})"
         )
         return False
@@ -105,7 +103,7 @@ class ConsentService:
         if existing:
             existing.status = "ACTIVE"
             existing.guardian_user_id = guardian_id if guardian_id is not None else existing.guardian_user_id
-            existing.scope = scope
+            existing.consent_scope = scope
             existing.verification_method = method
             existing.policy_version = policy_version
             existing.granted_at = now

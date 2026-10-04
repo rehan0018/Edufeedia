@@ -50,7 +50,9 @@ export const apiFetch = async (endpoint, options = {}) => {
   if (res.status === 401) {
     clearAuthSession();
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('auth_session_expired'));
+      window.dispatchEvent(new CustomEvent('auth_session_expired', {
+        detail: { message: 'Your session has expired. Please sign in again.' }
+      }));
     }
     const err = await res.json().catch(() => ({ detail: 'Session expired. Please log in again.' }));
     throw new Error(err.detail || 'Session expired.');
@@ -158,36 +160,24 @@ export const fetchDailyPlanFeed = async () => {
 
 // 3. Complete Lesson & Update Learning Progress
 export const recordLessonProgress = async (contentItemId, progressPercentage = 100) => {
-  const res = await fetch(`${API_BASE_URL}/content/progress`, {
+  return await apiFetch('/content/progress', {
     method: 'POST',
-    headers: defaultHeaders(),
     body: JSON.stringify({
       content_item_id: contentItemId,
       progress_percentage: progressPercentage
     })
   });
-  if (!res.ok) {
-    throw new Error('Failed to record lesson progress on server');
-  }
-  return await res.json();
 };
 
 // 4. Fetch Real Quiz for Content
 export const fetchQuizForContent = async (contentItemId) => {
-  const res = await fetch(`${API_BASE_URL}/quizzes/content/${contentItemId}`, {
-    headers: defaultHeaders()
-  });
-  if (!res.ok) {
-    throw new Error('No assessment quiz available for this topic');
-  }
-  return await res.json();
+  return await apiFetch(`/quizzes/content/${contentItemId}`);
 };
 
 // 5. Submit Real Quiz Attempt to Backend
 export const submitQuizAttempt = async (quizId, answers) => {
-  const res = await fetch(`${API_BASE_URL}/quizzes/submit`, {
+  return await apiFetch('/quizzes/submit', {
     method: 'POST',
-    headers: defaultHeaders(),
     body: JSON.stringify({
       quiz_id: quizId,
       answers: answers.map(a => ({
@@ -196,24 +186,33 @@ export const submitQuizAttempt = async (quizId, answers) => {
       }))
     })
   });
-  if (!res.ok) {
-    throw new Error('Failed to submit quiz attempt to grading server');
-  }
-  return await res.json();
 };
 
-// 6. Socratic AI Tutor API
-export const askSocraticTutor = async (question, contentItemId = null) => {
-  const res = await fetch(`${API_BASE_URL}/tutor/ask`, {
-    method: 'POST',
-    headers: defaultHeaders(),
-    body: JSON.stringify({ question, content_item_id: contentItemId })
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({ detail: 'Tutor service unavailable' }));
-    throw new Error(errData.detail || 'The AI Tutor is temporarily unavailable. Please try again.');
+// 6. Socratic AI Tutor API (Supports Multi-turn Conversation & Provider/Resource Filters)
+export const askSocraticTutor = async (question, options = {}) => {
+  let payload = { question };
+  if (typeof options === 'string') {
+    payload.content_item_id = options;
+  } else if (options && typeof options === 'object') {
+    if (options.contentItemId) payload.content_item_id = options.contentItemId;
+    if (options.conversationHistory && options.conversationHistory.length > 0) {
+      payload.conversation_history = options.conversationHistory;
+    }
+    if (options.provider && options.provider !== 'auto') {
+      payload.provider = options.provider;
+    }
+    if (options.resourceType && options.resourceType !== 'all') {
+      payload.resource_type = options.resourceType;
+    }
+    if (options.conversationId) {
+      payload.conversation_id = options.conversationId;
+    }
   }
-  return await res.json();
+
+  return await apiFetch('/tutor/ask', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 };
 
 // 7. Learning Analytics & Mastery Report
@@ -272,7 +271,7 @@ export const fetchClassAnalytics = async (classId) => {
   return await res.json();
 };
 
-// 11. Parent Linked Student Progress
+// 11. Parent Linked Student Progress & Screen Time
 export const fetchParentStudentSummary = async () => {
   const res = await fetch(`${API_BASE_URL}/parents/students`, {
     headers: defaultHeaders()
@@ -292,6 +291,29 @@ export const fetchParentStudentSummary = async () => {
   }
   const summary = await progressRes.json();
   return { student: firstStudent, summary };
+};
+
+export const fetchStudentScreenTime = async (studentId) => {
+  const res = await fetch(`${API_BASE_URL}/parents/student/${studentId}/screen-time`, {
+    headers: defaultHeaders()
+  });
+  if (!res.ok) {
+    throw new Error('Failed to fetch student screen time analytics');
+  }
+  return await res.json();
+};
+
+export const updateStudentScreenTimePolicy = async (studentId, policyData) => {
+  const res = await fetch(`${API_BASE_URL}/parents/student/${studentId}/screen-time/policy`, {
+    method: 'POST',
+    headers: defaultHeaders(),
+    body: JSON.stringify(policyData)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update screen time policy' }));
+    throw new Error(err.detail || 'Failed to update screen time policy');
+  }
+  return await res.json();
 };
 
 // 12. Explore Catalog Search & Filter
@@ -367,6 +389,29 @@ export const reportContent = async (contentItemId, reason, details = '') => {
   });
 };
 
+export const reportTutorResponse = async ({
+  conversationId = null,
+  question = null,
+  responseText = '',
+  reason = 'Inaccurate or out of syllabus',
+  topic = null,
+  contentItemId = null,
+  details = ''
+} = {}) => {
+  return await apiFetch('/tutor/report', {
+    method: 'POST',
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      question,
+      response_text: responseText,
+      reason,
+      topic,
+      content_item_id: contentItemId,
+      details
+    })
+  });
+};
+
 // 16. Learning Health Score
 export const fetchLearningHealth = async () => {
   return await apiFetch('/students/analytics/learning-health');
@@ -393,3 +438,176 @@ export const moderateContentReport = async (reportId, status, actionTaken = '') 
     body: JSON.stringify({ report_id: reportId, status, action_taken: actionTaken })
   });
 };
+
+// ==============================================================================
+// 20. EduFeedia Kids & Parent Supervision APIs
+// ==============================================================================
+
+// Parent Child Profiles CRUD
+export const fetchParentChildren = async () => {
+  return await apiFetch('/parents/children');
+};
+
+export const createChildProfile = async (childData) => {
+  return await apiFetch('/parents/children', {
+    method: 'POST',
+    body: JSON.stringify(childData)
+  });
+};
+
+export const updateChildProfile = async (childId, childData) => {
+  return await apiFetch(`/parents/children/${childId}`, {
+    method: 'PUT',
+    body: JSON.stringify(childData)
+  });
+};
+
+export const deleteChildProfile = async (childId) => {
+  return await apiFetch(`/parents/children/${childId}`, {
+    method: 'DELETE'
+  });
+};
+
+export const updateChildControls = async (childId, controlsData) => {
+  return await apiFetch(`/parents/children/${childId}/controls`, {
+    method: 'PUT',
+    body: JSON.stringify(controlsData)
+  });
+};
+
+export const setChildContentApproval = async (childId, contentItemId, status, notes = '') => {
+  return await apiFetch(`/parents/children/${childId}/approve-content`, {
+    method: 'POST',
+    body: JSON.stringify({ content_item_id: contentItemId, status, notes })
+  });
+};
+
+export const updateChildScreenTime = async (childId, screenTimeData) => {
+  return await apiFetch(`/parents/children/${childId}/screen-time`, {
+    method: 'PUT',
+    body: JSON.stringify(screenTimeData)
+  });
+};
+
+export const fetchChildDashboard = async (childId) => {
+  return await apiFetch(`/parents/children/${childId}/dashboard`);
+};
+
+export const enterKidsMode = async (childId) => {
+  return await apiFetch(`/parents/children/${childId}/enter-kids-mode`, {
+    method: 'POST'
+  });
+};
+
+// Parent Gate PIN Security
+export const verifyParentPin = async (pin) => {
+  return await apiFetch('/parents/verify-pin', {
+    method: 'POST',
+    body: JSON.stringify({ pin })
+  });
+};
+
+export const setParentPin = async (pin) => {
+  return await apiFetch('/parents/pin', {
+    method: 'POST',
+    body: JSON.stringify({ pin })
+  });
+};
+
+// Kids Mode Endpoints
+export const fetchKidsAdventure = async (childId) => {
+  return await apiFetch(`/kids/${childId}/adventure`);
+};
+
+export const fetchKidsFeed = async (childId, limit = 6) => {
+  return await apiFetch(`/kids/${childId}/feed?limit=${limit}`);
+};
+
+export const fetchKidsExplain = async (childId, contentId) => {
+  return await apiFetch(`/kids/${childId}/feed/explain/${contentId}`);
+};
+
+export const recordKidsActivity = async (childId, activityData) => {
+  return await apiFetch(`/kids/${childId}/activity`, {
+    method: 'POST',
+    body: JSON.stringify(activityData)
+  });
+};
+
+export const submitKidsQuiz = async (childId, quizId, selectedOption) => {
+  return await apiFetch(`/kids/${childId}/quiz/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ quiz_id: quizId, selected_option: selectedOption })
+  });
+};
+
+export const fetchKidsAchievements = async (childId) => {
+  return await apiFetch(`/kids/${childId}/achievements`);
+};
+
+export const fetchKidsScreenTimeStatus = async (childId) => {
+  return await apiFetch(`/kids/${childId}/screen-time-status`);
+};
+
+export const searchKidsContent = async (childId, query) => {
+  return await apiFetch(`/kids/${childId}/safe-search?q=${encodeURIComponent(query)}`);
+};
+
+export const fetchStudentScreenTimeStatus = async () => {
+  return await apiFetch('/students/screen-time-status');
+};
+
+export const sendStudentHeartbeat = async (contentItemId = null, activityType = 'general', activeSeconds = 30) => {
+  return await apiFetch('/students/heartbeat', {
+    method: 'POST',
+    body: JSON.stringify({
+      content_item_id: contentItemId,
+      activity_type: activityType,
+      active_seconds: activeSeconds
+    })
+  });
+};
+
+export const discoverySearch = async ({ query, grade, board, depth, formatPref } = {}) => {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  if (grade) params.append('grade', grade);
+  if (board) params.append('board', board);
+  if (depth) params.append('depth', depth);
+  if (formatPref) params.append('format_pref', formatPref);
+
+  const session = getSession();
+  const token = session.token || localStorage.getItem('edufeedia_token');
+  const role = session.role || localStorage.getItem('edufeedia_role');
+  const endpoint = (token && role === 'student') ? '/students/discovery/search' : '/discovery/search';
+  return await apiFetch(`${endpoint}?${params.toString()}`);
+};
+
+export const submitDiscoveryQuiz = async (quizSubmission) => {
+  return await apiFetch('/students/discovery/quiz-submit', {
+    method: 'POST',
+    body: JSON.stringify(quizSubmission)
+  });
+};
+
+export const recordDiscoveryEngagement = async (engagementData) => {
+  return await apiFetch('/students/discovery/resource-engagement', {
+    method: 'POST',
+    body: JSON.stringify(engagementData)
+  });
+};
+
+export const fetchDiscoverySources = async () => {
+  return await apiFetch('/discovery/sources');
+};
+
+export const fetchDiscoveryPolicy = async () => {
+  return await apiFetch('/discovery/scoring-policy');
+};
+
+export const fetchMasteryHistory = async (limit = 20) => {
+  return await apiFetch(`/students/discovery/mastery-history?limit=${limit}`);
+};
+
+
+

@@ -15,8 +15,12 @@ client = TestClient(app)
 class TestRAGTutor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from seed import seed_database
-        seed_database()
+        try:
+            from scripts.seed_demo_data import seed_demo_data
+            seed_demo_data()
+        except ImportError:
+            from seed import seed_database
+            seed_database()
         # Authenticate as student
         res = client.post("/api/v1/auth/login", json={
             "email": "rahul@apexschool.edu",
@@ -94,6 +98,24 @@ class TestRAGTutor(unittest.TestCase):
             self.assertNotIn("discriminant", answer_lower)
         finally:
             db.close()
+
+    def test_tutor_api_endpoint_report(self):
+        res = client.post(
+            "/api/v1/tutor/report",
+            headers=self.student_headers,
+            json={
+                "conversation_id": "test-conv-123",
+                "question": "Can you explain photosynthesis?",
+                "response_text": "Photosynthesis is the process by which green plants make food.",
+                "reason": "Inaccurate or out of syllabus",
+                "topic": "Photosynthesis",
+                "details": "Flagged from test suite"
+            }
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "success")
+        self.assertIn("report_id", data)
 
 if __name__ == "__main__":
     unittest.main()

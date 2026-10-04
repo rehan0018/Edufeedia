@@ -17,8 +17,8 @@ Third-party dependencies remain subject to their respective open-source licenses
 | **Alembic** | >= 1.13.0 | MIT License | Preserved in distribution | Permitted under MIT |
 | **Pydantic** | >= 2.7.0 | MIT License | Preserved in distribution | Permitted under MIT |
 | **Pydantic-Settings** | >= 2.3.0 | MIT License | Preserved in distribution | Permitted under MIT |
-| **python-jose** | >= 3.3.0 | MIT License | Preserved in distribution | Permitted under MIT |
-| **passlib** | >= 1.7.4 | BSD-3-Clause | Preserved in distribution | Permitted under BSD-3 |
+| **PyJWT** | >= 2.8.0 | MIT License | Preserved in distribution | Permitted under MIT |
+| **bcrypt** | >= 4.0.1 | Apache-2.0 | Preserved in distribution | Permitted under Apache-2.0 |
 | **redis-py** | >= 5.0.0 | MIT License | Preserved in distribution | Permitted under MIT |
 | **psycopg2-binary** | >= 2.9.9 | LGPL with exception / BSD | Preserved in distribution | Permitted (Binary wrapper) |
 | **httpx** | >= 0.27.0 | BSD-3-Clause | Preserved in distribution | Permitted under BSD-3 |

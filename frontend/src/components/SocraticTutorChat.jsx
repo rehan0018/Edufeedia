@@ -1,31 +1,83 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Brain, Send, Sparkles, ShieldCheck, Loader2, AlertCircle, BookOpen, Lightbulb, Compass, HelpCircle, RefreshCw } from 'lucide-react';
-import { askSocraticTutor } from '../services/api';
+import {
+  Brain, Send, Sparkles, ShieldCheck, Loader2, AlertCircle, BookOpen,
+  Lightbulb, Compass, HelpCircle, RefreshCw, Cpu, Filter, ExternalLink, Video, FileText, Database
+} from 'lucide-react';
+import { askSocraticTutor, reportTutorResponse } from '../services/api';
 
-export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
-  const [messages, setMessages] = useState([
-    {
-      sender: 'tutor',
-      text: `Hello! I am your Edufeedia Socratic study companion. I help you build deep first-principles intuition step-by-step rather than just giving away final answers. Ask me about **${activeTopic}** or explore any STEM curriculum concept!`,
-      socratic_cue: "What core mechanism or formula in your syllabus would you like to explore together?",
-      subject: "Science",
-      topic: activeTopic,
-      grounding_source: `Curriculum Guide • Grade 10`,
-      follow_ups: [
-        "How do forces interact in action-reaction pairs?",
-        "What is the physical meaning of momentum (p = mv)?",
-        "What is a computer network?"
-      ]
-    }
-  ]);
+export default function SocraticTutorChat({ activeTopic = "Newton's Laws", user = null, activeLessonId = null }) {
+  // Session tracking & multi-turn history
+  const [conversationId, setConversationId] = useState(() => (
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `conv-${Date.now()}`
+  ));
+
+  // Provider & Resource Selection Filters
+  const [selectedProvider, setSelectedProvider] = useState('auto'); // 'auto' | 'openai' | 'gemini'
+  const [selectedResourceType, setSelectedResourceType] = useState('all'); // 'all' | 'paper' | 'video' | 'dataset' | 'pdf'
+
+  const studentGrade = user?.student_profile?.grade_level || user?.grade_level || 10;
+  const studentBoard = user?.student_profile?.board || 'CBSE';
+
+  const createInitialMessage = () => ({
+    sender: 'tutor',
+    text: activeTopic
+      ? `Hello! I am your Edufeedia Socratic study companion for Grade ${studentGrade} (${studentBoard}). I help you build first-principles intuition step-by-step rather than giving away answers directly. What question about **${activeTopic}** would you like to explore together?`
+      : `Hello! I am your Edufeedia Socratic study companion for Grade ${studentGrade} (${studentBoard}). Ask me any curriculum concept to begin exploring together.`,
+    socratic_cue: "What core mechanism or formula in your syllabus would you like to explore together?",
+    subject: null,
+    topic: activeTopic || null,
+    grounding_source: null,
+    curriculum_citations: [],
+    is_greeting: true,
+    follow_ups: activeTopic ? [
+      `How do forces interact in ${activeTopic}?`,
+      `Can you give an intuitive everyday example of ${activeTopic}?`,
+      `Quiz me with a Socratic problem on ${activeTopic}.`
+    ] : [
+      "How does photosynthesis convert sunlight to energy?",
+      "Explain Newton's second law of motion.",
+      "How do binary search algorithms work?"
+    ]
+  });
+
+  const [messages, setMessages] = useState([createInitialMessage()]);
   const [inputQuestion, setInputQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [reportStatusByMsg, setReportStatusByMsg] = useState({});
   const chatBottomRef = useRef(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  const handleStartNewSession = () => {
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `conv-${Date.now()}`;
+    setConversationId(newId);
+    setMessages([createInitialMessage()]);
+    setError('');
+    setReportStatusByMsg({});
+  };
+
+  const handleReportMessage = async (idx, msg) => {
+    if (reportStatusByMsg[idx] === 'loading' || reportStatusByMsg[idx] === 'success') return;
+    setReportStatusByMsg(prev => ({ ...prev, [idx]: 'loading' }));
+    try {
+      const precedingUserMsg = messages.slice(0, idx).reverse().find(m => m.sender === 'student');
+      await reportTutorResponse({
+        conversationId,
+        question: precedingUserMsg?.text || null,
+        responseText: msg.text,
+        reason: 'Inaccurate or out of syllabus',
+        topic: activeTopic || msg.topic || null,
+        contentItemId: activeLessonId || null,
+        details: 'Flagged by student in Socratic Tutor chat interface'
+      });
+      setReportStatusByMsg(prev => ({ ...prev, [idx]: 'success' }));
+    } catch (err) {
+      setReportStatusByMsg(prev => ({ ...prev, [idx]: 'error' }));
+    }
+  };
 
   const handleSend = async (questionText = inputQuestion) => {
     if (!questionText.trim() || loading) return;
@@ -36,24 +88,56 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
     setLoading(true);
     setError('');
 
+    // Prepare multi-turn conversation history (last 6 relevant turns)
+    const conversationHistory = messages
+      .filter(m => !m.is_error && !m.is_greeting)
+      .slice(-6)
+      .map(m => ({
+        role: m.sender === 'student' ? 'user' : 'assistant',
+        text: m.text
+      }));
+
     try {
-      const resp = await askSocraticTutor(questionText);
+      const resp = await askSocraticTutor(questionText, {
+        contentItemId: activeLessonId,
+        conversationHistory,
+        provider: selectedProvider,
+        resourceType: selectedResourceType,
+        conversationId
+      });
+
+      const hasRealCitations = Array.isArray(resp.curriculum_citations) && resp.curriculum_citations.length > 0;
       const tutorMsg = {
         sender: 'tutor',
         text: resp.answer,
         socratic_cue: resp.socratic_cue,
         follow_ups: resp.follow_up_questions || [],
-        subject: resp.subject || 'Curriculum',
+        subject: resp.subject || null,
         topic: resp.topic || activeTopic,
-        grounding_source: resp.grounding_source || `${resp.subject || 'Curriculum'} • Grade 10`,
-        provider: resp.provider || 'edufeedia_rag'
+        grounding_source: hasRealCitations ? (resp.grounding_source || 'Verified Curriculum Sources') : null,
+        curriculum_citations: resp.curriculum_citations || [],
+        provider: resp.provider || selectedProvider,
+        is_safe: resp.is_safe !== false,
+        is_greeting: false
       };
       setMessages(prev => [...prev, tutorMsg]);
     } catch (err) {
-      setError(err.message || 'The AI Tutor is temporarily unavailable.');
+      const rawMsg = err.message || '';
+      let friendly = 'The AI Tutor is temporarily unavailable. Please try again shortly or explore catalog materials.';
+      if (rawMsg.includes('Guardian consent') || rawMsg.includes('revoked')) {
+        friendly = '🔒 Guardian consent is required under DPDP Act Section 9 to use the AI Socratic Tutor. Please ask your parent or guardian to verify consent in the Guardian Hub.';
+      } else if (rawMsg.includes('curfew') || rawMsg.includes('screen time') || rawMsg.includes('Screen time limit')) {
+        friendly = '🌙 Your daily AI study quota or bedtime curfew has been reached for today. Time for a healthy break!';
+      } else if (rawMsg.includes('Too many') || rawMsg.includes('rate limit') || rawMsg.includes('pause a moment')) {
+        friendly = '⏳ You are asking questions quickly! Please take a quick breath before sending your next inquiry.';
+      } else if (rawMsg.includes('budget') || rawMsg.includes('quota')) {
+        friendly = '📊 The daily learning token budget for this session has been fulfilled. You can continue reviewing lessons and flashcards.';
+      }
+
+      setError(friendly);
       setMessages(prev => [...prev, {
         sender: 'tutor',
-        text: '⚠ Tutor service is currently unavailable. Please check your connection or explore another topic in the Explore Catalog.',
+        text: friendly,
         is_error: true
       }]);
     } finally {
@@ -78,7 +162,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
     <div style={{ maxWidth: '880px', margin: '0 auto', padding: '28px 16px' }}>
       
       {/* Header Panel */}
-      <div className="glass-panel" style={{ padding: '22px 26px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div className="glass-panel" style={{ padding: '22px 26px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
             <span style={{
@@ -86,16 +170,16 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
               fontWeight: 800,
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
-              padding: '3px 10px',
+              padding: '4px 10px',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
-              color: '#0a0f1d'
+              background: 'var(--gradient-hero)',
+              color: '#FFFFFF'
             }}>
               🤖 Socratic AI Tutor
             </span>
             <span style={{
               fontSize: '0.75rem',
-              color: 'var(--accent-emerald)',
+              color: 'var(--accent-mint)',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
@@ -108,18 +192,98 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
             Curriculum Socratic Guide
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Powered by Intent-Aware Hybrid RAG & pedagogical first-principles reasoning.
+            Verified source-grounded reasoning with pedagogical guidance for Grade {studentGrade} ({studentBoard}).
           </p>
         </div>
 
-        <div style={{
-          padding: '8px 14px',
-          background: 'var(--bg-space)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-subtle)',
-          fontSize: '0.84rem'
-        }}>
-          <span style={{ color: 'var(--text-muted)' }}>Focus Context:</span> <strong style={{ color: 'var(--accent-cyan)' }}>{activeTopic}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{
+            padding: '8px 14px',
+            background: 'var(--bg-soft-blue)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)',
+            fontSize: '0.84rem'
+          }}>
+            <span style={{ color: 'var(--text-muted)' }}>Focus Context:</span> <strong style={{ color: 'var(--brand-primary)' }}>{activeTopic}</strong>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={handleStartNewSession}
+            title="Start a fresh conversation and reset discussion history"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem' }}
+          >
+            <RefreshCw size={14} /> New Session
+          </button>
+        </div>
+      </div>
+
+      {/* Provider & Resource Filters Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        padding: '10px 16px',
+        marginBottom: '16px',
+        background: 'var(--bg-card)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-subtle)',
+        fontSize: '0.84rem'
+      }}>
+        {/* Model Provider Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Cpu size={14} /> AI Provider:
+          </span>
+          <select
+            id="tutor-provider-select"
+            aria-label="Select AI Tutor Provider"
+            value={selectedProvider}
+            onChange={(e) => setSelectedProvider(e.target.value)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-space)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-primary)',
+              fontSize: '0.84rem',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="auto">Auto (Best Match)</option>
+            <option value="openai">OpenAI (GPT-4o)</option>
+            <option value="gemini">Google (Gemini 1.5)</option>
+          </select>
+        </div>
+
+        {/* Resource Type Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Filter size={14} /> Resource Filter:
+          </span>
+          <select
+            id="tutor-resource-select"
+            aria-label="Select Resource Filter"
+            value={selectedResourceType}
+            onChange={(e) => setSelectedResourceType(e.target.value)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-space)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-primary)',
+              fontSize: '0.84rem',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="all">All Curriculum Resources</option>
+            <option value="paper">Papers & Documents</option>
+            <option value="video">Videos & Lectures</option>
+            <option value="dataset">Datasets & Problems</option>
+          </select>
         </div>
       </div>
 
@@ -149,12 +313,12 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                 maxWidth: '75%',
                 padding: '12px 18px',
                 borderRadius: '18px 18px 4px 18px',
-                background: 'linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))',
-                color: '#0a0f1d',
+                background: 'var(--brand-primary)',
+                color: '#FFFFFF',
                 fontWeight: 600,
                 fontSize: '0.95rem',
                 lineHeight: '1.45',
-                boxShadow: 'var(--shadow-glow-cyan)'
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
               }}>
                 {m.text}
               </div>
@@ -164,50 +328,153 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                 maxWidth: '90%',
                 padding: '20px',
                 borderRadius: '18px 18px 18px 4px',
-                background: m.is_error ? 'hsla(346, 84%, 61%, 0.12)' : 'var(--bg-card-solid)',
-                border: m.is_error ? '1px solid var(--accent-rose)' : '1px solid var(--border-subtle)',
+                background: m.is_error ? 'rgba(255, 122, 89, 0.12)' : 'var(--bg-card)',
+                border: m.is_error ? '1px solid var(--accent-coral)' : '1px solid var(--border-subtle)',
                 color: 'var(--text-primary)',
                 lineHeight: '1.55'
               }}>
-                {/* Attribution Badge */}
-                {m.grounding_source && !m.is_error && (
+                {/* Genuine Attribution Badge (Only shown when real citations exist) */}
+                {m.curriculum_citations && m.curriculum_citations.length > 0 && !m.is_error ? (
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
                     fontSize: '0.78rem',
-                    color: 'var(--accent-cyan)',
+                    color: 'var(--brand-primary)',
                     fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.5px',
                     marginBottom: '10px'
                   }}>
-                    <BookOpen size={14} /> Grounded in: {m.grounding_source}
+                    <BookOpen size={14} /> Grounded in {m.curriculum_citations.length} Verified Evidence Source{m.curriculum_citations.length > 1 ? 's' : ''}
                   </div>
-                )}
+                ) : (!m.is_error && !m.is_greeting && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    marginBottom: '10px'
+                  }}>
+                    <Compass size={14} /> General Pedagogical Guidance (First-Principles Steering)
+                  </div>
+                ))}
 
                 {/* Explanation Body */}
                 <div style={{ fontSize: '0.94rem', color: 'var(--text-primary)', marginBottom: m.socratic_cue ? '14px' : '0' }}>
                   {m.text}
                 </div>
 
+                {/* Retrieved Source Citations with Clickable Links, Page, & Timestamps */}
+                {m.curriculum_citations && m.curriculum_citations.length > 0 && (
+                  <div style={{
+                    marginTop: '12px',
+                    marginBottom: '14px',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-soft-blue)',
+                    border: '1px solid var(--border-subtle)',
+                    fontSize: '0.82rem'
+                  }}>
+                    <div style={{ fontWeight: 700, color: 'var(--brand-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <BookOpen size={14} /> Verified Evidence Citations:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {m.curriculum_citations.map((cite, cIdx) => {
+                        const isVideo = cite.resource_type === 'video' || cite.timestamp || (cite.url && cite.url.includes('youtube'));
+                        return (
+                          <div
+                            key={cIdx}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: 'var(--radius-sm)',
+                              background: 'var(--bg-card)',
+                              border: '1px solid var(--border-subtle)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: '6px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {isVideo ? <Video size={14} color="var(--accent-coral)" /> : <FileText size={14} color="var(--brand-primary)" />}
+                              <div>
+                                <strong>{cite.source_title || cite.title || 'Curriculum Reference'}</strong>
+                                <span style={{ color: 'var(--text-muted)', marginLeft: '6px' }}>
+                                  ({cite.chapter || cite.section || 'Core Syllabus'})
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {cite.page && (
+                                <span style={{
+                                  fontSize: '0.74rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  background: 'var(--bg-soft-blue)',
+                                  color: 'var(--text-secondary)'
+                                }}>
+                                  📄 {cite.page}
+                                </span>
+                              )}
+                              {cite.timestamp && (
+                                <span style={{
+                                  fontSize: '0.74rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  background: 'rgba(239, 68, 68, 0.1)',
+                                  color: 'var(--accent-coral)'
+                                }}>
+                                  ⏱️ {cite.timestamp}
+                                </span>
+                              )}
+                              {cite.url && (
+                                <a
+                                  href={cite.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    color: 'var(--brand-primary)',
+                                    textDecoration: 'none',
+                                    fontWeight: 600,
+                                    fontSize: '0.76rem'
+                                  }}
+                                >
+                                  View Source <ExternalLink size={12} />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Socratic Thinking Prompt Box */}
                 {m.socratic_cue && (
                   <div style={{
                     padding: '12px 16px',
                     borderRadius: 'var(--radius-md)',
-                    background: 'hsla(186, 100%, 50%, 0.08)',
-                    borderLeft: '4px solid var(--accent-cyan)',
-                    borderTop: '1px solid hsla(186, 100%, 50%, 0.2)',
-                    borderRight: '1px solid hsla(186, 100%, 50%, 0.2)',
-                    borderBottom: '1px solid hsla(186, 100%, 50%, 0.2)',
-                    color: 'var(--accent-cyan)',
+                    background: 'var(--bg-soft-blue)',
+                    borderLeft: '4px solid var(--brand-primary)',
+                    borderTop: '1px solid var(--border-subtle)',
+                    borderRight: '1px solid var(--border-subtle)',
+                    borderBottom: '1px solid var(--border-subtle)',
+                    color: 'var(--text-primary)',
                     fontSize: '0.88rem',
                     fontWeight: 500,
                     marginBottom: '12px'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', fontSize: '0.76rem' }}>
-                      <Lightbulb size={14} /> Think About This:
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', fontSize: '0.76rem', color: 'var(--brand-primary)' }}>
+                      <Lightbulb size={14} color="var(--accent-yellow)" /> Think About This:
                     </div>
                     {m.socratic_cue}
                   </div>
@@ -223,12 +490,13 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                       {m.follow_ups.map((q, qIdx) => (
                         <button
                           key={qIdx}
+                          type="button"
                           className="btn btn-outline btn-sm"
                           style={{
                             fontSize: '0.8rem',
                             padding: '6px 12px',
                             borderRadius: '16px',
-                            background: 'var(--bg-space)',
+                            background: 'var(--bg-soft-blue)',
                             borderColor: 'var(--border-subtle)',
                             textAlign: 'left'
                           }}
@@ -238,6 +506,46 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Report Affordance */}
+                {!m.is_error && !m.is_greeting && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleReportMessage(idx, m)}
+                      disabled={reportStatusByMsg[idx] === 'loading'}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: reportStatusByMsg[idx] === 'success'
+                          ? 'var(--accent-mint)'
+                          : reportStatusByMsg[idx] === 'error'
+                          ? 'var(--accent-coral)'
+                          : 'var(--text-muted)',
+                        fontSize: '0.74rem',
+                        cursor: reportStatusByMsg[idx] === 'success' ? 'default' : 'pointer',
+                        padding: '4px 8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        opacity: reportStatusByMsg[idx] === 'loading' ? 0.7 : 1
+                      }}
+                      title={
+                        reportStatusByMsg[idx] === 'success'
+                          ? 'Educators have been notified to review this response'
+                          : reportStatusByMsg[idx] === 'error'
+                          ? 'Failed to submit report. Click to retry.'
+                          : 'Report this explanation if inaccurate or out of syllabus'
+                      }
+                    >
+                      <HelpCircle size={12} />
+                      {reportStatusByMsg[idx] === 'loading' && 'Submitting report...'}
+                      {reportStatusByMsg[idx] === 'success' && 'Reported for educator review ✓'}
+                      {reportStatusByMsg[idx] === 'error' && 'Report failed (click to retry)'}
+                      {!reportStatusByMsg[idx] && 'Flag / Report response'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -252,9 +560,9 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
             gap: '10px',
             padding: '14px 18px',
             borderRadius: '16px',
-            background: 'var(--bg-card-solid)',
+            background: 'var(--bg-card)',
             border: '1px solid var(--border-subtle)',
-            color: 'var(--accent-cyan)',
+            color: 'var(--brand-primary)',
             fontSize: '0.88rem',
             maxWidth: '340px'
           }}>
@@ -318,7 +626,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws" }) {
             flex: 1,
             padding: '14px 18px',
             borderRadius: 'var(--radius-md)',
-            background: 'var(--bg-card-solid)',
+            background: 'var(--bg-card)',
             border: '1px solid var(--border-subtle)',
             color: 'var(--text-primary)',
             fontSize: '0.96rem',

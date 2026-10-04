@@ -7,14 +7,16 @@ from app.models.models import User, ContentItem, StudentProgress, SpacedRepetiti
 from app.recommender.feature_builder import RecommendationFeatureBuilder
 from app.learning.analytics import StudentAnalyticsEngine
 
-class TwoStageMLRanker:
+class PedagogicalWeightedHeuristicRanker:
     """
-    Two-Stage Machine Learning Recommender:
-    - Stage 1: Candidate Generation (Content, Collaborative, Spaced Queues)
-    - Stage 2: Dense Feature Extraction & GBDT-style Pointwise Ranking Model
+    Two-Stage Pedagogical Recommender:
+    - Stage 1: Candidate Generation (Curriculum, Spaced Repetition, Diagnostic Queues)
+    - Stage 2: Dense Feature Extraction & Pointwise Pedagogical Sigmoid Scoring
+      Combines SuperMemo SM-2 memory decay, diagnostic weak-topic intervention,
+      and curriculum suitability into an explainable ranking score.
     """
 
-    # Feature Importance Weights for Pointwise Gradient Scoring
+    # Feature Importance Weights for Pointwise Pedagogical Scoring
     FEATURE_WEIGHTS = {
         "is_spaced_due": 0.30,       # Spaced review prioritized for long-term retention
         "is_weak_topic": 0.25,       # Diagnostic weak-topic intervention
@@ -96,3 +98,6 @@ class TwoStageMLRanker:
         # Sigmoidal Calibration to [0.0, 1.0]
         ranking_score = 1.0 / (1.0 + math.exp(-3.0 * (raw_logit - 0.40)))
         return round(max(0.05, min(0.99, ranking_score)), 4)
+
+# Backwards-compatible alias
+TwoStageMLRanker = PedagogicalWeightedHeuristicRanker

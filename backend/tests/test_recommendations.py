@@ -16,8 +16,12 @@ class TestRecommendationAndSafetyEngine(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from seed import seed_database
-        seed_database()
+        try:
+            from scripts.seed_demo_data import seed_demo_data
+            seed_demo_data()
+        except ImportError:
+            from seed import seed_database
+            seed_database()
 
     def test_safety_hard_gate_blocks_dangerous_content(self):
         # 1. Direct violence / explosive test

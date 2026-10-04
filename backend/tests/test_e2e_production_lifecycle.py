@@ -15,8 +15,9 @@ from app.database import SessionLocal
 from app.models.models import (
     School, User, StudentProfile, StudentProgress, QuizAttempt, Quiz, Question,
     ContentItem, SpacedRepetitionSchedule, ParentalConsentLog, SchoolClass,
-    teacher_classes, parent_student_links
+    teacher_classes, parent_student_links, ConsentRecord
 )
+from app.core.age_policy import ProcessingPurpose
 from app.core.security import get_password_hash
 from app.embeddings.embedder import embed_content
 
@@ -166,6 +167,7 @@ class TestE2EProductionLifecycle(unittest.TestCase):
             student = db.query(User).filter(User.email == cls.STUDENT_EMAIL).first()
             if student:
                 db.execute(parent_student_links.delete().where(parent_student_links.c.student_user_id == student.id))
+                db.query(ConsentRecord).filter(ConsentRecord.student_user_id == student.id).delete()
                 db.query(ParentalConsentLog).filter(ParentalConsentLog.student_user_id == student.id).delete()
                 db.query(QuizAttempt).filter(QuizAttempt.student_user_id == student.id).delete()
                 db.query(StudentProgress).filter(StudentProgress.student_user_id == student.id).delete()
@@ -240,6 +242,18 @@ class TestE2EProductionLifecycle(unittest.TestCase):
                 is_verified=True
             )
         )
+        # Create granular verified ConsentRecords for all student processing purposes
+        for purp in [ProcessingPurpose.AI_SOCRATIC_TUTOR, ProcessingPurpose.PERSONALIZED_RECOMMENDATIONS, ProcessingPurpose.FORMATIVE_PROGRESS_TRACKING, ProcessingPurpose.ANALYTICS_AGGREGATION]:
+            self.db.add(ConsentRecord(
+                student_user_id=student_id,
+                guardian_user_id=self.parent_user.id,
+                processing_purpose=purp.value,
+                consent_scope=purp.value,
+                status="ACTIVE",
+                verification_method="GUARDIAN_EMAIL_OTP",
+                policy_version="2026.2-DPDP"
+            ))
+
         consent_log = ParentalConsentLog(
             student_user_id=student_id,
             parent_user_id=self.parent_user.id,

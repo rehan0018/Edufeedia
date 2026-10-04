@@ -2,9 +2,11 @@ name: Edufeedia Continuous Integration
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - '**'
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   backend-test:
@@ -21,20 +23,44 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      PYTHONIOENCODING: utf-8
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: "pip"
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt || pip install fastapi uvicorn sqlalchemy pydantic pydantic-settings python-jose passlib bcrypt redis httpx python-multipart pytest
+          pip install -r requirements.txt
+
+      - name: Run Dependency Vulnerability Audit (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Verify Redis Connectivity
+        env:
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python -c "import redis; r = redis.from_url('redis://localhost:6379/0'); r.ping(); print('Redis service container reachable.')"
+
+      - name: Seed Database Test Fixtures
+        env:
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: test
+          SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
+        run: |
+          PYTHONPATH=.:backend python backend/scripts/seed_demo_data.py
 
       - name: Run Backend Unit and Regression Test Suite
         env:
@@ -42,7 +68,20 @@ jobs:
           ENVIRONMENT: test
           SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
         run: |
-          PYTHONPATH=backend python -m unittest discover -s backend/tests
+          PYTHONPATH=.:backend python -m pytest backend/tests -v --tb=short
+
+      - name: Verify Production Settings Boot Validation
+        env:
+          ENVIRONMENT: production
+          SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
+          DATABASE_URL: postgresql://ci_user:ci_pass@localhost:5432/ci_db
+          REDIS_URL: redis://localhost:6379/0
+          ALLOWED_ORIGINS: https://app.edufeedia.com,https://edufeedia.com
+          SMTP_HOST: smtp.example.com
+          SMTP_USER: ci_smtp_user
+          SMTP_PASSWORD: ci_smtp_password
+        run: |
+          PYTHONPATH=.:backend python -c "from app.config import Settings; s = Settings(); print('Production Settings Boot Verification PASSED')"
 
   frontend-build:
     name: Frontend Asset Compilation and Lint
@@ -72,8 +111,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Full Repository History
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Execute Full Git History Secret Audit
+        run: |
+          python backend/scripts/audit_git_secrets.py
 
       - name: Verify Required Governance Documents
         run: |
@@ -85,3 +135,32 @@ jobs:
           test -f TRADEMARKS.md || (echo "Missing TRADEMARKS.md file" && exit 1)
           test -f docs/THIRD_PARTY_LICENSES.md || (echo "Missing docs/THIRD_PARTY_LICENSES.md" && exit 1)
           echo "All required governance documents are present."
+
+  docker-smoke-test:
+    name: Docker Deployment and Health Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Launch Docker Stack
+        run: |
+          docker compose up -d --build
+          sleep 20
+          docker compose ps
+
+      - name: Probe API Health and Ready Endpoints
+        run: |
+          echo "Probing API /health endpoint..."
+          curl -i --fail --retry 20 --retry-delay 3 --retry-connrefused http://localhost:8000/health
+          echo "Probing API /ready endpoint..."
+          curl -i --fail --retry 20 --retry-delay 3 --retry-connrefused http://localhost:8000/ready
+          echo "Docker Compose services healthy and endpoints verified."
+
+      - name: Dump Docker Logs on Failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Teardown Docker Compose
+        if: always()
+        run: docker compose down -v

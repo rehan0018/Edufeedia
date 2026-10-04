@@ -3,8 +3,10 @@ from typing import Optional, Any, List, Dict
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.models import User, StudentProfile, parent_student_links, teacher_classes, SchoolClass, ParentalConsentLog
+from app.models.models import User, StudentProfile, parent_student_links, teacher_classes, SchoolClass
 from app.core.security import get_current_user
+from app.core.consent_service import ConsentService
+from app.core.age_policy import ProcessingPurpose
 from app.database import get_db
 
 logger = logging.getLogger("edufeedia.security")
@@ -52,7 +54,7 @@ class AccessPolicy:
     def has_consent(cls, student: User, scope: str, db: Optional[Session] = None) -> bool:
         """
         Verifies whether student has verified guardian consent for a specific processing scope
-        (e.g., 'ai_socratic_tutor', 'analytics_tracking', 'curriculum_access').
+        using ConsentService as the single source of truth.
         Fails closed if database session is missing.
         """
         sp: Optional[StudentProfile] = student.student_profile
@@ -60,22 +62,33 @@ class AccessPolicy:
             return False
         if sp.parental_consent_status == "EXEMPT_ADULT":
             return True
-        if sp.parental_consent_status != "GRANTED":
+        if sp.parental_consent_status == "REVOKED":
             return False
 
         if not db:
             # Minor-sensitive processing strictly fails closed without database session
             return False
 
-        latest_consent = db.query(ParentalConsentLog).filter(
-            ParentalConsentLog.student_user_id == student.id,
-            ParentalConsentLog.consent_status == "granted",
-            ParentalConsentLog.revoked_at == None
-        ).order_by(ParentalConsentLog.granted_at.desc()).first()
+        # Map string scope to ProcessingPurpose enum
+        try:
+            purpose = ProcessingPurpose(scope)
+        except ValueError:
+            scope_map = {
+                "ai_socratic_tutoring": ProcessingPurpose.AI_SOCRATIC_TUTOR,
+                "curriculum_access": ProcessingPurpose.PERSONALIZED_RECOMMENDATIONS,
+                "curriculum_recommendations": ProcessingPurpose.PERSONALIZED_RECOMMENDATIONS,
+                "analytics_tracking": ProcessingPurpose.ANALYTICS_AGGREGATION,
+                "formative_tracking": ProcessingPurpose.FORMATIVE_PROGRESS_TRACKING,
+            }
+            purpose = scope_map.get(scope, None)
+            if not purpose:
+                return sp.parental_consent_status in ["GRANTED", "EXEMPT_ADULT"]
 
-        if latest_consent:
-            return scope in (latest_consent.consent_scope or [])
-        return sp.parental_consent_status in ["GRANTED", "EXEMPT_ADULT"]
+        return ConsentService.has_valid_consent(
+            db=db,
+            student_user=student,
+            purpose=purpose
+        )
 
     @classmethod
     def require_consent(cls, caller: User, scope: str, db: Session) -> None:

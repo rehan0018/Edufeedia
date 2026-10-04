@@ -13,13 +13,18 @@ from sqlalchemy.orm import Session
 
 # Add the backend folder to system path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 from app.database import engine, SessionLocal, Base
 from app.models.models import (
     ContentItem, Quiz, Question, School, SchoolClass, User, StudentProfile,
     StudentProgress, QuizAttempt, SpacedRepetitionSchedule, Flashcard,
     Badge, UserBadge, ClassAssignment, parent_student_links, teacher_classes,
-    TopicMastery
+    TopicMastery, ConsentRecord
 )
 from app.embeddings.embedder import embed_content
 from app.core.excel_exporter import sync_database_to_excel
@@ -27,7 +32,10 @@ from app.core.security import get_password_hash
 
 def seed_demo_data():
     print("Seeding Edufeedia database with full test suite fixtures...")
-    Base.metadata.drop_all(bind=engine)
+    try:
+        Base.metadata.drop_all(bind=engine)
+    except Exception as e:
+        print(f"Non-fatal warning during metadata drop_all: {e}")
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
@@ -208,6 +216,20 @@ def seed_demo_data():
             student_user_id=student_rahul.id,
             is_verified=True
         ))
+
+        # Add Verified Granular Consent Records for All Seeded Students
+        for s_user in [student_rahul, student_priya, student_aman, student_sneha]:
+            for purp in ["ai_socratic_tutor", "curriculum_recommendations", "analytics_tracking", "formative_tracking"]:
+                db.add(ConsentRecord(
+                    student_user_id=s_user.id,
+                    guardian_user_id=parent_user.id,
+                    processing_purpose=purp,
+                    status="ACTIVE",
+                    verification_method="GUARDIAN_EMAIL_OTP",
+                    policy_version="2026.2-DPDP",
+                    consent_scope="ALL_CURRICULUM_INTERACTIONS"
+                ))
+        db.flush()
 
         # 5. Add Badges
         badges = [
@@ -511,7 +533,7 @@ def seed_demo_data():
         db.add_all(flashcards)
 
         # 9. Mock Student Progress
-        now = datetime.datetime.now(datetime.UTC)
+        now = datetime.datetime.now(datetime.timezone.utc)
         db.add_all([
             StudentProgress(
                 student_user_id=student_rahul.id,
@@ -611,6 +633,14 @@ def seed_demo_data():
         ])
 
         db.commit()
+
+        # Seed Kids Ecosystem Fixtures (Aarav, Sara, Kabir, Cartoons, Money Adventure)
+        try:
+            from app.seed_kids_data import seed_kids_ecosystem
+            seed_kids_ecosystem()
+        except Exception as ke:
+            print(f"[Kids Seeding Note]: {ke}")
+
         print("Seeding complete! Database records exported to Excel sheet: edufeedia_database_records.xlsx")
         try:
             excel_path = sync_database_to_excel(db)
@@ -620,6 +650,8 @@ def seed_demo_data():
 
     except Exception as e:
         db.rollback()
+        import traceback
+        traceback.print_exc()
         print(f"[Demo Seeder Error]: {e}")
         raise
     finally:
@@ -629,4 +661,9 @@ def seed_demo_data():
 seed_database = seed_demo_data
 
 if __name__ == "__main__":
-    seed_demo_data()
+    try:
+        seed_demo_data()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
