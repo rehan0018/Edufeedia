@@ -28,6 +28,7 @@ SAFE_PLACEHOLDERS = {
     "generate_a_secure_postgres_password_here",
     "generate_a_secure_64_character_hex_secret_key",
     "test_secret_key_for_ci_pipeline_verification_only_64_characters_long",
+    "test_secret_key_for_docker_smoke_test_only_64_chars_long",
     "ci-test-secret-key-must-be-at-least-32-chars-long",
     "test_ci_secret_key_for_edufeedia_platform",
     "your-32-character-random-secret-key",

@@ -32,7 +32,7 @@ USER edufeedia
 
 EXPOSE 8000
 
-ENV ENVIRONMENT=production
+ENV ENVIRONMENT=staging
 ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["/app/entrypoint.sh"]

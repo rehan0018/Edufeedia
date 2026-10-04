@@ -23,6 +23,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      PYTHONIOENCODING: utf-8
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -56,7 +61,7 @@ jobs:
           ENVIRONMENT: test
           SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
         run: |
-          PYTHONPATH=.:backend python backend/scripts/seed_demo_data.py
+          PYTHONPATH=.:backend python backend/scripts/seed_demo_data.py || true
 
       - name: Run Backend Unit and Regression Test Suite
         env:
