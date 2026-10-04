@@ -3,7 +3,7 @@ import {
   Brain, Send, Sparkles, ShieldCheck, Loader2, AlertCircle, BookOpen,
   Lightbulb, Compass, HelpCircle, RefreshCw, Cpu, Filter, ExternalLink, Video, FileText, Database
 } from 'lucide-react';
-import { askSocraticTutor } from '../services/api';
+import { askSocraticTutor, reportTutorResponse } from '../services/api';
 
 export default function SocraticTutorChat({ activeTopic = "Newton's Laws", user = null, activeLessonId = null }) {
   // Session tracking & multi-turn history
@@ -44,7 +44,7 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws", user 
   const [inputQuestion, setInputQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [reportedMsgIdx, setReportedMsgIdx] = useState(null);
+  const [reportStatusByMsg, setReportStatusByMsg] = useState({});
   const chatBottomRef = useRef(null);
 
   useEffect(() => {
@@ -56,6 +56,27 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws", user 
     setConversationId(newId);
     setMessages([createInitialMessage()]);
     setError('');
+    setReportStatusByMsg({});
+  };
+
+  const handleReportMessage = async (idx, msg) => {
+    if (reportStatusByMsg[idx] === 'loading' || reportStatusByMsg[idx] === 'success') return;
+    setReportStatusByMsg(prev => ({ ...prev, [idx]: 'loading' }));
+    try {
+      const precedingUserMsg = messages.slice(0, idx).reverse().find(m => m.sender === 'student');
+      await reportTutorResponse({
+        conversationId,
+        question: precedingUserMsg?.text || null,
+        responseText: msg.text,
+        reason: 'Inaccurate or out of syllabus',
+        topic: activeTopic || msg.topic || null,
+        contentItemId: activeLessonId || null,
+        details: 'Flagged by student in Socratic Tutor chat interface'
+      });
+      setReportStatusByMsg(prev => ({ ...prev, [idx]: 'success' }));
+    } catch (err) {
+      setReportStatusByMsg(prev => ({ ...prev, [idx]: 'error' }));
+    }
   };
 
   const handleSend = async (questionText = inputQuestion) => {
@@ -493,22 +514,37 @@ export default function SocraticTutorChat({ activeTopic = "Newton's Laws", user 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
                     <button
                       type="button"
-                      onClick={() => setReportedMsgIdx(idx)}
+                      onClick={() => handleReportMessage(idx, m)}
+                      disabled={reportStatusByMsg[idx] === 'loading'}
                       style={{
                         background: 'transparent',
                         border: 'none',
-                        color: reportedMsgIdx === idx ? 'var(--accent-mint)' : 'var(--text-muted)',
+                        color: reportStatusByMsg[idx] === 'success'
+                          ? 'var(--accent-mint)'
+                          : reportStatusByMsg[idx] === 'error'
+                          ? 'var(--accent-coral)'
+                          : 'var(--text-muted)',
                         fontSize: '0.74rem',
-                        cursor: 'pointer',
+                        cursor: reportStatusByMsg[idx] === 'success' ? 'default' : 'pointer',
                         padding: '4px 8px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '4px',
+                        opacity: reportStatusByMsg[idx] === 'loading' ? 0.7 : 1
                       }}
-                      title="Report this explanation if inaccurate or out of syllabus"
+                      title={
+                        reportStatusByMsg[idx] === 'success'
+                          ? 'Educators have been notified to review this response'
+                          : reportStatusByMsg[idx] === 'error'
+                          ? 'Failed to submit report. Click to retry.'
+                          : 'Report this explanation if inaccurate or out of syllabus'
+                      }
                     >
                       <HelpCircle size={12} />
-                      {reportedMsgIdx === idx ? 'Reported for educator review ✓' : 'Flag / Report response'}
+                      {reportStatusByMsg[idx] === 'loading' && 'Submitting report...'}
+                      {reportStatusByMsg[idx] === 'success' && 'Reported for educator review ✓'}
+                      {reportStatusByMsg[idx] === 'error' && 'Report failed (click to retry)'}
+                      {!reportStatusByMsg[idx] && 'Flag / Report response'}
                     </button>
                   </div>
                 )}

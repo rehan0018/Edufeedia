@@ -389,6 +389,29 @@ export const reportContent = async (contentItemId, reason, details = '') => {
   });
 };
 
+export const reportTutorResponse = async ({
+  conversationId = null,
+  question = null,
+  responseText = '',
+  reason = 'Inaccurate or out of syllabus',
+  topic = null,
+  contentItemId = null,
+  details = ''
+} = {}) => {
+  return await apiFetch('/tutor/report', {
+    method: 'POST',
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      question,
+      response_text: responseText,
+      reason,
+      topic,
+      content_item_id: contentItemId,
+      details
+    })
+  });
+};
+
 // 16. Learning Health Score
 export const fetchLearningHealth = async () => {
   return await apiFetch('/students/analytics/learning-health');
@@ -553,8 +576,9 @@ export const discoverySearch = async ({ query, grade, board, depth, formatPref }
   if (depth) params.append('depth', depth);
   if (formatPref) params.append('format_pref', formatPref);
 
-  const token = localStorage.getItem('token');
-  const role = localStorage.getItem('userRole');
+  const session = getSession();
+  const token = session.token || localStorage.getItem('edufeedia_token');
+  const role = session.role || localStorage.getItem('edufeedia_role');
   const endpoint = (token && role === 'student') ? '/students/discovery/search' : '/discovery/search';
   return await apiFetch(`${endpoint}?${params.toString()}`);
 };

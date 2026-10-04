@@ -5,9 +5,9 @@ from typing import Dict, Any, List
 
 from app.database import get_db
 from app.models.models import (
-    User, ContentItem, StudentProfile, SafetyIncident, UserInteraction, LearningEvent
+    User, ContentItem, StudentProfile, SafetyIncident, UserInteraction, LearningEvent, ContentReport
 )
-from app.schemas.schemas import TutorAskRequest, TutorResponse
+from app.schemas.schemas import TutorAskRequest, TutorResponse, TutorReportRequest, TutorReportResponse
 from app.core.security import RoleChecker
 from app.core.redis_client import redis_client
 from app.safety.engine import SafetyEngine
@@ -190,3 +190,52 @@ def ask_ai_tutor(
         provider=rag_result.get("provider", request.provider or "auto"),
         conversation_id=request.conversation_id
     )
+
+@router.post("/report", response_model=TutorReportResponse)
+def report_tutor_response(
+    report_req: TutorReportRequest,
+    current_user: User = Depends(require_ai_access),
+    db: Session = Depends(get_db)
+):
+    """
+    Submits a student flag or report on an AI Socratic tutor explanation.
+    Enters the incident into SafetyIncident and ContentReport for human educator review.
+    """
+    try:
+        incident = SafetyIncident(
+            student_user_id=current_user.id if current_user.role == "student" else None,
+            source="ai_tutor_output",
+            category="PEDAGOGICAL_FLAG",
+            severity="low",
+            blocked=False,
+            flagged_snippet=(report_req.response_text or "")[:500],
+            reason=f"Student flagged tutor response (topic: {report_req.topic or 'General'}): {report_req.reason}",
+            action_taken="QUEUED_FOR_EDUCATOR_REVIEW"
+        )
+        db.add(incident)
+
+        if report_req.content_item_id:
+            item = db.query(ContentItem).filter(ContentItem.id == report_req.content_item_id).first()
+            if item:
+                content_report = ContentReport(
+                    reporter_user_id=current_user.id,
+                    content_item_id=report_req.content_item_id,
+                    reason=report_req.reason or "Incorrect",
+                    details=f"Tutor response flagged on topic '{report_req.topic}': {report_req.response_text[:300]}",
+                    status="pending_review"
+                )
+                db.add(content_report)
+
+        db.commit()
+        db.refresh(incident)
+        return TutorReportResponse(
+            status="success",
+            message="Report submitted for educator review",
+            report_id=incident.id
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not submit tutor report: {str(e)}"
+        )

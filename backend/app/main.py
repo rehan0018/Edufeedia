@@ -116,17 +116,51 @@ def root():
         "api_v1": "/api/v1"
     }
 
+@app.get("/live", tags=["system"])
+def process_liveness():
+    """Basic process liveness check for orchestrators."""
+    return {"status": "alive", "live": True}
+
 @app.get("/health", tags=["system"])
 @app.get("/api/health", tags=["system"])
 @app.get("/api/v1/health", tags=["system"])
-def liveness_check():
-    """Liveness probe for container orchestrators (Kubernetes / ECS) and API consumers."""
-    return {
-        "status": "healthy",
-        "live": True,
-        "service": settings.PROJECT_NAME,
-        "environment": settings.ENVIRONMENT
-    }
+def health_check():
+    """Health probe verifying process liveness, database, and Redis connectivity (R10)."""
+    db_status = "unknown"
+    redis_status = "unknown"
+    errors = []
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception as e:
+        db_status = "disconnected"
+        errors.append(f"Database error: {e}")
+
+    try:
+        redis_client.setex("health_probe", 10, "1")
+        if redis_client.get("health_probe") == "1":
+            redis_status = "connected"
+        else:
+            redis_status = "degraded"
+    except Exception as e:
+        redis_status = "disconnected"
+        errors.append(f"Redis error: {e}")
+
+    is_healthy = (db_status == "connected") and (redis_status in ["connected", "degraded"])
+    return JSONResponse(
+        status_code=200 if is_healthy else 503,
+        content={
+            "status": "healthy" if is_healthy else "unhealthy",
+            "live": True,
+            "database": db_status,
+            "redis": redis_status,
+            "service": settings.PROJECT_NAME,
+            "environment": settings.ENVIRONMENT,
+            "errors": errors if errors else None
+        }
+    )
 
 @app.get("/ready", tags=["system"])
 @app.get("/api/ready", tags=["system"])

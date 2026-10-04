@@ -88,13 +88,15 @@ export default function App() {
 
   const [sessionExpiredNotice, setSessionExpiredNotice] = useState('');
 
+  const VALID_TABS = ['feed', 'explore', 'navigator', 'tutor', 'challenges', 'mastery', 'teacher', 'parent'];
+
   const [currentTab, setCurrentTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '');
-      const validTabs = ['feed', 'explore', 'navigator', 'tutor', 'challenges', 'mastery', 'teacher', 'parent'];
-      if (validTabs.includes(hash)) return hash;
+      if (VALID_TABS.includes(hash)) return hash;
       const params = new URLSearchParams(window.location.search);
-      if (params.get('tab')) return params.get('tab');
+      const queryTab = params.get('tab');
+      if (queryTab && VALID_TABS.includes(queryTab)) return queryTab;
       if (params.get('demo') === 'teacher') return 'teacher';
       if (params.get('demo') === 'parent') return 'parent';
     }
@@ -106,6 +108,7 @@ export default function App() {
   const [feedError, setFeedError] = useState('');
   
   const [activeLesson, setActiveLesson] = useState(null);
+  const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [quizModalOpen, setQuizModalOpen] = useState(false);
   const [quizLessonTarget, setQuizLessonTarget] = useState(null);
   const [tutorFocusTopic, setTutorFocusTopic] = useState("Newton's Laws");
@@ -130,8 +133,7 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      const validTabs = ['feed', 'explore', 'navigator', 'tutor', 'challenges', 'mastery', 'teacher', 'parent'];
-      if (validTabs.includes(hash)) {
+      if (VALID_TABS.includes(hash)) {
         setCurrentTab(hash);
       }
     };
@@ -140,6 +142,7 @@ export default function App() {
   }, []);
 
   const changeTab = (newTab) => {
+    if (!VALID_TABS.includes(newTab)) return;
     setCurrentTab(newTab);
     if (typeof window !== 'undefined') {
       window.location.hash = newTab;
@@ -200,7 +203,7 @@ export default function App() {
     }
   }, [session.user, experienceMode]);
 
-  // Periodic Telemetry Heartbeat & Screen Time Evaluation (every 45s during student sessions)
+  // Approximate Activity Heartbeat & Screen Time Evaluation (every 45s during active student sessions)
   useEffect(() => {
     if (!session.user || session.user.role !== 'student' || experienceMode !== 'student') {
       return;
@@ -211,10 +214,28 @@ export default function App() {
       .then(st => setStudentScreenTimeStatus(st))
       .catch(() => {});
 
-    // Active session heartbeat ping to log verified LearningEvent time
+    // Activity tracking: ensure tab is visible and student is actively engaging
+    let lastActiveAt = Date.now();
+    const handleUserActivity = () => {
+      lastActiveAt = Date.now();
+    };
+
+    const activityEvents = ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
+    activityEvents.forEach(evt => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+    // Heartbeat ping to log approximate active session usage
     const timer = setInterval(() => {
+      // Avoid tracking when tab is hidden or backgrounded
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
+      // Avoid tracking if student has been idle with no interaction for > 90 seconds
+      if (Date.now() - lastActiveAt > 90000) {
+        return;
+      }
+
       const actType = activeLesson ? 'video' : (currentTab === 'tutor' ? 'tutor' : 'general');
-      const contentId = activeLesson?.id || null;
+      const contentId = activeLesson?.id || selectedLessonId || null;
       sendStudentHeartbeat(contentId, actType, 45)
         .then(st => {
           if (st) setStudentScreenTimeStatus(st);
@@ -222,8 +243,11 @@ export default function App() {
         .catch(() => {});
     }, 45000);
 
-    return () => clearInterval(timer);
-  }, [session.user, experienceMode, activeLesson, currentTab]);
+    return () => {
+      clearInterval(timer);
+      activityEvents.forEach(evt => window.removeEventListener(evt, handleUserActivity));
+    };
+  }, [session.user, experienceMode, activeLesson, currentTab, selectedLessonId]);
 
   const loadFeed = async () => {
     setLoadingFeed(true);
@@ -283,6 +307,9 @@ export default function App() {
 
   const handleSelectLesson = (lesson) => {
     setActiveLesson(lesson);
+    if (lesson?.id) {
+      setSelectedLessonId(lesson.id);
+    }
   };
 
   const handleCompleteAndQuiz = (lesson) => {
@@ -291,7 +318,11 @@ export default function App() {
     setQuizModalOpen(true);
   };
 
-  const handleOpenTutorFromLesson = (topic) => {
+  const handleOpenTutorFromLesson = (topic, lessonId = null) => {
+    const targetId = lessonId || activeLesson?.id || selectedLessonId || null;
+    if (targetId) {
+      setSelectedLessonId(targetId);
+    }
     setActiveLesson(null);
     setTutorFocusTopic(topic || "Newton's Laws");
     changeTab('tutor');
@@ -461,7 +492,7 @@ export default function App() {
               <SocraticTutorChat
                 activeTopic={tutorFocusTopic}
                 user={session.user}
-                activeLessonId={activeLesson?.id}
+                activeLessonId={selectedLessonId || activeLesson?.id}
               />
             )}
 
@@ -473,7 +504,8 @@ export default function App() {
               <MasteryDashboard
                 onStartRevision={(topic) => {
                   setTutorFocusTopic(topic);
-                  setCurrentTab('tutor');
+                  setSelectedLessonId(null);
+                  changeTab('tutor');
                 }}
               />
             )}

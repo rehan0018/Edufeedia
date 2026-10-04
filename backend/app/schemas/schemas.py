@@ -392,6 +392,20 @@ class TutorResponse(BaseModel):
     provider: Optional[str] = None
     conversation_id: Optional[str] = None
 
+class TutorReportRequest(BaseModel):
+    conversation_id: Optional[str] = None
+    question: Optional[str] = None
+    response_text: str
+    reason: Optional[str] = "Inaccurate or out of syllabus"
+    topic: Optional[str] = None
+    content_item_id: Optional[str] = None
+    details: Optional[str] = None
+
+class TutorReportResponse(BaseModel):
+    status: str
+    message: str
+    report_id: Optional[str] = None
+
 # --- AI QUIZ GENERATOR SCHEMAS ---
 
 class QuizGenerateRequest(BaseModel):

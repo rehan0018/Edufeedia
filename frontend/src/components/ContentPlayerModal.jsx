@@ -228,7 +228,7 @@ export default function ContentPlayerModal({ lesson, onClose, onCompleteAndQuiz,
 
         {/* Action Footer */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-          <button type="button" className="btn btn-outline" onClick={() => onOpenTutor(lesson.topic)}>
+          <button type="button" className="btn btn-outline" onClick={() => onOpenTutor(lesson.topic, lesson.id)}>
             <Brain size={18} /> Ask Socratic AI Tutor
           </button>
 

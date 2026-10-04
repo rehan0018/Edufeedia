@@ -204,12 +204,14 @@ h1, h2, h3, h4, h5, h6 {
 .gradient-text-hero {
   background: var(--gradient-hero);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .gradient-text-fun {
   background: var(--gradient-fun);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
