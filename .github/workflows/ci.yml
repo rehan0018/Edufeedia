@@ -32,10 +32,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: "pip"
 
       - name: Install Dependencies
@@ -68,7 +68,7 @@ jobs:
           ENVIRONMENT: test
           SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
         run: |
-          PYTHONPATH=.:backend pytest backend/tests
+          PYTHONPATH=.:backend python -m pytest backend/tests -v --tb=short
 
       - name: Verify Production Settings Boot Validation
         env:
@@ -119,7 +119,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Execute Full Git History Secret Audit
         run: |
