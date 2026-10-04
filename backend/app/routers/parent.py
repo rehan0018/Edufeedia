@@ -21,6 +21,7 @@ from app.schemas.schemas import (
 from app.core.security import get_current_user, RoleChecker, get_password_hash, verify_password, create_access_token
 from app.core.access_policy import AccessPolicy
 from app.core.age_policy import AgeBandPolicy
+from app.core.screen_time_enforcer import get_student_local_times
 from app.config import settings
 
 router = APIRouter(prefix="/parents", tags=["parents"])
@@ -366,28 +367,41 @@ def get_student_screen_time(
     if not AccessPolicy.can_view_student_data(current_user, student, db=db):
         raise HTTPException(status_code=403, detail="Access denied: You are not authorized for this student.")
 
-    # Get or create policy
+    # Get or create policy, prioritizing existing policy and claiming student-owned default
     policy = db.query(ParentalScreenTimePolicy).filter(
         ParentalScreenTimePolicy.parent_user_id == current_user.id,
         ParentalScreenTimePolicy.student_user_id == student_id
     ).first()
 
     if not policy:
-        policy = ParentalScreenTimePolicy(
-            parent_user_id=current_user.id,
-            student_user_id=student_id,
-            daily_limit_minutes=90,
-            curfew_start_time="21:30",
-            curfew_end_time="06:30",
-            curfew_enabled=True,
-            ai_tutor_max_daily_minutes=30
-        )
-        db.add(policy)
-        db.commit()
-        db.refresh(policy)
+        existing_policy = db.query(ParentalScreenTimePolicy).filter(
+            ParentalScreenTimePolicy.student_user_id == student_id
+        ).first()
+        if existing_policy and existing_policy.parent_user_id == student_id:
+            existing_policy.parent_user_id = current_user.id
+            db.commit()
+            db.refresh(existing_policy)
+            policy = existing_policy
+        elif existing_policy:
+            policy = existing_policy
+        else:
+            policy = ParentalScreenTimePolicy(
+                parent_user_id=current_user.id,
+                student_user_id=student_id,
+                daily_limit_minutes=90,
+                curfew_start_time="21:30",
+                curfew_end_time="06:30",
+                curfew_enabled=True,
+                ai_tutor_max_daily_minutes=30,
+                timezone="Asia/Kolkata"
+            )
+            db.add(policy)
+            db.commit()
+            db.refresh(policy)
 
+    tz_name = getattr(policy, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    now_local, today_start = get_student_local_times(tz_name)
     now = datetime.datetime.now(datetime.timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - datetime.timedelta(days=7)
 
     # 1. Calculate Learning Event Verified Seconds
@@ -439,8 +453,8 @@ def get_student_screen_time(
     percent_limit_used = min(100, int((today_minutes / daily_limit) * 100)) if daily_limit > 0 else 0
     is_over_limit = today_minutes > daily_limit
 
-    # Check curfew
-    current_time_str = now.strftime("%H:%M")
+    # Check curfew in student's local clock
+    current_time_str = now_local.strftime("%H:%M")
     is_curfew_active = False
     if policy.curfew_enabled and policy.curfew_start_time and policy.curfew_end_time:
         if policy.curfew_start_time > policy.curfew_end_time:
@@ -612,11 +626,21 @@ def update_student_screen_time_policy(
     ).first()
 
     if not policy:
-        policy = ParentalScreenTimePolicy(
-            parent_user_id=current_user.id,
-            student_user_id=student_id
-        )
-        db.add(policy)
+        existing_policy = db.query(ParentalScreenTimePolicy).filter(
+            ParentalScreenTimePolicy.student_user_id == student_id
+        ).first()
+        if existing_policy and existing_policy.parent_user_id == student_id:
+            existing_policy.parent_user_id = current_user.id
+            policy = existing_policy
+        elif existing_policy:
+            policy = existing_policy
+        else:
+            policy = ParentalScreenTimePolicy(
+                parent_user_id=current_user.id,
+                student_user_id=student_id,
+                timezone="Asia/Kolkata"
+            )
+            db.add(policy)
 
     if policy_data.daily_limit_minutes is not None:
         policy.daily_limit_minutes = policy_data.daily_limit_minutes
@@ -657,8 +681,9 @@ def serialize_child_profile(child: ChildProfile, db: Session) -> Dict[str, Any]:
     age = AgeBandPolicy.calculate_age(child.date_of_birth)
     band_info = AgeBandPolicy.get_age_band_info(age)
 
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cur_time = now.strftime("%H:%M")
+    tz_name = getattr(child, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    now_local, today_start = get_student_local_times(tz_name)
+    cur_time = now_local.strftime("%H:%M")
     is_curfew_active = False
     if child.curfew_enabled and child.curfew_start_time and child.curfew_end_time:
         if child.curfew_start_time > child.curfew_end_time:
@@ -666,7 +691,6 @@ def serialize_child_profile(child: ChildProfile, db: Session) -> Dict[str, Any]:
         else:
             is_curfew_active = (child.curfew_start_time <= cur_time < child.curfew_end_time)
 
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     activities_today = db.query(ChildActivity).filter(
         ChildActivity.child_profile_id == child.id,
         ChildActivity.created_at >= today_start
@@ -1042,11 +1066,11 @@ def get_child_dashboard_for_parent(
         raise HTTPException(status_code=404, detail="Child profile not found.")
 
     age = AgeBandPolicy.calculate_age(child.date_of_birth)
-    now = datetime.datetime.now(datetime.timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    tz_name = getattr(child, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    now_local, today_start = get_student_local_times(tz_name)
 
     # Check curfew
-    cur_time = now.strftime("%H:%M")
+    cur_time = now_local.strftime("%H:%M")
     is_curfew_active = False
     if child.curfew_enabled and child.curfew_start_time and child.curfew_end_time:
         if child.curfew_start_time > child.curfew_end_time:

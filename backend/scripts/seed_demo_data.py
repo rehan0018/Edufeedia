@@ -32,7 +32,10 @@ from app.core.security import get_password_hash
 
 def seed_demo_data():
     print("Seeding Edufeedia database with full test suite fixtures...")
-    Base.metadata.drop_all(bind=engine)
+    try:
+        Base.metadata.drop_all(bind=engine)
+    except Exception as e:
+        print(f"Non-fatal warning during metadata drop_all: {e}")
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 

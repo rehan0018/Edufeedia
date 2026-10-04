@@ -730,6 +730,7 @@ class ParentalScreenTimePolicy(Base):
     ai_tutor_max_daily_minutes = Column(Integer, default=30)
     break_interval_minutes = Column(Integer, default=45) # 45 min continuous session warning
     allow_weekend_bonus_minutes = Column(Integer, default=30)
+    timezone = Column(String, default="Asia/Kolkata")
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
@@ -767,6 +768,7 @@ class ChildProfile(Base):
     curfew_start_time = Column(String, default="20:00")
     curfew_end_time = Column(String, default="07:00")
     curfew_enabled = Column(Boolean, default=True)
+    timezone = Column(String, default="Asia/Kolkata")
     xp_score = Column(Integer, default=0)
     streak_count = Column(Integer, default=0)
     stars_count = Column(Integer, default=0)

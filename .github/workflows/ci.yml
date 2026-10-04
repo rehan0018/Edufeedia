@@ -60,7 +60,7 @@ jobs:
           ENVIRONMENT: test
           SECRET_KEY: test_secret_key_for_ci_pipeline_verification_only_64_characters_long
         run: |
-          PYTHONPATH=.:backend python backend/scripts/seed_demo_data.py || true
+          PYTHONPATH=.:backend python backend/scripts/seed_demo_data.py
 
       - name: Run Backend Unit and Regression Test Suite
         env:

@@ -105,10 +105,11 @@ class TestScreenTimeEnforcement(unittest.TestCase):
 
     def test_03_bedtime_curfew_server_side_enforcement(self):
         """When curfew is active, student endpoints return HTTP 423 (Locked)."""
-        now = datetime.datetime.now(datetime.timezone.utc)
+        from app.core.screen_time_enforcer import get_student_local_times
+        now_local, _ = get_student_local_times("Asia/Kolkata")
         # Create policy where curfew spans current time (1 hour ago to 1 hour ahead)
-        start_hour = (now - datetime.timedelta(hours=1)).strftime("%H:%M")
-        end_hour = (now + datetime.timedelta(hours=1)).strftime("%H:%M")
+        start_hour = (now_local - datetime.timedelta(hours=1)).strftime("%H:%M")
+        end_hour = (now_local + datetime.timedelta(hours=1)).strftime("%H:%M")
 
         policy = ParentalScreenTimePolicy(
             parent_user_id=self.student_id,

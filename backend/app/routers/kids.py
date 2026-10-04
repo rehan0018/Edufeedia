@@ -14,6 +14,7 @@ from app.schemas.schemas import (
 )
 from app.core.age_policy import AgeBandPolicy, StudentAgePolicy
 from app.recommender.kids_engine import KidsRecommendationEngine
+from app.core.screen_time_enforcer import get_student_local_times
 
 router = APIRouter(prefix="/kids", tags=["kids"])
 
@@ -265,8 +266,9 @@ def get_screen_time_status(
     if not child:
         raise HTTPException(status_code=404, detail="Child profile not found.")
 
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cur_time = now.strftime("%H:%M")
+    tz_name = getattr(child, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    now_local, today_start = get_student_local_times(tz_name)
+    cur_time = now_local.strftime("%H:%M")
     is_curfew_active = False
     if child.curfew_enabled and child.curfew_start_time and child.curfew_end_time:
         if child.curfew_start_time > child.curfew_end_time:
@@ -274,7 +276,6 @@ def get_screen_time_status(
         else:
             is_curfew_active = (child.curfew_start_time <= cur_time < child.curfew_end_time)
 
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     activities_today = db.query(ChildActivity).filter(
         ChildActivity.child_profile_id == child_id,
         ChildActivity.created_at >= today_start

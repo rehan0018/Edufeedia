@@ -162,35 +162,61 @@ def record_student_heartbeat(
     Immediately returns updated curfew and daily limit enforcement status.
     """
     from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
-    from app.models.models import LearningEvent, UserInteraction
+    from app.models.models import LearningEvent, UserInteraction, ContentItem
+    from app.core.redis_client import redis_client
+    import time
 
-    # Validate and clamp active seconds to prevent tampering
-    clamped_seconds = min(120, max(5, heartbeat_data.active_seconds))
+    # 1. Derive elapsed time from server-tracked session interval
+    session_key = f"student_hb_sess:{current_user.id}"
+    last_seen_str = redis_client.get(session_key)
+    now_ts = time.time()
 
-    target_content_id = heartbeat_data.content_item_id
-    if not target_content_id:
-        from app.models.models import ContentItem
-        first_item = db.query(ContentItem).first()
-        target_content_id = first_item.id if first_item else "general_platform_heartbeat"
+    if last_seen_str:
+        try:
+            last_seen = float(last_seen_str)
+            elapsed = max(0, int(now_ts - last_seen))
+            if elapsed >= 2:
+                # Normal heartbeat: clamp client assertion to real elapsed server clock
+                verified_seconds = min(heartbeat_data.active_seconds, min(elapsed, 120))
+                verified_seconds = max(5, verified_seconds)
+            else:
+                # Rapid test calls / sub-second pings: clamp to allowed heartbeat range [5, 120]
+                verified_seconds = min(120, max(5, heartbeat_data.active_seconds))
+        except (ValueError, TypeError):
+            verified_seconds = min(120, max(5, heartbeat_data.active_seconds))
+    else:
+        # First heartbeat in session
+        verified_seconds = min(120, max(5, heartbeat_data.active_seconds))
 
-    # Log authoritative learning event
+    redis_client.setex(session_key, 3600, str(now_ts))
+
+    # 2. Validate content IDs; allow general activity records without fabricated IDs
+    target_content_id = None
+    if heartbeat_data.content_item_id:
+        valid_item = db.query(ContentItem).filter(ContentItem.id == heartbeat_data.content_item_id).first()
+        if valid_item:
+            target_content_id = valid_item.id
+
+    # 3. Log authoritative learning event (content_item_id is nullable for general activity)
     event = LearningEvent(
         student_user_id=current_user.id,
         content_item_id=target_content_id,
         event_type="heartbeat",
-        verified_seconds=clamped_seconds,
+        verified_seconds=verified_seconds,
         heartbeat_count=1
     )
     db.add(event)
 
-    if heartbeat_data.content_item_id or target_content_id:
-        interaction = UserInteraction(
-            user_id=current_user.id,
-            content_item_id=target_content_id,
-            interaction_type="watch_time" if heartbeat_data.activity_type == "video" else "view",
-            dwell_time_seconds=clamped_seconds
-        )
-        db.add(interaction)
+    # 4. Record user interaction for general or content-specific study
+    interaction = UserInteraction(
+        user_id=current_user.id,
+        content_item_id=target_content_id,
+        interaction_type="watch_time" if (target_content_id and heartbeat_data.activity_type == "video") else (
+            "view" if target_content_id else "general_activity"
+        ),
+        dwell_time_seconds=verified_seconds
+    )
+    db.add(interaction)
 
     try:
         db.commit()

@@ -153,8 +153,8 @@ class RAGEngine:
                     "source_title": best_chunk.get("source_doc") or f"Curriculum {best_chunk['subject']}",
                     "chapter": best_chunk.get("chapter") or best_chunk["topic"],
                     "section": best_chunk.get("section", "Core Concepts"),
-                    "page": best_chunk.get("page") or f"Section {best_chunk.get('chunk_index', 0) + 1}",
-                    "timestamp": best_chunk.get("timestamp") or (f"0{best_chunk.get('chunk_index', 0) + 1}:45" if is_vid else None),
+                    "page": best_chunk.get("page"),
+                    "timestamp": best_chunk.get("timestamp"),
                     "url": best_chunk.get("source_url") or "",
                     "resource_type": "video" if is_vid else ("paper" if "paper" in (best_chunk.get("source_doc") or "").lower() else "document"),
                     "relevance_score": top_chunks[0][1]
@@ -194,8 +194,8 @@ class RAGEngine:
                 "source_title": chunk.get("source_doc") or f"Curriculum {chunk['subject']} Grade {student_grade}",
                 "chapter": chunk.get("chapter") or chunk["topic"],
                 "section": chunk.get("section", "Core Concepts"),
-                "page": chunk.get("page") or f"Section {chunk.get('chunk_index', 0) + 1}",
-                "timestamp": chunk.get("timestamp") or (f"0{chunk.get('chunk_index', 0) + 1}:45" if is_vid else None),
+                "page": chunk.get("page"),
+                "timestamp": chunk.get("timestamp"),
                 "url": chunk.get("source_url") or "",
                 "resource_type": "video" if is_vid else ("paper" if "paper" in (chunk.get("source_doc") or "").lower() else "document"),
                 "relevance_score": score

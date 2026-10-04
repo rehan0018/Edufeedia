@@ -5,15 +5,33 @@ Enforces daily screen time bounds, bedtime curfew, and AI tutor quotas across al
 """
 
 import datetime
+import zoneinfo
 from typing import Dict, Any, Optional
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.models import (
-    User, ParentalScreenTimePolicy, LearningEvent, UserInteraction, QuizAttempt
+    User, ParentalScreenTimePolicy, LearningEvent, UserInteraction, QuizAttempt, parent_student_links
 )
 from app.core.security import get_current_user
+
+
+def get_student_local_times(tz_name: str = "Asia/Kolkata"):
+    """
+    Returns the student's local current time and the UTC equivalent of local midnight
+    for authoritative day boundary telemetry filtering.
+    Defaults to Asia/Kolkata for CBSE curriculum families.
+    """
+    try:
+        tz = zoneinfo.ZoneInfo(tz_name)
+    except Exception:
+        tz = zoneinfo.ZoneInfo("Asia/Kolkata")
+
+    now_local = datetime.datetime.now(tz)
+    local_midnight = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_utc = local_midnight.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    return now_local, today_start_utc
 
 
 class ScreenTimePolicyEnforcer:
@@ -24,14 +42,33 @@ class ScreenTimePolicyEnforcer:
 
     @staticmethod
     def get_or_create_policy(db: Session, student_id: str) -> ParentalScreenTimePolicy:
-        """Retrieves or provides a default parental screen-time policy for a student."""
+        """
+        Retrieves the authoritative parental screen-time policy for a student.
+        Prioritizes verified parent-created policies over student-owned defaults to prevent shadowing.
+        """
+        # 1. Prefer policy created by an actual parent (parent_user_id != student_user_id)
         policy = db.query(ParentalScreenTimePolicy).filter(
-            ParentalScreenTimePolicy.student_user_id == student_id
-        ).first()
+            ParentalScreenTimePolicy.student_user_id == student_id,
+            ParentalScreenTimePolicy.parent_user_id != student_id
+        ).order_by(ParentalScreenTimePolicy.updated_at.desc()).first()
 
+        # 2. Fall back to any existing policy for this student
         if not policy:
+            policy = db.query(ParentalScreenTimePolicy).filter(
+                ParentalScreenTimePolicy.student_user_id == student_id
+            ).first()
+
+        # 3. Create initial policy if none exists, linking to verified parent if available
+        if not policy:
+            linked_parent = db.execute(
+                parent_student_links.select().where(
+                    parent_student_links.c.student_user_id == student_id
+                )
+            ).first()
+            parent_id = linked_parent.parent_user_id if linked_parent else student_id
+
             policy = ParentalScreenTimePolicy(
-                parent_user_id=student_id,  # System default assignment if parent not linked
+                parent_user_id=parent_id,
                 student_user_id=student_id,
                 daily_limit_minutes=90,
                 curfew_start_time="21:30",
@@ -57,13 +94,13 @@ class ScreenTimePolicyEnforcer:
         """
         Calculates verified real screen time, AI tutor usage, and curfew status
         strictly derived from authoritative telemetry logs (LearningEvent + UserInteraction).
+        Evaluates curfew and day boundaries in the student's local timezone (Asia/Kolkata).
         """
-        now = datetime.datetime.now(datetime.timezone.utc)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
         policy = cls.get_or_create_policy(db, student_id)
+        tz_name = getattr(policy, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+        now_local, today_start = get_student_local_times(tz_name)
 
-        # 1. Authoritative telemetry: verified seconds from LearningEvent logs
+        # 1. Authoritative telemetry: verified seconds from LearningEvent logs since local midnight
         events_today = db.query(LearningEvent).filter(
             LearningEvent.student_user_id == student_id,
             LearningEvent.created_at >= today_start
@@ -95,14 +132,14 @@ class ScreenTimePolicyEnforcer:
         ).count()
         ai_minutes = ai_queries_today * 3
 
-        # 5. Curfew calculation (supports cross-midnight curfew: 21:30 -> 06:30)
-        current_time_str = now.strftime("%H:%M")
+        # 5. Curfew calculation in student's local timezone clock (supports cross-midnight: 21:30 -> 06:30)
+        current_time_str = now_local.strftime("%H:%M")
         is_curfew_active = False
         if policy.curfew_enabled and policy.curfew_start_time and policy.curfew_end_time:
             c_start = policy.curfew_start_time
             c_end = policy.curfew_end_time
             if c_start > c_end:
-                # e.g. 21:30 to 06:30
+                # e.g. 21:30 to 06:30 local time
                 is_curfew_active = (current_time_str >= c_start or current_time_str < c_end)
             else:
                 is_curfew_active = (c_start <= current_time_str < c_end)

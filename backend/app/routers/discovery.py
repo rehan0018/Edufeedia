@@ -26,6 +26,7 @@ from app.discovery.learning_loop import LearningLoopManager
 from app.discovery.source_registry import SourceAuthorityRegistry
 from app.discovery.resource_quality import ScoringPolicy
 from app.discovery.youtube_transcript import YouTubeTranscriptAcquirer, ContentUnderstandingEngine
+from app.core.screen_time_enforcer import ScreenTimePolicyEnforcer
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 student_router = APIRouter(prefix="/students/discovery", tags=["students_discovery"])
@@ -75,6 +76,10 @@ def search_educational_resources(
     Safe for anonymous guests; applies personalized reranking when student token is present.
     """
     start_time = time.time()
+
+    # Authoritative screen-time gating for authenticated students
+    if current_user and current_user.role == "student":
+        ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
 
     # Prepend grade or board context if passed as explicit URL params
     augmented_query = q
@@ -133,6 +138,9 @@ def student_personalized_search(
             detail="Student personalization requires a student account."
         )
 
+    # Authoritative screen-time gating
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
+
     start_time = time.time()
     augmented_query = q
     if grade and f"class {grade}" not in q.lower() and f"grade {grade}" not in q.lower():
@@ -178,6 +186,7 @@ def submit_concept_check(
     Strictly authenticated: anonymous students cannot mutate mastery indices.
     Evaluates answers, updates TopicMastery index, and records audit history in the closed loop.
     """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
     try:
         return LearningLoopManager.evaluate_quiz_submission(
             db=db,
@@ -200,6 +209,7 @@ def log_resource_engagement(
     Strictly authenticated: requires valid student token. Dwell time is bounded to incremental
     heartbeat thresholds (max 180 seconds) to prevent client fabrication.
     """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
     try:
         return LearningLoopManager.record_resource_engagement(
             db=db,
@@ -214,12 +224,14 @@ def log_resource_engagement(
 @student_router.post("/session/start", response_model=SessionStartResponse)
 def start_learning_session(
     body: SessionStartRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Initializes a server-authoritative learning session for a specific resource.
     Generates a cryptographically unique session_id and anchors the start time to the server clock.
     """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
     try:
         return LearningLoopManager.start_learning_session(
             student_user=current_user,
@@ -240,6 +252,7 @@ def session_heartbeat(
     Pushes an incremental session heartbeat. Clamps dwell time to physical elapsed server clock
     and active visibility state, isolating telemetry strictly to this session.
     """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
     try:
         return LearningLoopManager.heartbeat_learning_session(
             db=db,
@@ -261,6 +274,7 @@ def end_learning_session(
     Concludes an active learning session, tallies total verified dwell time,
     and disburses gamification rewards if completion requirements were met.
     """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
     try:
         return LearningLoopManager.end_learning_session(
             db=db,
@@ -283,6 +297,7 @@ def evaluate_pre_post_assessment(
     Computes Hake's normalized gain: g = (post - pre) / (100 - pre).
     Saves empirical evidence offline for model calibration without corrupting live ranking prematurely.
     """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
     try:
         return LearningLoopManager.evaluate_pre_post_assessment(
             db=db,
@@ -379,6 +394,7 @@ def get_student_mastery_history(
     Returns the mastery progression timeline for the authenticated student.
     Shows topic evolution and learning gains over time.
     """
+    ScreenTimePolicyEnforcer.check_access(db, current_user, action="general")
     records = db.query(StudentMasteryHistory).filter(
         StudentMasteryHistory.student_user_id == current_user.id
     ).order_by(StudentMasteryHistory.created_at.desc()).limit(limit).all()
