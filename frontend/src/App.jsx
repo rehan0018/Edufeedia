@@ -86,8 +86,13 @@ export default function App() {
   const [parentGateOpen, setParentGateOpen] = useState(false);
   const [pendingTargetMode, setPendingTargetMode] = useState('parent');
 
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState('');
+
   const [currentTab, setCurrentTab] = useState(() => {
     if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '');
+      const validTabs = ['feed', 'explore', 'navigator', 'tutor', 'challenges', 'mastery', 'teacher', 'parent'];
+      if (validTabs.includes(hash)) return hash;
       const params = new URLSearchParams(window.location.search);
       if (params.get('tab')) return params.get('tab');
       if (params.get('demo') === 'teacher') return 'teacher';
@@ -104,6 +109,42 @@ export default function App() {
   const [quizModalOpen, setQuizModalOpen] = useState(false);
   const [quizLessonTarget, setQuizLessonTarget] = useState(null);
   const [tutorFocusTopic, setTutorFocusTopic] = useState("Newton's Laws");
+
+  // Central Expired Session Listener (Handles 401 dispatched from api.js)
+  useEffect(() => {
+    const handleSessionExpired = (event) => {
+      const msg = event?.detail?.message || 'Your session has expired. Please sign in again.';
+      clearAuthSession();
+      setSession({ user: null, role: 'student', token: '' });
+      setActiveLesson(null);
+      setQuizModalOpen(false);
+      setParentGateOpen(false);
+      setSessionExpiredNotice(msg);
+    };
+
+    window.addEventListener('auth_session_expired', handleSessionExpired);
+    return () => window.removeEventListener('auth_session_expired', handleSessionExpired);
+  }, []);
+
+  // Browser Navigation & Hash Deep-Link Synchronization
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      const validTabs = ['feed', 'explore', 'navigator', 'tutor', 'challenges', 'mastery', 'teacher', 'parent'];
+      if (validTabs.includes(hash)) {
+        setCurrentTab(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const changeTab = (newTab) => {
+    setCurrentTab(newTab);
+    if (typeof window !== 'undefined') {
+      window.location.hash = newTab;
+    }
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -201,16 +242,17 @@ export default function App() {
   };
 
   const handleLoginSuccess = (user) => {
+    setSessionExpiredNotice('');
     setSession({ user, role: user.role, token: localStorage.getItem('edufeedia_token') });
     if (user.role === 'teacher' || user.role === 'school_admin') {
       setExperienceMode('teacher');
-      setCurrentTab('teacher');
+      changeTab('teacher');
     } else if (user.role === 'parent') {
       setExperienceMode('parent');
-      setCurrentTab('parent');
+      changeTab('parent');
     } else {
       setExperienceMode('student');
-      setCurrentTab('feed');
+      changeTab('feed');
     }
   };
 
@@ -226,17 +268,17 @@ export default function App() {
       setParentGateOpen(true);
     } else {
       setExperienceMode(targetMode);
-      if (targetMode === 'parent') setCurrentTab('parent');
-      else if (targetMode === 'teacher') setCurrentTab('teacher');
-      else if (targetMode === 'student') setCurrentTab('feed');
+      if (targetMode === 'parent') changeTab('parent');
+      else if (targetMode === 'teacher') changeTab('teacher');
+      else if (targetMode === 'student') changeTab('feed');
     }
   };
 
   const handleParentGateSuccess = () => {
     setExperienceMode(pendingTargetMode);
-    if (pendingTargetMode === 'parent') setCurrentTab('parent');
-    else if (pendingTargetMode === 'teacher') setCurrentTab('teacher');
-    else if (pendingTargetMode === 'student') setCurrentTab('feed');
+    if (pendingTargetMode === 'parent') changeTab('parent');
+    else if (pendingTargetMode === 'teacher') changeTab('teacher');
+    else if (pendingTargetMode === 'student') changeTab('feed');
   };
 
   const handleSelectLesson = (lesson) => {
@@ -252,7 +294,7 @@ export default function App() {
   const handleOpenTutorFromLesson = (topic) => {
     setActiveLesson(null);
     setTutorFocusTopic(topic || "Newton's Laws");
-    setCurrentTab('tutor');
+    changeTab('tutor');
   };
 
   const handleQuizComplete = (result) => {
@@ -264,7 +306,34 @@ export default function App() {
       <div style={{ minHeight: '100vh', background: 'var(--bg-main)', position: 'relative' }}>
         <div className="bg-ambient-orb orb-1"></div>
         <div className="bg-ambient-orb orb-2"></div>
-        <AuthScreen onLoginSuccess={handleLoginSuccess} theme={theme} toggleTheme={toggleTheme} />
+        {sessionExpiredNotice && (
+          <div
+            role="alert"
+            style={{
+              maxWidth: '480px',
+              margin: '20px auto 0 auto',
+              padding: '14px 20px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid var(--accent-coral)',
+              color: 'var(--accent-coral)',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              textAlign: 'center',
+              boxShadow: 'var(--shadow-md)',
+              position: 'relative',
+              zIndex: 10
+            }}
+          >
+            ⚠️ {sessionExpiredNotice}
+          </div>
+        )}
+        <AuthScreen
+          onLoginSuccess={handleLoginSuccess}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          sessionExpiredNotice={sessionExpiredNotice}
+        />
       </div>
     );
   }
@@ -277,7 +346,7 @@ export default function App() {
 
       <Navbar
         currentTab={currentTab}
-        setTab={setCurrentTab}
+        setTab={changeTab}
         user={session.user}
         onLogout={handleLogout}
         theme={theme}
@@ -365,6 +434,7 @@ export default function App() {
             {currentTab === 'feed' && (
               <DailyPlanFeed
                 dailyPlan={dailyPlan}
+                user={session.user}
                 loading={loadingFeed}
                 error={feedError}
                 onSelectLesson={handleSelectLesson}
@@ -388,7 +458,11 @@ export default function App() {
             )}
 
             {currentTab === 'tutor' && (
-              <SocraticTutorChat activeTopic={tutorFocusTopic} />
+              <SocraticTutorChat
+                activeTopic={tutorFocusTopic}
+                user={session.user}
+                activeLessonId={activeLesson?.id}
+              />
             )}
 
             {currentTab === 'challenges' && (

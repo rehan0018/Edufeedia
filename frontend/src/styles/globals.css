@@ -566,3 +566,52 @@ h1, h2, h3, h4, h5, h6 {
   background: #142824;
 }
 
+/* ==============================================================================
+   RESPONSIVE DESIGN BREAKPOINTS & ACCESSIBILITY STYLES
+   ============================================================================== */
+
+/* Visible focus indicators for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--brand-primary) !important;
+  outline-offset: 2px !important;
+}
+
+/* Desktop vs Mobile Navigation */
+.mobile-menu-btn {
+  display: none !important;
+}
+
+@media (max-width: 992px) {
+  .nav-desktop-tabs {
+    display: none !important;
+  }
+  .mobile-menu-btn {
+    display: inline-flex !important;
+  }
+}
+
+@media (max-width: 768px) {
+  header {
+    padding: 10px 16px !important;
+  }
+
+  .glass-panel {
+    padding: 18px 16px !important;
+  }
+
+  .modal-overlay {
+    padding: 10px !important;
+  }
+
+  .modal-overlay > .glass-panel {
+    max-height: 95vh !important;
+    padding: 18px 16px !important;
+  }
+
+  main {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+

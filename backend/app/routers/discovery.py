@@ -9,7 +9,7 @@ import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, Query, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from jose import jwt, JWTError
+import jwt
 
 from app.database import get_db
 from app.config import settings
@@ -54,7 +54,7 @@ def get_current_user_optional(
         if user and user.account_status == "ACTIVE":
             return user
         return None
-    except (JWTError, Exception):
+    except (jwt.PyJWTError, Exception):
         return None
 
 

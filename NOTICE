@@ -20,5 +20,5 @@ Third-Party Components and Dependencies:
 -----------------------------------------
 This software includes and depends upon third-party libraries and modules, each
 governed by their respective open-source licenses (FastAPI, React, SQLAlchemy,
-Pydantic, Tailwind CSS, Lucide Icons, Vite, python-jose, passlib, redis-py).
+Pydantic, Tailwind CSS, Lucide Icons, Vite, PyJWT, bcrypt, redis-py).
 For the complete dependency and license inventory, see docs/THIRD_PARTY_LICENSES.md.

@@ -1027,11 +1027,11 @@ export default function ParentDashboard({ onLaunchKidsMode }) {
                     </form>
                   </div>
 
-                  {/* DPDP Act & Privacy Commitment */}
+                  {/* Designed to Align with DPDP Act & Privacy Principles */}
                   <div className="glass-panel" style={{ padding: '24px', borderLeft: '4px solid var(--accent-mint)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                       <ShieldCheck size={20} color="var(--accent-mint)" />
-                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>DPDP Act Compliance & Child Safety</h3>
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>Designed to Align with DPDP Act & Child Privacy Principles</h3>
                     </div>
                     <ul style={{ paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: '1.6', margin: '0 0 16px 0' }}>
                       <li><strong>Zero Advertising:</strong> No targeted ads, sponsored banners, or commercial tracking for children.</li>
@@ -1109,7 +1109,7 @@ export default function ParentDashboard({ onLaunchKidsMode }) {
                     100% Curated EDU
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    DPDP Consent Verified
+                    Guardian Consent Verified
                   </div>
                 </div>
               </div>

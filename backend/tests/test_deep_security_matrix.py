@@ -7,7 +7,7 @@ import uuid
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from jose import jwt
+import jwt
 
 # Ensure backend root in path
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

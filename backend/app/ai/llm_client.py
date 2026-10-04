@@ -55,17 +55,20 @@ class LLMClient:
         curriculum_context: str,
         topic: str,
         student_grade: int = 10,
-        subject: str = "General"
+        subject: str = "General",
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         # 1. Prompt Injection Sanitization (Input Safety)
         sanitized_q = self._sanitize_prompt(question)
+        target_provider = (provider or self.provider).lower()
 
         raw_response: Optional[Dict[str, Any]] = None
 
         # 2. Try OpenAI Provider (if key exists and provider is 'openai' or 'auto')
-        if (self.provider in ("openai", "auto")) and self.openai_key:
+        if (target_provider in ("openai", "auto")) and self.openai_key:
             try:
-                res = self._call_openai(sanitized_q, curriculum_context, topic, student_grade, subject)
+                res = self._call_openai(sanitized_q, curriculum_context, topic, student_grade, subject, conversation_history)
                 if res:
                     res["provider"] = "openai"
                     res["model"] = self.openai_model
@@ -74,9 +77,9 @@ class LLMClient:
                 logger.warning(f"[OpenAI Provider Failure -> Falling back to secondary]: {e}")
 
         # 3. Try Gemini Provider (if OpenAI failed/skipped, key exists, and provider is 'gemini' or 'auto')
-        if raw_response is None and (self.provider in ("gemini", "auto")) and self.gemini_key:
+        if raw_response is None and (target_provider in ("gemini", "auto")) and self.gemini_key:
             try:
-                res = self._call_gemini(sanitized_q, curriculum_context, topic, student_grade, subject)
+                res = self._call_gemini(sanitized_q, curriculum_context, topic, student_grade, subject, conversation_history)
                 if res:
                     res["provider"] = "gemini"
                     res["model"] = self.gemini_model
@@ -112,15 +115,20 @@ class LLMClient:
         context: str,
         topic: str,
         grade: int,
-        subject: str
+        subject: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Optional[Dict[str, Any]]:
         user_prompt = f"STUDENT GRADE: {grade}\nSUBJECT: {subject}\nTOPIC: {topic}\nVERIFIED CURRICULUM CONTEXT:\n{context}\n\nSTUDENT QUESTION: {question}"
+        messages = [{"role": "system", "content": STUDENT_SYSTEM_PROMPT}]
+        if conversation_history:
+            for turn in conversation_history[-6:]:
+                r = "assistant" if turn.get("role") in ("assistant", "tutor") else "user"
+                messages.append({"role": r, "content": turn.get("text") or turn.get("content", "")})
+        messages.append({"role": "user", "content": user_prompt})
+
         req_data = {
             "model": self.openai_model,
-            "messages": [
-                {"role": "system", "content": STUDENT_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
+            "messages": messages,
             "temperature": 0.3,
             "response_format": {"type": "json_object"}
         }
@@ -155,16 +163,21 @@ class LLMClient:
         context: str,
         topic: str,
         grade: int,
-        subject: str
+        subject: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Optional[Dict[str, Any]]:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={self.gemini_key}"
         user_prompt = f"{STUDENT_SYSTEM_PROMPT}\n\nSTUDENT GRADE: {grade}\nSUBJECT: {subject}\nTOPIC: {topic}\nVERIFIED CURRICULUM CONTEXT:\n{context}\n\nSTUDENT QUESTION: {question}"
+        
+        contents = []
+        if conversation_history:
+            for turn in conversation_history[-6:]:
+                role = "model" if turn.get("role") in ("assistant", "tutor") else "user"
+                contents.append({"role": role, "parts": [{"text": turn.get("text") or turn.get("content", "")}]})
+        contents.append({"role": "user", "parts": [{"text": user_prompt}]})
+
         req_data = {
-            "contents": [
-                {
-                    "parts": [{"text": user_prompt}]
-                }
-            ],
+            "contents": contents,
             "generationConfig": {
                 "temperature": 0.3,
                 "responseMimeType": "application/json"

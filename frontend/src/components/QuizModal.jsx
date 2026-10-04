@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, XCircle, Trophy, ArrowRight, Brain, Loader2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, CheckCircle2, Trophy, ArrowRight, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { fetchQuizForContent, submitQuizAttempt } from '../services/api';
 
 export default function QuizModal({ lesson, onClose, onQuizComplete }) {
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState([]);
@@ -14,17 +15,38 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
   
   const [submitting, setSubmitting] = useState(false);
   const [backendResult, setBackendResult] = useState(null);
+  const closeBtnRef = useRef(null);
+
+  // Dialog semantics, Escape key listener and body scroll lock
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeBtnRef.current?.focus();
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   useEffect(() => {
     if (lesson?.id) {
       setLoading(true);
+      setLoadError('');
       fetchQuizForContent(lesson.id)
         .then(data => {
           setQuiz(data);
           setLoading(false);
         })
         .catch(err => {
-          setError(err.message || 'No assessment quiz available for this lesson.');
+          setLoadError(err.message || 'No assessment quiz available for this lesson.');
           setLoading(false);
         });
     }
@@ -35,6 +57,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
 
   const handleSelectOption = (opt) => {
     setSelectedOption(opt);
+    setSubmitError('');
     const remaining = answers.filter(a => a.question_id !== currentQ.id);
     setAnswers([...remaining, { question_id: currentQ.id, selected_answer: opt }]);
   };
@@ -48,6 +71,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
       const nextQ = questions[nextIdx];
       const prevAnswer = answers.find(a => a.question_id === nextQ?.id);
       setSelectedOption(prevAnswer ? prevAnswer.selected_answer : null);
+      setSubmitError('');
     } else {
       const finalAnswers = [
         ...answers.filter(a => a.question_id !== currentQ.id),
@@ -55,13 +79,14 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
       ];
 
       setSubmitting(true);
+      setSubmitError('');
       try {
         const result = await submitQuizAttempt(quiz.id, finalAnswers);
         setBackendResult(result);
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         onQuizComplete?.(result);
       } catch (err) {
-        setError(err.message || 'Failed to submit quiz to server.');
+        setSubmitError(err.message || 'Failed to submit quiz to server. Your answers are saved—please retry.');
       } finally {
         setSubmitting(false);
       }
@@ -69,17 +94,40 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="glass-panel" style={{
-        width: '100%',
-        maxWidth: '720px',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        padding: '32px',
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-lg)'
-      }}>
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="quiz-modal-title"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        backdropFilter: 'blur(6px)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px'
+      }}
+    >
+      <div
+        className="glass-panel"
+        style={{
+          width: '100%',
+          maxWidth: '720px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          padding: '32px',
+          background: 'var(--bg-card-solid, var(--bg-card))',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg, 16px)',
+          boxShadow: 'var(--shadow-lg)'
+        }}
+      >
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
@@ -91,13 +139,23 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                 </span>
               )}
             </div>
-            <h2 style={{ fontSize: '1.35rem', color: 'var(--text-primary)' }}>{quiz?.title || lesson?.title || 'Interactive Assessment'}</h2>
+            <h2 id="quiz-modal-title" style={{ fontSize: '1.35rem', color: 'var(--text-primary)' }}>
+              {quiz?.title || lesson?.title || 'Interactive Assessment'}
+            </h2>
           </div>
-          <button className="btn btn-outline btn-sm" onClick={onClose} style={{ padding: '6px' }}>
+          <button
+            ref={closeBtnRef}
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={onClose}
+            aria-label="Close quiz modal"
+            style={{ padding: '6px' }}
+          >
             <X size={20} />
           </button>
         </div>
 
+        {/* Loading State */}
         {loading && (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--brand-primary)' }}>
             <Loader2 size={32} className="spin" style={{ margin: '0 auto 12px auto' }} />
@@ -105,24 +163,28 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
           </div>
         )}
 
-        {error && !loading && !backendResult && (
-          <div style={{
-            padding: '16px',
-            borderRadius: 'var(--radius-md)',
-            background: 'rgba(255, 122, 89, 0.12)',
-            border: '1px solid var(--accent-coral)',
-            color: 'var(--accent-coral)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
+        {/* Load Error State (e.g. no quiz found for topic) */}
+        {loadError && !loading && !backendResult && (
+          <div
+            role="alert"
+            style={{
+              padding: '16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(255, 122, 89, 0.12)',
+              border: '1px solid var(--accent-coral)',
+              color: 'var(--accent-coral)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}
+          >
             <AlertCircle size={20} />
-            <span>{error}</span>
+            <span>{loadError}</span>
           </div>
         )}
 
-        {/* Question Player View */}
-        {!loading && !error && currentQ && !backendResult && (
+        {/* Question Player View (Remains visible even if submission error occurs) */}
+        {!loading && !loadError && currentQ && !backendResult && (
           <div>
             {/* Difficulty Pill */}
             <div style={{ display: 'inline-block', marginBottom: '14px' }}>
@@ -139,18 +201,31 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
               </span>
             </div>
 
-            <h3 style={{ fontSize: '1.15rem', marginBottom: '20px', lineHeight: 1.45, color: 'var(--text-primary)' }}>
+            <h3
+              id={`question-text-${currentIdx}`}
+              style={{ fontSize: '1.15rem', marginBottom: '20px', lineHeight: 1.45, color: 'var(--text-primary)' }}
+            >
               {currentQ.question_text}
             </h3>
 
-            {/* Options List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+            {/* Accessible Options List */}
+            <div
+              role="radiogroup"
+              aria-labelledby={`question-text-${currentIdx}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}
+            >
               {currentQ.options.map((opt, idx) => {
                 const isSelected = selectedOption === opt;
                 return (
-                  <div
+                  <button
                     key={idx}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={0}
                     style={{
+                      width: '100%',
+                      textAlign: 'left',
                       padding: '14px 18px',
                       borderRadius: 'var(--radius-md)',
                       border: isSelected ? '2px solid var(--brand-primary)' : '1px solid var(--border-subtle)',
@@ -162,19 +237,60 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       cursor: 'pointer',
-                      transition: 'var(--transition-fast)'
+                      transition: 'all 0.15s ease',
+                      outline: 'none'
                     }}
                     onClick={() => handleSelectOption(opt)}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSelectOption(opt);
+                      }
+                    }}
                   >
                     <span>{opt}</span>
                     {isSelected && <CheckCircle2 size={20} color="var(--brand-primary)" />}
-                  </div>
+                  </button>
                 );
               })}
             </div>
 
+            {/* Submission Error Banner & Recovery Button */}
+            {submitError && (
+              <div
+                role="alert"
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid var(--accent-coral)',
+                  color: 'var(--accent-coral)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  marginBottom: '20px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
+                  <AlertCircle size={18} />
+                  <span>{submitError}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleNext}
+                  disabled={submitting}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <RefreshCw size={14} className={submitting ? 'spin' : ''} /> Retry
+                </button>
+              </div>
+            )}
+
             {/* Next / Submit Button */}
             <button
+              type="button"
               className="btn btn-primary"
               style={{ width: '100%', padding: '12px' }}
               disabled={!selectedOption || submitting}
@@ -295,6 +411,7 @@ export default function QuizModal({ lesson, onClose, onQuizComplete }) {
             </div>
 
             <button
+              type="button"
               className="btn btn-primary"
               style={{ width: '100%', padding: '12px' }}
               onClick={onClose}

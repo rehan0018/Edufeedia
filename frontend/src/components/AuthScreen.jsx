@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User, KeyRound, CheckCircle2, Sun, Moon } from 'lucide-react';
+import { Sparkles, Lock, Mail, ArrowRight, UserCheck, ShieldCheck, UserPlus, Calendar, GraduationCap, Building2, User, KeyRound, CheckCircle2, Sun, Moon, Eye, EyeOff } from 'lucide-react';
 import { apiLogin, apiRegister, apiForgotPassword, apiResetPassword } from '../services/api';
 
 export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
@@ -12,9 +12,11 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
   const [forgotSuccess, setForgotSuccess] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('2010-05-15');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [gradeLevel, setGradeLevel] = useState(10);
   const [board, setBoard] = useState('CBSE');
   const [parentEmail, setParentEmail] = useState('');
@@ -92,6 +94,12 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
     e?.preventDefault();
     setLoading(true);
     setError('');
+
+    if (!dateOfBirth) {
+      setError('Please enter your date of birth to verify student age alignment.');
+      setLoading(false);
+      return;
+    }
 
     const age = calculateAge(dateOfBirth);
     if (age < 10 || age >= 18) {
@@ -307,12 +315,13 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
             {forgotStep === 1 ? (
               <form onSubmit={handleForgotPasswordRequest} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  <label htmlFor="forgot-email" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     Registered Email Address
                   </label>
                   <div style={{ position: 'relative' }}>
                     <Mail size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                     <input
+                      id="forgot-email"
                       type="email"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
@@ -344,10 +353,11 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
             ) : (
               <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  <label htmlFor="reset-token" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     Reset Token (from email)
                   </label>
                   <input
+                    id="reset-token"
                     type="text"
                     value={forgotToken}
                     onChange={(e) => setForgotToken(e.target.value)}
@@ -367,20 +377,21 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  <label htmlFor="reset-password" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     New Password
                   </label>
                   <div style={{ position: 'relative' }}>
                     <Lock size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                     <input
-                      type="password"
+                      id="reset-password"
+                      type={showResetPassword ? 'text' : 'password'}
                       value={newResetPassword}
                       onChange={(e) => setNewResetPassword(e.target.value)}
                       placeholder="Min 8 chars, 1 uppercase, 1 number"
                       required
                       style={{
                         width: '100%',
-                        padding: '12px 14px 12px 42px',
+                        padding: '12px 42px 12px 42px',
                         borderRadius: 'var(--radius-md)',
                         background: 'var(--bg-space)',
                         border: '1px solid var(--border-subtle)',
@@ -389,6 +400,22 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
                         outline: 'none'
                       }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(prev => !prev)}
+                      aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '12px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)'
+                      }}
+                    >
+                      {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </div>
 
@@ -423,12 +450,13 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
           /* Sign In Form */
           <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+              <label htmlFor="login-email" style={{ display: 'block', fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Email Address
               </label>
               <div style={{ position: 'relative' }}>
                 <Mail size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -450,7 +478,7 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                <label htmlFor="login-password" style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                   Password
                 </label>
                 <button
@@ -471,14 +499,15 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '14px', top: '14px', color: 'var(--text-muted)' }} />
                 <input
-                  type="password"
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
                   style={{
                     width: '100%',
-                    padding: '12px 14px 12px 42px',
+                    padding: '12px 42px 12px 42px',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--bg-space)',
                     border: '1px solid var(--border-subtle)',
@@ -487,6 +516,22 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
                     outline: 'none'
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '12px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -513,12 +558,13 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
           <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-first-name" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   First Name
                 </label>
                 <div style={{ position: 'relative' }}>
                   <User size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                   <input
+                    id="register-first-name"
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
@@ -539,10 +585,11 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-last-name" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Last Name
                 </label>
                 <input
+                  id="register-last-name"
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
@@ -563,12 +610,13 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+              <label htmlFor="register-email" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                 Student Email Address
               </label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                 <input
+                  id="register-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -589,13 +637,14 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+              <label htmlFor="register-password" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                 Password (min 6 characters)
               </label>
               <div style={{ position: 'relative' }}>
                 <Lock size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                 <input
-                  type="password"
+                  id="register-password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -603,7 +652,7 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
                   minLength={6}
                   style={{
                     width: '100%',
-                    padding: '10px 12px 10px 36px',
+                    padding: '10px 36px 10px 36px',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--bg-space)',
                     border: '1px solid var(--border-subtle)',
@@ -612,15 +661,32 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
                     outline: 'none'
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '10px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '10px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-dob" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Date of Birth
                 </label>
                 <input
+                  id="register-dob"
                   type="date"
                   value={dateOfBirth}
                   onChange={(e) => setDateOfBirth(e.target.value)}
@@ -639,10 +705,11 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-grade" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Grade Level
                 </label>
                 <select
+                  id="register-grade"
                   value={gradeLevel}
                   onChange={(e) => setGradeLevel(e.target.value)}
                   style={{
@@ -663,10 +730,11 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                <label htmlFor="register-board" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Board
                 </label>
                 <select
+                  id="register-board"
                   value={board}
                   onChange={(e) => setBoard(e.target.value)}
                   style={{
@@ -690,12 +758,13 @@ export default function AuthScreen({ onLoginSuccess, theme, toggleTheme }) {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+              <label htmlFor="register-parent-email" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                 Parent / Guardian Email (Optional)
               </label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                 <input
+                  id="register-parent-email"
                   type="email"
                   value={parentEmail}
                   onChange={(e) => setParentEmail(e.target.value)}

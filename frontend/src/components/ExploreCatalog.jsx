@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, BookOpen, PlayCircle, CheckCircle2, Award, Clock, ShieldCheck, Sparkles, Filter } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, BookOpen, PlayCircle, CheckCircle2, Award, Clock, ShieldCheck, Sparkles, Filter, RefreshCw, AlertCircle } from 'lucide-react';
 import { fetchExploreCatalog } from '../services/api';
 
 const SUBJECT_CATEGORIES = ['All', 'Computer Science', 'Science', 'Mathematics', 'Coding', 'Space'];
@@ -11,29 +11,45 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [selectedGrade, setSelectedGrade] = useState('');
   const [error, setError] = useState('');
+  const latestRequestIdRef = useRef(0);
 
-  const loadCatalog = async () => {
+  const fetchItems = async (isManual = false) => {
+    const requestId = ++latestRequestIdRef.current;
     setLoading(true);
     setError('');
+
     try {
       const data = await fetchExploreCatalog({
         query: searchQuery,
         subject: selectedSubject,
         grade_level: selectedGrade ? parseInt(selectedGrade) : undefined
       });
-      setCatalog(data);
+      if (requestId === latestRequestIdRef.current) {
+        setCatalog(data);
+      }
     } catch (err) {
-      setError('Unable to load catalog items from the learning server.');
+      if (requestId === latestRequestIdRef.current) {
+        setError(err.message || 'Unable to load catalog items from the learning server.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    let isCancelled = false;
     const timer = setTimeout(() => {
-      loadCatalog();
+      if (!isCancelled) {
+        fetchItems();
+      }
     }, 250);
-    return () => clearTimeout(timer);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchQuery, selectedSubject, selectedGrade]);
 
   return (
@@ -121,17 +137,35 @@ export default function ExploreCatalog({ onOpenLesson, onOpenQuiz }) {
         </div>
       </div>
 
-      {/* Error state */}
+      {/* Actionable Error State */}
       {error && (
-        <div style={{
-          padding: '14px 18px',
-          borderRadius: 'var(--radius-md)',
-          background: 'rgba(255, 122, 89, 0.12)',
-          border: '1px solid var(--accent-coral)',
-          color: 'var(--accent-coral)',
-          marginBottom: '24px'
-        }}>
-          {error}
+        <div
+          role="alert"
+          style={{
+            padding: '14px 18px',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(255, 122, 89, 0.12)',
+            border: '1px solid var(--accent-coral)',
+            color: 'var(--accent-coral)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: '24px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => fetchItems(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', borderColor: 'var(--accent-coral)', color: 'var(--accent-coral)' }}
+          >
+            <RefreshCw size={14} /> Retry Search
+          </button>
         </div>
       )}
 

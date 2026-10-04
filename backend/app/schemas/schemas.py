@@ -376,6 +376,9 @@ class TutorAskRequest(BaseModel):
     content_item_id: Optional[str] = None
     question: str
     conversation_history: Optional[List[TutorChatMessage]] = []
+    provider: Optional[str] = None  # 'auto', 'openai', 'gemini'
+    resource_type: Optional[str] = None  # 'all', 'paper', 'dataset', 'video', 'pdf'
+    conversation_id: Optional[str] = None
 
 class TutorResponse(BaseModel):
     answer: str
@@ -386,6 +389,8 @@ class TutorResponse(BaseModel):
     subject: Optional[str] = None
     topic: Optional[str] = None
     curriculum_citations: Optional[List[Dict[str, Any]]] = []
+    provider: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 # --- AI QUIZ GENERATOR SCHEMAS ---
 

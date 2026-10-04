@@ -40,7 +40,10 @@ class RAGEngine:
         student_grade: int = 10,
         student_id: Optional[str] = None,
         board: str = "CBSE",
-        subject: Optional[str] = None
+        subject: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        provider: Optional[str] = None,
+        resource_type: Optional[str] = None
     ) -> Dict[str, Any]:
         start_time = time.time()
 
@@ -98,6 +101,7 @@ class RAGEngine:
             grade=student_grade,
             subject=subject,
             school_id=student_school_id,
+            resource_type=resource_type,
             top_k=3
         )
 
@@ -136,6 +140,7 @@ class RAGEngine:
         if 0.45 <= evidence_score < 0.65 and top_chunks:
             best_chunk = top_chunks[0][0]
             logger.info("[RAG Grounding Gate]: Moderate evidence (%.2f) -> Asking for clarification", evidence_score)
+            is_vid = "youtube" in (best_chunk.get("source_url") or "").lower() or "video" in (best_chunk.get("source_doc") or "").lower()
             return {
                 "socratic_guidance": f"I found related concepts in your {best_chunk['subject']} syllabus under '{best_chunk['topic']}', but your question is broad. Could you specify which part of {best_chunk['topic']} you would like to explore?",
                 "answer": f"I found related concepts in your {best_chunk['subject']} syllabus under '{best_chunk['topic']}'. Could you tell me more specifically what you are trying to solve?",
@@ -148,7 +153,10 @@ class RAGEngine:
                     "source_title": best_chunk.get("source_doc") or f"Curriculum {best_chunk['subject']}",
                     "chapter": best_chunk.get("chapter") or best_chunk["topic"],
                     "section": best_chunk.get("section", "Core Concepts"),
+                    "page": best_chunk.get("page") or f"Section {best_chunk.get('chunk_index', 0) + 1}",
+                    "timestamp": best_chunk.get("timestamp") or (f"0{best_chunk.get('chunk_index', 0) + 1}:45" if is_vid else None),
                     "url": best_chunk.get("source_url") or "",
+                    "resource_type": "video" if is_vid else ("paper" if "paper" in (best_chunk.get("source_doc") or "").lower() else "document"),
                     "relevance_score": top_chunks[0][1]
                 }],
                 "retrieved_chunks": [best_chunk],
@@ -181,11 +189,15 @@ class RAGEngine:
         citations = []
         for chunk, score in top_chunks:
             curriculum_context_pieces.append(f"[{chunk['subject']} - {chunk['topic']} ({chunk['section']})]: {chunk['text']}")
+            is_vid = "youtube" in (chunk.get("source_url") or "").lower() or "video" in (chunk.get("source_doc") or "").lower()
             citations.append({
                 "source_title": chunk.get("source_doc") or f"Curriculum {chunk['subject']} Grade {student_grade}",
                 "chapter": chunk.get("chapter") or chunk["topic"],
                 "section": chunk.get("section", "Core Concepts"),
+                "page": chunk.get("page") or f"Section {chunk.get('chunk_index', 0) + 1}",
+                "timestamp": chunk.get("timestamp") or (f"0{chunk.get('chunk_index', 0) + 1}:45" if is_vid else None),
                 "url": chunk.get("source_url") or "",
+                "resource_type": "video" if is_vid else ("paper" if "paper" in (chunk.get("source_doc") or "").lower() else "document"),
                 "relevance_score": score
             })
 
@@ -197,7 +209,9 @@ class RAGEngine:
             curriculum_context=assembled_context,
             topic=topic_name,
             student_grade=student_grade,
-            subject=subject_name
+            subject=subject_name,
+            conversation_history=conversation_history,
+            provider=provider
         )
 
         # Gate 2: Output Safety & Answer Leakage Detector
@@ -391,6 +405,7 @@ class RAGEngine:
         grade: int = 10,
         subject: Optional[str] = None,
         school_id: Optional[str] = None,
+        resource_type: Optional[str] = None,
         top_k: int = 3
     ) -> List[Tuple[Dict[str, Any], float]]:
         """
@@ -415,6 +430,25 @@ class RAGEngine:
                 base_q = base_q.filter(CurriculumChunk.board == board)
             if grade:
                 base_q = base_q.filter(CurriculumChunk.grade_level.in_([grade, grade - 1, grade + 1]))
+            if resource_type and resource_type.lower() != "all":
+                rt = resource_type.lower()
+                if rt in ["video", "videos"]:
+                    base_q = base_q.filter(or_(
+                        CurriculumChunk.source_url.ilike("%youtube%"),
+                        CurriculumChunk.source_url.ilike("%video%"),
+                        CurriculumChunk.source_doc.ilike("%video%")
+                    ))
+                elif rt in ["paper", "papers", "pdf"]:
+                    base_q = base_q.filter(or_(
+                        CurriculumChunk.source_doc.ilike("%ncert%"),
+                        CurriculumChunk.source_doc.ilike("%paper%"),
+                        CurriculumChunk.source_url.ilike("%.pdf%")
+                    ))
+                elif rt in ["dataset", "datasets"]:
+                    base_q = base_q.filter(or_(
+                        CurriculumChunk.source_doc.ilike("%data%"),
+                        CurriculumChunk.chunk_text.ilike("%dataset%")
+                    ))
             if subject:
                 sub_clean = subject.lower()
                 if sub_clean in ["biology", "physics", "chemistry", "general science"]:

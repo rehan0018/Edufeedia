@@ -50,7 +50,9 @@ export const apiFetch = async (endpoint, options = {}) => {
   if (res.status === 401) {
     clearAuthSession();
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('auth_session_expired'));
+      window.dispatchEvent(new CustomEvent('auth_session_expired', {
+        detail: { message: 'Your session has expired. Please sign in again.' }
+      }));
     }
     const err = await res.json().catch(() => ({ detail: 'Session expired. Please log in again.' }));
     throw new Error(err.detail || 'Session expired.');
@@ -158,36 +160,24 @@ export const fetchDailyPlanFeed = async () => {
 
 // 3. Complete Lesson & Update Learning Progress
 export const recordLessonProgress = async (contentItemId, progressPercentage = 100) => {
-  const res = await fetch(`${API_BASE_URL}/content/progress`, {
+  return await apiFetch('/content/progress', {
     method: 'POST',
-    headers: defaultHeaders(),
     body: JSON.stringify({
       content_item_id: contentItemId,
       progress_percentage: progressPercentage
     })
   });
-  if (!res.ok) {
-    throw new Error('Failed to record lesson progress on server');
-  }
-  return await res.json();
 };
 
 // 4. Fetch Real Quiz for Content
 export const fetchQuizForContent = async (contentItemId) => {
-  const res = await fetch(`${API_BASE_URL}/quizzes/content/${contentItemId}`, {
-    headers: defaultHeaders()
-  });
-  if (!res.ok) {
-    throw new Error('No assessment quiz available for this topic');
-  }
-  return await res.json();
+  return await apiFetch(`/quizzes/content/${contentItemId}`);
 };
 
 // 5. Submit Real Quiz Attempt to Backend
 export const submitQuizAttempt = async (quizId, answers) => {
-  const res = await fetch(`${API_BASE_URL}/quizzes/submit`, {
+  return await apiFetch('/quizzes/submit', {
     method: 'POST',
-    headers: defaultHeaders(),
     body: JSON.stringify({
       quiz_id: quizId,
       answers: answers.map(a => ({
@@ -196,24 +186,33 @@ export const submitQuizAttempt = async (quizId, answers) => {
       }))
     })
   });
-  if (!res.ok) {
-    throw new Error('Failed to submit quiz attempt to grading server');
-  }
-  return await res.json();
 };
 
-// 6. Socratic AI Tutor API
-export const askSocraticTutor = async (question, contentItemId = null) => {
-  const res = await fetch(`${API_BASE_URL}/tutor/ask`, {
-    method: 'POST',
-    headers: defaultHeaders(),
-    body: JSON.stringify({ question, content_item_id: contentItemId })
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({ detail: 'Tutor service unavailable' }));
-    throw new Error(errData.detail || 'The AI Tutor is temporarily unavailable. Please try again.');
+// 6. Socratic AI Tutor API (Supports Multi-turn Conversation & Provider/Resource Filters)
+export const askSocraticTutor = async (question, options = {}) => {
+  let payload = { question };
+  if (typeof options === 'string') {
+    payload.content_item_id = options;
+  } else if (options && typeof options === 'object') {
+    if (options.contentItemId) payload.content_item_id = options.contentItemId;
+    if (options.conversationHistory && options.conversationHistory.length > 0) {
+      payload.conversation_history = options.conversationHistory;
+    }
+    if (options.provider && options.provider !== 'auto') {
+      payload.provider = options.provider;
+    }
+    if (options.resourceType && options.resourceType !== 'all') {
+      payload.resource_type = options.resourceType;
+    }
+    if (options.conversationId) {
+      payload.conversation_id = options.conversationId;
+    }
   }
-  return await res.json();
+
+  return await apiFetch('/tutor/ask', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 };
 
 // 7. Learning Analytics & Mastery Report

@@ -319,7 +319,7 @@ export default function ClassChallenges() {
             color: 'var(--text-muted)'
           }}>
             <ShieldCheck size={16} color="var(--accent-mint)" />
-            <span>DPDP & COPPA compliant: Child data is protected and never ranked publicly.</span>
+            <span>Aligned with DPDP & COPPA principles: Student data is protected and never ranked publicly.</span>
           </div>
         </div>
       </div>

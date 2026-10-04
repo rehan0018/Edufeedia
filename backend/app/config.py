@@ -38,8 +38,9 @@ class Settings:
             if not env_secret or len(env_secret) < 32 or any(p in env_secret.lower() for p in forbidden_patterns):
                 errors.append("• SECRET_KEY: Must be a strong, random 32+ character string (cannot use default development placeholders).")
             
-            if self.ALLOWED_ORIGINS_RAW == "*":
-                errors.append("• ALLOWED_ORIGINS: Wildcard '*' is disallowed in production. Provide comma-separated origins (e.g. 'https://app.edufeedia.com').")
+            raw_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+            if not raw_origins or raw_origins == "*":
+                errors.append("• ALLOWED_ORIGINS: Wildcard '*' or missing origins disallowed in production. Provide explicit comma-separated origins (e.g. 'https://app.edufeedia.com').")
             
             db_url = os.getenv("DATABASE_URL", "")
             if not db_url or "sqlite" in db_url.lower():
@@ -75,11 +76,16 @@ class Settings:
 
     @property
     def ALLOWED_ORIGINS(self) -> list:
-        if self.ENVIRONMENT == "production" and self.ALLOWED_ORIGINS_RAW == "*":
-            return ["https://app.edufeedia.com", "https://edufeedia.com"]
-        if self.ALLOWED_ORIGINS_RAW == "*":
-            return ["*"]
-        return [origin.strip() for origin in self.ALLOWED_ORIGINS_RAW.split(",") if origin.strip()]
+        raw = os.getenv("ALLOWED_ORIGINS", "").strip()
+        if self.ENVIRONMENT == "production":
+            if not raw or raw == "*":
+                raise ValueError("ALLOWED_ORIGINS cannot be empty or wildcard '*' in production when allow_credentials=True.")
+            return [origin.strip() for origin in raw.split(",") if origin.strip() and origin.strip() != "*"]
+        
+        # Development / Staging / Testing: fail closed away from wildcard '*' to avoid credential reflection
+        if not raw or raw == "*":
+            return [origin.strip() for origin in self.DEFAULT_DEV_ORIGINS.split(",") if origin.strip()]
+        return [origin.strip() for origin in raw.split(",") if origin.strip() and origin.strip() != "*"]
 
     @property
     def DATABASE_URL(self) -> str:

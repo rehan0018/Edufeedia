@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Compass, Sparkles, BookOpen, Brain, Trophy, LogOut, Flame, Zap,
   ShieldCheck, Sun, Moon, Lock, Star, Heart, ArrowLeft,
-  GraduationCap, Users, LayoutDashboard
+  GraduationCap, Users, LayoutDashboard, Menu, X
 } from 'lucide-react';
 
 export default function Navbar({
@@ -17,9 +17,13 @@ export default function Navbar({
   activeChild,
   onOpenParentGate
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isStudent = user?.role === 'student';
   const isTeacher = user?.role === 'teacher' || user?.role === 'school_admin';
   const isParent = user?.role === 'parent';
+
+  const streakDays = user?.student_profile?.streak_count || user?.streak_count || 1;
+  const xpScore = user?.xp_score ?? user?.student_profile?.total_xp ?? 0;
 
   // If in Kids Mode (0–10 years): Render child-safe cartoon header
   if (experienceMode === 'kids') {
@@ -270,9 +274,9 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Center Navigation Tabs (When in Student Mode) */}
+      {/* Center Navigation Tabs (When in Student Mode - Desktop) */}
       {experienceMode === 'student' && (
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <nav className="nav-desktop-tabs" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             className={`btn ${currentTab === 'navigator' ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setTab('navigator')}
@@ -323,9 +327,9 @@ export default function Navbar({
         </nav>
       )}
 
-      {/* Center Navigation (Teacher Mode) */}
+      {/* Center Navigation (Teacher Mode - Desktop) */}
       {experienceMode === 'teacher' && (
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <nav className="nav-desktop-tabs" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             className="btn btn-primary"
             onClick={() => setTab('teacher')}
@@ -336,11 +340,11 @@ export default function Navbar({
         </nav>
       )}
 
-      {/* User Info, Gamification Badges, Theme Toggle, & Logout */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* User Info, Gamification Badges, Theme Toggle, Mobile Hamburger & Logout */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         {experienceMode === 'student' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Streak */}
+            {/* Dynamic Streak */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -354,10 +358,10 @@ export default function Navbar({
               fontWeight: 700
             }}>
               <Flame size={15} color="#D97706" />
-              <span>6 Days</span>
+              <span>{streakDays} Day{streakDays === 1 ? '' : 's'}</span>
             </div>
 
-            {/* XP */}
+            {/* Dynamic XP */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -370,7 +374,7 @@ export default function Navbar({
               fontWeight: 700
             }}>
               <Zap size={15} color="var(--accent-coral)" />
-              <span style={{ color: 'var(--accent-coral)' }}>{user?.xp_score ?? 420} XP</span>
+              <span style={{ color: 'var(--accent-coral)' }}>{xpScore} XP</span>
             </div>
           </div>
         )}
@@ -414,11 +418,100 @@ export default function Navbar({
           )}
         </button>
 
+        {/* Mobile Navigation Toggle Button */}
+        <button
+          className="btn btn-outline btn-sm mobile-menu-btn"
+          onClick={() => setMobileMenuOpen(prev => !prev)}
+          aria-label="Toggle Navigation Menu"
+          aria-expanded={mobileMenuOpen}
+          style={{ padding: '6px 10px' }}
+        >
+          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+
         {/* Logout */}
         <button className="btn btn-outline btn-sm" onClick={onLogout} title="Logout">
           <LogOut size={16} />
         </button>
       </div>
+
+      {/* Mobile Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-nav-drawer"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            background: 'var(--bg-card-solid, var(--bg-card))',
+            borderBottom: '2px solid var(--border-subtle)',
+            boxShadow: 'var(--shadow-lg)',
+            padding: '16px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            zIndex: 99
+          }}
+        >
+          {experienceMode === 'student' && (
+            <>
+              <button
+                className={`btn ${currentTab === 'navigator' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => { setTab('navigator'); setMobileMenuOpen(false); }}
+                style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
+              >
+                <Compass size={16} /> Navigator
+              </button>
+              <button
+                className={`btn ${currentTab === 'feed' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => { setTab('feed'); setMobileMenuOpen(false); }}
+                style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
+              >
+                <Sparkles size={16} /> Today's Plan
+              </button>
+              <button
+                className={`btn ${currentTab === 'explore' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => { setTab('explore'); setMobileMenuOpen(false); }}
+                style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
+              >
+                <BookOpen size={16} /> Explore
+              </button>
+              <button
+                className={`btn ${currentTab === 'tutor' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => { setTab('tutor'); setMobileMenuOpen(false); }}
+                style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
+              >
+                <Brain size={16} /> AI Tutor
+              </button>
+              <button
+                className={`btn ${currentTab === 'challenges' ? 'btn-fun' : 'btn-outline'}`}
+                onClick={() => { setTab('challenges'); setMobileMenuOpen(false); }}
+                style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
+              >
+                <Trophy size={16} /> Challenges
+              </button>
+              <button
+                className={`btn ${currentTab === 'mastery' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => { setTab('mastery'); setMobileMenuOpen(false); }}
+                style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
+              >
+                <Zap size={16} /> Mastery
+              </button>
+            </>
+          )}
+
+          {experienceMode === 'teacher' && (
+            <button
+              className="btn btn-primary"
+              onClick={() => { setTab('teacher'); setMobileMenuOpen(false); }}
+              style={{ justifyContent: 'flex-start', padding: '10px 14px' }}
+            >
+              <BookOpen size={16} /> Class Analytics & Moderation
+            </button>
+          )}
+        </div>
+      )}
     </header>
   );
 }

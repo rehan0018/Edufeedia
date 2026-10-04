@@ -27,7 +27,8 @@ parent_student_links = Table(
     Column("is_verified", Boolean, default=False),
     Column("verified_at", DateTime, nullable=True),
     Column("revoked_at", DateTime, nullable=True),
-    Column("verification_method", String, default="email_otp") # 'email_otp', 'school_admin_attestation'
+    Column("verification_method", String, default="email_otp"), # 'email_otp', 'school_admin_attestation'
+    Column("verified_by", String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 )
 
 # Teacher-Class Link Table
@@ -36,7 +37,9 @@ teacher_classes = Table(
     Base.metadata,
     Column("teacher_user_id", String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
     Column("class_id", String, ForeignKey("school_classes.id", ondelete="CASCADE"), primary_key=True),
-    Column("subject", String, primary_key=True)
+    Column("subject", String, primary_key=True),
+    Column("assigned_at", DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc)),
+    Column("assigned_by", String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 )
 
 class School(Base):
@@ -67,6 +70,9 @@ class SchoolClass(Base):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('student', 'parent', 'teacher', 'school_admin', 'super_admin', 'admin')", name="check_user_role"),
+    )
     id = Column(String, primary_key=True, default=generate_uuid)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=True)

@@ -1,10 +1,14 @@
 import React from 'react';
 import { Play, Sparkles, Clock, Brain, Target, RotateCcw, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 
-export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesson, onOpenQuiz, onOpenTutor, onRetry }) {
+export default function DailyPlanFeed({ dailyPlan, user, loading, error, onSelectLesson, onOpenQuiz, onOpenTutor, onRetry }) {
   const items = dailyPlan?.items || [];
   const completedCount = items.filter(i => i.is_completed).length;
   const progressPct = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
+
+  const grade = user?.student_profile?.grade_level || user?.grade_level || dailyPlan?.grade_level || 10;
+  const board = user?.student_profile?.board || user?.board || dailyPlan?.board || 'Curriculum';
+  const curriculumLabel = `Curated Curriculum • Grade ${grade} ${board}`;
 
   return (
     <div style={{ maxWidth: '960px', margin: '0 auto', padding: '32px 20px' }}>
@@ -24,7 +28,7 @@ export default function DailyPlanFeed({ dailyPlan, loading, error, onSelectLesso
               letterSpacing: '0.05em',
               marginBottom: '8px'
             }}>
-              <Sparkles size={16} /> Curated Curriculum • Grade 10 CBSE
+              <Sparkles size={16} /> {curriculumLabel}
             </div>
             <h1 style={{ fontSize: '2.2rem', marginBottom: '6px' }}>{dailyPlan?.greeting || 'Good morning! 👋'}</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', maxWidth: '560px' }}>

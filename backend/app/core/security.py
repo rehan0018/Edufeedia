@@ -1,6 +1,6 @@
 import datetime
 from typing import Optional, List
-from jose import JWTError, jwt
+import jwt
 import hashlib
 import hmac
 import secrets
@@ -112,7 +112,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         if email is None or role is None:
             raise credentials_exception
         token_data = TokenData(email=email, role=role)
-    except JWTError:
+    except jwt.PyJWTError:
         raise credentials_exception
         
     user = db.query(User).filter(User.email == token_data.email).first()

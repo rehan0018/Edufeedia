@@ -9,6 +9,7 @@ from app.models.models import (
 )
 from app.schemas.schemas import TutorAskRequest, TutorResponse
 from app.core.security import RoleChecker
+from app.core.redis_client import redis_client
 from app.safety.engine import SafetyEngine
 
 router = APIRouter(prefix="/tutor", tags=["tutor"])
@@ -34,6 +35,13 @@ def ask_ai_tutor(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Guardian consent is required or has been revoked for AI Socratic tutoring under DPDP Act Section 9."
+        )
+
+    # 0.2 Enforce burst rate limiting on AI Tutor requests (max 20 queries/min per student)
+    if not redis_client.check_rate_limit(f"tutor_burst_limit:{current_user.id}", max_requests=20, window_seconds=60):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many tutoring requests. Please pause a moment before asking another question."
         )
 
     # 0.5 Enforce parental screen time, bedtime curfew, and AI tutor daily quota
@@ -92,13 +100,17 @@ def ask_ai_tutor(
                 valid_content_id = None
 
         board = current_user.student_profile.board if current_user.student_profile else "CBSE"
+        conv_hist = [m.model_dump() if hasattr(m, 'model_dump') else (m.dict() if hasattr(m, 'dict') else m) for m in (request.conversation_history or [])]
         rag_result = RAGEngine.query_rag_tutor(
             db=db,
             question=request.question,
             content_item_id=valid_content_id,
             student_grade=grade_lvl,
             student_id=current_user.id,
-            board=board
+            board=board,
+            conversation_history=conv_hist,
+            provider=request.provider,
+            resource_type=request.resource_type
         )
 
         # 3. Output Safety Gate — Validate synthesized LLM response before returning to minor
@@ -165,13 +177,16 @@ def ask_ai_tutor(
     except Exception:
         db.rollback()
 
+    citations = rag_result.get("citations") or rag_result.get("retrieved_chunks", [])
     return TutorResponse(
-        answer=rag_result["answer"],
-        socratic_cue=rag_result["socratic_cue"],
-        follow_up_questions=rag_result["follow_up_questions"],
+        answer=rag_result.get("answer") or rag_result.get("socratic_guidance", ""),
+        socratic_cue=rag_result.get("socratic_cue", ""),
+        follow_up_questions=rag_result.get("follow_up_questions", []),
         is_safe=True,
         grounding_source=rag_result.get("grounding_source"),
         subject=rag_result.get("subject"),
         topic=rag_result.get("topic"),
-        curriculum_citations=rag_result.get("retrieved_chunks", [])
+        curriculum_citations=citations,
+        provider=rag_result.get("provider", request.provider or "auto"),
+        conversation_id=request.conversation_id
     )
